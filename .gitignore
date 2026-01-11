@@ -1,0 +1,19 @@
+# Data files (large)
+data/
+*.xml.gz
+*.xml
+
+# Generated files
+generated/
+
+# Editor
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# EDirect installation
+edirect/
