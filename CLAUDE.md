@@ -30,6 +30,18 @@ Run a review before moving to the next sub-phase:
 3. **Check the plan**: `plan.md` for current phase and tasks
 4. **Check git status**: `git status`
 
+## Planning New Features
+
+When planning a new feature or complex task:
+- **Use**: `/planning-feature` skill (creates detailed TDD implementation plans)
+- **Never use**: The `Plan` subagent type from the Task tool
+
+The `/planning-feature` skill:
+- Analyzes the codebase and existing patterns
+- Creates a detailed plan in `docs/<feature>-plan.md`
+- Includes test cases, edge cases, and TDD phases
+- Follows project conventions automatically
+
 ## Development Rules
 
 ### Git
