@@ -118,9 +118,7 @@ pubmed_parser/
   - Utilise `xtract` pour extraire les champs
   - Convertit le TSV en JSONL (notre format cible)
   - Sauvegarde dans `fixtures/expected/`
-
-**Note**: Les golden files joignent tous les éléments AbstractText avec espace,
-tandis que pm-parse n'extrait que le premier. C'est une différence connue.
+  - Gère MedlineDate en plus de PubDate/Year
 
 ```bash
 # Exemple de génération de golden file

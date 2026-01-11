@@ -70,11 +70,23 @@ BEGIN {
     next
 }
 
-# Extract year
+# Extract year from PubDate/Year
 /\/PubDate\/Year=/ {
     if (year == "") {  # Take first year only
         split($0, parts, "=")
         year = parts[2]
+    }
+    next
+}
+
+# Extract year from MedlineDate (format: "YYYY Mon-Mon" or "YYYY Mon")
+/\/PubDate\/MedlineDate=/ {
+    if (year == "") {
+        val = substr($0, index($0, "=") + 1)
+        # Extract first 4-digit year
+        if (match(val, /[0-9][0-9][0-9][0-9]/)) {
+            year = substr(val, RSTART, 4)
+        }
     }
     next
 }
@@ -100,10 +112,13 @@ BEGIN {
     next
 }
 
-# Extract abstract (simple case - single AbstractText)
+# Extract abstract (all AbstractText elements joined with space)
 /\/Abstract\/AbstractText=/ {
+    text = substr($0, index($0, "=") + 1)
     if (abstract == "") {
-        abstract = substr($0, index($0, "=") + 1)
+        abstract = text
+    } else {
+        abstract = abstract " " text
     }
     next
 }
