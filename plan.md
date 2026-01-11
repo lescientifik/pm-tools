@@ -75,12 +75,12 @@ pubmed_parser/
 - [x] Valider que le baseline est conforme à la DTD (well-formed XML validated)
 
 ### 0.2 Parser la DTD → Générer le mapping complet
-- [ ] Créer un script `scripts/dtd-to-xpath.sh` qui :
+- [x] Créer un script `scripts/dtd-to-xpath.sh` qui :
   - Parse la DTD (format SGML)
   - Extrait tous les éléments et attributs
   - Génère la liste exhaustive des XPaths possibles
-- [ ] Output : `generated/all-xpaths.txt`
-- [ ] Sélectionner les XPaths qu'on veut extraire → `mapping.json`
+- [x] Output : `generated/all-xpaths.txt` (138 éléments)
+- [x] Sélectionner les XPaths qu'on veut extraire → `mapping.json`
 
 ### 0.3 DTD → Générer les tests de couverture
 - [ ] Créer un script `scripts/generate-dtd-tests.sh` qui :

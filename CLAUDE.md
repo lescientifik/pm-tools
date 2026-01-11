@@ -47,6 +47,28 @@ Run a review before moving to the next sub-phase:
 - Follow Red-Green-Refactor strictly
 - Use `bats-core` for shell testing
 
+### TDD Test Quality
+- **All tests MUST fail in RED phase** - if a test passes before implementation, it's a bad test
+- Beware of false positives: `[ "$status" -ne 0 ]` passes for both "script missing" (127) and "validation error" (1)
+- Fix: Check **exact** exit code + verify error message content
+- Example of bad test:
+  ```bash
+  @test "requires argument" {
+      run ./script.sh  # Passes with exit 127 if script missing!
+      [ "$status" -ne 0 ]
+  }
+  ```
+- Example of good test:
+  ```bash
+  @test "requires argument" {
+      run ./script.sh
+      [ "$status" -eq 1 ]  # Exit 1 (validation), not 127 (missing)
+      [[ "$output" == *"Usage"* ]]  # Verify error message
+  }
+  # RED: fails (127 ≠ 1, no "Usage")
+  # GREEN: passes (1 = 1, "Usage" present)
+  ```
+
 ### Code Style
 - Shell scripts: POSIX-compatible when possible, bash when needed
 - Use `shellcheck` for linting
