@@ -199,7 +199,12 @@ BEGIN {
 /\/AuthorList\/Author$/ {
     if (current_lastname != "") {
         author_count++
-        authors[author_count] = current_lastname " " current_forename
+        # Only add space if forename exists (avoid trailing whitespace)
+        if (current_forename != "") {
+            authors[author_count] = current_lastname " " current_forename
+        } else {
+            authors[author_count] = current_lastname
+        }
     }
     current_lastname = ""
     current_forename = ""
@@ -226,7 +231,12 @@ function output_article() {
     # Save current author if exists
     if (current_lastname != "") {
         author_count++
-        authors[author_count] = current_lastname " " current_forename
+        # Only add space if forename exists (avoid trailing whitespace)
+        if (current_forename != "") {
+            authors[author_count] = current_lastname " " current_forename
+        } else {
+            authors[author_count] = current_lastname
+        }
         current_lastname = ""
         current_forename = ""
     }

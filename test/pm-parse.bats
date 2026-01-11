@@ -137,6 +137,33 @@ setup() {
     [[ $(echo "$result" | jq -r '.authors[1]') == "Doe Jane" ]]
 }
 
+@test "pm-parse: author with only LastName has no trailing whitespace" {
+    # Given: article with an author that has only LastName (no ForeName)
+    # This is a real case from baseline (PMID 5141: OgataK with no ForeName)
+    local xml='<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>5141</PMID>
+    <Article>
+      <AuthorList>
+        <Author><LastName>Smith</LastName><ForeName>John</ForeName></Author>
+        <Author><LastName>OgataK</LastName></Author>
+      </AuthorList>
+    </Article>
+  </MedlineCitation>
+</PubmedArticle>
+</PubmedArticleSet>'
+
+    # When: parsing
+    result=$(echo "$xml" | "$PM_PARSE")
+
+    # Then: author without ForeName should NOT have trailing whitespace
+    [ "$(echo "$result" | jq -r '.authors | length')" -eq 2 ]
+    [[ $(echo "$result" | jq -r '.authors[0]') == "Smith John" ]]
+    # OgataK should be "OgataK", not "OgataK " (no trailing space)
+    [[ $(echo "$result" | jq -r '.authors[1]') == "OgataK" ]]
+}
+
 # --- Multiple articles test ---
 
 @test "pm-parse: multiple articles produce multiple lines" {

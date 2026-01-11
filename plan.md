@@ -321,22 +321,22 @@ Refactored to use awk for JSON construction (like pm-parse).
 - [x] Compare both JSONL files (jq -cS sorted)
 - [x] Document all differences found
 
-**Results (2026-01-11):**
-- **Match rate: 99.7%** (91 differences out of 30,000 records)
-- Differences are cosmetic formatting, not data errors:
+**Results (2026-01-11, updated after trailing whitespace fix):**
+- **Match rate: 99.97%** (10 differences out of 30,000 records)
+- Remaining differences are cosmetic formatting:
 
-**Difference 1: Trailing whitespace in author names**
-- pm-parse: `"OgataK "` (preserves XML whitespace)
-- xtract: `"OgataK"` (trims whitespace)
-- **Impact:** Cosmetic only
+~~**Difference 1: Trailing whitespace in author names**~~ FIXED
+- ~~pm-parse: `"OgataK "` (preserves XML whitespace)~~
+- ~~xtract: `"OgataK"` (trims whitespace)~~
+- **Status:** Fixed - author names now trimmed properly
 
-**Difference 2: Multi-section abstract separator**
+**Difference 2: Multi-section abstract separator** (remaining)
 - For abstracts with multiple `<AbstractText>` elements:
 - pm-parse: joins with space (` `)
 - xtract: joins with pipe (`|`)
-- **Impact:** Cosmetic only
+- **Impact:** Cosmetic only (10 records affected)
 
-**Conclusion:** Both parsers correctly extract data. Differences are in whitespace normalization, not semantic content.
+**Conclusion:** Both parsers correctly extract data. Only difference is abstract section separator style.
 
 **Common difference patterns to watch for:**
 - Author name formatting (LastName ForeName vs ForeName LastName)
@@ -486,19 +486,20 @@ Refactored to use awk for JSON construction (like pm-parse).
 
 ## Future Enhancements
 
-### Trim Trailing Whitespace in pm-parse
-pm-parse preserves trailing whitespace from XML, while xtract trims it.
+### ~~Trim Trailing Whitespace in pm-parse~~ DONE
 
-```
-pm-parse: "OgataK "   ← trailing space
-xtract:   "OgataK"    ← trimmed
-```
+**Completed 2026-01-11:** Fixed author formatting when ForeName is missing.
+
+**Problem:** When an author had only LastName (no ForeName), pm-parse output
+`"lastname "` with trailing space because it always did `lastname + " " + forename`.
 
 **Fix:**
-- [ ] Trim whitespace in author names (LastName, ForeName)
-- [ ] Consider trimming all text fields (title, journal, abstract)
+- [x] Only add space between LastName and ForeName if ForeName exists
+- [x] Added test case: "author with only LastName has no trailing whitespace"
 
-**Impact:** 91 records affected in baseline (0.3%)
+**Impact:** Oracle match improved from 99.7% to 99.97% (91 → 10 differences)
+
+Remaining 10 differences are abstract separator style (space vs pipe), not data errors.
 
 ### ~~Optimize baseline-to-xtract-jsonl.sh Performance~~ DONE
 
