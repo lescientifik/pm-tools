@@ -294,6 +294,23 @@ and document performance characteristics.
 - generate-golden.sh: ~80 articles/sec (7 xtract calls per article)
 - Estimated time for 30k articles: ~6-7 minutes
 
+**Optimization opportunity:**
+Current generate-golden.sh calls xtract 7 times per article (once per field).
+Refactor to single xtract call extracting all fields at once → ~15,000 articles/sec.
+
+- [ ] Refactor `scripts/baseline-to-xtract-jsonl.sh` to use single xtract call:
+  ```bash
+  xtract -pattern PubmedArticle \
+    -element MedlineCitation/PMID ArticleTitle "Journal/Title" \
+    -element "PubDate/Year" \
+    -block ArticleId -if "@IdType" -equals doi -element ArticleId \
+    -block Abstract -sep " " -element AbstractText \
+    -block Author -sep " " -element LastName,ForeName
+  ```
+- [ ] Parse TSV output to JSONL (single pass with awk or jq)
+- [ ] Expected speedup: ~80 articles/sec → ~15,000 articles/sec
+- [ ] 30k baseline: ~6 minutes → ~2 seconds
+
 #### 0.9.3 Generate pm-parse baseline output
 
 - [ ] Run `zcat data/pubmed25n0001.xml.gz | pm-parse > data/pubmed25n0001.pm-parse.jsonl`
