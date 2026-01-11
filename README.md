@@ -210,6 +210,7 @@ Use standard [PubMed search syntax](https://pubmed.ncbi.nlm.nih.gov/help/#search
 - **Batch Size**: `pm-fetch` batches 200 PMIDs per request for efficiency
 - **Large Queries**: Use `--max` to limit results, or paginate with date ranges
 - **Verbose Mode**: Add `--verbose` to `pm-parse` to see progress on large files
+- **Performance**: `pm-parse` processes ~6,000 articles/sec with mawk (auto-detected), ~3,500/sec with gawk
 
 ## Dependencies
 
@@ -217,13 +218,14 @@ Use standard [PubMed search syntax](https://pubmed.ncbi.nlm.nih.gov/help/#search
 - `xml2` - XML parsing
 - `jq` - JSON processing (for filtering results)
 - `grep` - Pattern matching
+- `mawk` - Fast awk implementation (optional, auto-detected for 2x speedup)
 
 ```bash
 # Debian/Ubuntu
-sudo apt install curl xml2 jq
+sudo apt install curl xml2 jq mawk
 
 # macOS
-brew install xml2 jq
+brew install xml2 jq mawk
 ```
 
 ## License

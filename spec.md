@@ -229,16 +229,46 @@ zcat pubmed24n0001.xml.gz | pm-parse | jq 'select(.year >= "2020")'
 
 | Parser | Articles/sec | Temps 30k articles | Notes |
 |--------|-------------|-------------------|-------|
-| **pm-parse** | ~1,175 | ~25 sec | Streaming xml2+awk |
+| **pm-parse** | ~6,000 | ~5 sec | Streaming xml2+grep+mawk |
 | xtract (raw) | ~15,000 | ~2 sec | Perl natif, single call |
 | generate-golden.sh | ~14 | ~36 min | 7 xtract calls/article + jq |
 
-**Seuil minimum:** 1,000 articles/sec ✓
+**Seuil minimum:** 3,000 articles/sec ✓
 
 **Caractéristiques de pm-parse:**
 - Streaming pur (pas de chargement en mémoire)
 - Supporte les fichiers .gz via `zcat`
 - Output JSONL validé (toutes les lignes sont du JSON valide)
+- Pipeline optimisé: xml2 | grep (prefilter) | mawk
+
+### Analyse de Performance (2026-01-11)
+
+**Profilage détaillé du pipeline pm-parse:**
+
+| Étape | Temps | Lignes traitées | Notes |
+|-------|-------|-----------------|-------|
+| zcat | 1.0s | - | Décompression 195MB |
+| xml2 | 2.5s | 4.5M lignes | Conversion XML→path=value |
+| awk (regex) | 27.0s | 4.5M lignes | 17 patterns regex/ligne |
+| **Total** | **30.5s** | - | ~987 articles/sec |
+
+**Goulot d'étranglement identifié:** Le script awk applique 17 patterns regex à
+chaque ligne, mais seulement ~1M lignes sur 4.5M sont pertinentes (PMID, titre,
+auteurs, etc.). Les 3.5M lignes ignorées (MeSH, ChemicalList, etc.) consomment
+~75% du temps CPU.
+
+**Optimisations implémentées (Phase 7):**
+
+| Approche | Temps | Speedup | Unix-friendly |
+|----------|-------|---------|---------------|
+| Original (gawk seul) | 30.4s | 1x | ✓ |
+| mawk (sans filtre) | 10.9s | 2.8x | ✓ |
+| grep prefilter + gawk | 8.7s | 3.5x | ✓✓ |
+| **grep prefilter + mawk** | **5.0s** | **6.1x** | ✓✓ |
+
+**Solution implémentée:** Pipeline `xml2 | grep (prefilter) | mawk` avec
+auto-détection de mawk (fallback vers gawk si non disponible). Le grep
+réduit 4.5M lignes à ~1M lignes pertinentes avant traitement awk.
 
 ---
 

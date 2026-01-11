@@ -601,24 +601,26 @@ xml2 | grep -E 'relevant_patterns' | awk 'many_regex_patterns...'
 
 **Result:** Performance improved from ~965 to ~3450 articles/sec (3.6x speedup)
 
-#### 7.2 Consider mawk as default (optional)
+#### ~~7.2 Consider mawk as default (optional)~~ DONE
 
 **Investigation:**
-- [ ] Check mawk availability on common platforms
-- [ ] Test mawk compatibility with current awk script
-- [ ] Document mawk as optional speedup in README
+- [x] Check mawk availability on common platforms (apt package available)
+- [x] Test mawk compatibility with current awk script (MD5 hash identical)
+- [x] Auto-detect mawk and use if available, fallback to awk
 
-**Decision:** Make mawk optional recommendation, not hard requirement (gawk is more portable).
+**Result:** mawk provides additional 1.8x speedup over gawk. pm-parse now auto-detects mawk.
+- grep + gawk: 3450 articles/sec (3.6x vs original)
+- grep + mawk: 6000 articles/sec (6.2x vs original)
 
-#### 7.3 Update performance benchmarks
+#### ~~7.3 Update performance benchmarks~~ DONE
 
-- [ ] Update spec.md with new performance numbers
+- [x] Update spec.md with new performance numbers
 - [x] Adjust performance test threshold (1000 → 3000 articles/sec)
-- [ ] Document optimization in README
+- [x] Document optimization in README
 
-**Achieved Results:**
-- Performance: 965 → 3450 articles/sec (3.6x improvement)
-- Test stability: 31s → 9s (much more margin for system load)
+**Final Results:**
+- Performance: 965 → 6000 articles/sec (6.2x improvement)
+- Test stability: 31s → 5s (much more margin for system load)
 - Maintains Unix philosophy: composable pipeline tools
 
 ---

@@ -12,6 +12,13 @@ source "${SCRIPT_DIR}/../lib/pm-common.sh"
 # Check dependencies
 require_commands xml2
 
+# Use mawk if available (1.8x faster than gawk), otherwise fall back to awk
+if command -v mawk &>/dev/null; then
+    AWK_CMD="mawk"
+else
+    AWK_CMD="awk"
+fi
+
 show_help() {
     cat << 'EOF'
 pm-parse - Parse PubMed XML to JSONL
@@ -59,9 +66,9 @@ done
 
 # Process XML using xml2, grep prefilter, and awk (streaming - no memory buffering)
 # The grep prefilter reduces 4.5M lines to ~1M by keeping only relevant paths,
-# improving performance from ~1000 to ~5000 articles/sec (Unix philosophy: right tool for each job)
+# improving performance from ~1000 to ~6000 articles/sec (Unix philosophy: right tool for each job)
 # Note: { grep ... || true; } handles empty input gracefully (grep returns 1 when no matches)
-xml2 2>/dev/null | { grep -E '(PubmedArticle$|PMID=|ArticleTitle=|Journal/Title=|PubDate/|ArticleId|AbstractText|LastName=|ForeName=|Author$)' || true; } | awk -v verbose="$VERBOSE" '
+xml2 2>/dev/null | { grep -E '(PubmedArticle$|PMID=|ArticleTitle=|Journal/Title=|PubDate/|ArticleId|AbstractText|LastName=|ForeName=|Author$)' || true; } | $AWK_CMD -v verbose="$VERBOSE" '
 BEGIN {
     # Track current article data
     pmid = ""
