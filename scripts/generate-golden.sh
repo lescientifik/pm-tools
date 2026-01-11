@@ -4,10 +4,13 @@
 # Usage: generate-golden.sh <xml_file> [xml_file...]
 # Output: JSONL on stdout (one JSON object per article)
 #
-# Requires: EDirect tools (xtract) in PATH
+# Requires: EDirect tools (xtract) in PATH, jq
 #
 # This uses NCBI's official xtract tool as the reference implementation
 # to generate expected outputs for testing pm-parse.
+#
+# NOTE: Uses jq for JSON construction to properly handle special characters.
+# The previous awk-based approach had bugs with escape sequences.
 
 set -euo pipefail
 
@@ -23,23 +26,17 @@ if ! command -v xtract &> /dev/null; then
     fi
 fi
 
+# Check for jq
+if ! command -v jq &> /dev/null; then
+    echo "Error: jq not found. Install with: apt install jq" >&2
+    exit 1
+fi
+
 # Check arguments
 if [ $# -lt 1 ]; then
     echo "Usage: $0 <xml_file> [xml_file...]" >&2
     exit 1
 fi
-
-# JSON escape function in awk
-json_escape_awk='
-function json_escape(s) {
-    gsub(/\\/, "\\\\", s)
-    gsub(/"/, "\\\"", s)
-    gsub(/\n/, "\\n", s)
-    gsub(/\r/, "\\r", s)
-    gsub(/\t/, "\\t", s)
-    return s
-}
-'
 
 # Process each XML file
 for xml_file in "$@"; do
@@ -51,14 +48,19 @@ for xml_file in "$@"; do
     # Wrap single article in PubmedArticleSet if needed
     full_xml=$(echo "<PubmedArticleSet>"; cat "$xml_file"; echo "</PubmedArticleSet>")
 
-    # Extract basic fields + authors (tab-separated)
-    # Fields: PMID, Title, Journal, Author1, Author2, ...
-    # Note: Year is extracted separately to handle MedlineDate format
-    basic=$(echo "$full_xml" | xtract -pattern PubmedArticle \
-        -element MedlineCitation/PMID ArticleTitle "Journal/Title" \
-        -block Author -sep " " -element LastName,ForeName)
+    # Extract PMID
+    pmid=$(echo "$full_xml" | xtract -pattern PubmedArticle \
+        -element MedlineCitation/PMID 2>/dev/null || true)
 
-    # Extract Year separately (try Year first, then MedlineDate)
+    # Extract Title
+    title=$(echo "$full_xml" | xtract -pattern PubmedArticle \
+        -element ArticleTitle 2>/dev/null || true)
+
+    # Extract Journal
+    journal=$(echo "$full_xml" | xtract -pattern PubmedArticle \
+        -element "Journal/Title" 2>/dev/null || true)
+
+    # Extract Year (try Year first, then MedlineDate)
     year=$(echo "$full_xml" | xtract -pattern PubmedArticle \
         -element "PubDate/Year" 2>/dev/null || true)
     if [ -z "$year" ]; then
@@ -70,7 +72,7 @@ for xml_file in "$@"; do
         fi
     fi
 
-    # Extract DOI separately
+    # Extract DOI
     doi=$(echo "$full_xml" | xtract -pattern PubmedArticle \
         -block ArticleId -if "@IdType" -equals doi -element ArticleId 2>/dev/null || true)
 
@@ -78,39 +80,35 @@ for xml_file in "$@"; do
     abstract=$(echo "$full_xml" | xtract -pattern PubmedArticle \
         -block Abstract -sep " " -element AbstractText 2>/dev/null || true)
 
-    # Build JSONL using awk
-    echo "$basic" | awk -F'\t' -v year="$year" -v doi="$doi" -v abstract="$abstract" "
-    $json_escape_awk
-    {
-        pmid = json_escape(\$1)
-        title = json_escape(\$2)
-        journal = json_escape(\$3)
-        year_val = json_escape(year)
-        doi_val = json_escape(doi)
-        abstract_val = json_escape(abstract)
+    # Extract Authors (as newline-separated list: "LastName ForeName")
+    authors_raw=$(echo "$full_xml" | xtract -pattern PubmedArticle \
+        -block Author -sep " " -element LastName,ForeName 2>/dev/null || true)
 
-        # Build JSON
-        printf \"{\\\"pmid\\\":\\\"%s\\\"\", pmid
+    # Build JSON using jq
+    # jq's @json filter properly escapes all special characters
+    json=$(jq -n \
+        --arg pmid "$pmid" \
+        --arg title "$title" \
+        --arg journal "$journal" \
+        --arg year "$year" \
+        --arg doi "$doi" \
+        --arg abstract "$abstract" \
+        --arg authors_raw "$authors_raw" \
+        '
+        # Start with pmid (always present)
+        {pmid: $pmid}
 
-        if (title != \"\") printf \",\\\"title\\\":\\\"%s\\\"\", title
+        # Add optional fields if non-empty
+        | if $title != "" then .title = $title else . end
+        | if $authors_raw != "" then
+            .authors = ($authors_raw | split("\n") | map(select(. != "")))
+          else . end
+        | if $journal != "" then .journal = $journal else . end
+        | if $year != "" then .year = $year else . end
+        | if $doi != "" then .doi = $doi else . end
+        | if $abstract != "" then .abstract = $abstract else . end
+        ')
 
-        # Build authors array (fields 4+)
-        if (NF >= 4) {
-            printf \",\\\"authors\\\":[\"
-            for (i = 4; i <= NF; i++) {
-                author = json_escape(\$i)
-                if (i > 4) printf \",\"
-                printf \"\\\"%s\\\"\", author
-            }
-            printf \"]\"
-        }
-
-        if (journal != \"\") printf \",\\\"journal\\\":\\\"%s\\\"\", journal
-        if (year_val != \"\") printf \",\\\"year\\\":\\\"%s\\\"\", year_val
-        if (doi_val != \"\") printf \",\\\"doi\\\":\\\"%s\\\"\", doi_val
-        if (abstract_val != \"\") printf \",\\\"abstract\\\":\\\"%s\\\"\", abstract_val
-
-        print \"}\"
-    }
-    "
+    # Output as single line (JSONL format)
+    echo "$json" | jq -c .
 done

@@ -1,0 +1,63 @@
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM">
+      <PMID Version="1">99904</PMID>
+      <DateCompleted>
+        <Year>2024</Year>
+        <Month>01</Month>
+        <Day>15</Day>
+      </DateCompleted>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Electronic">1234-5678</ISSN>
+          <JournalIssue CitedMedium="Internet">
+            <Volume>10</Volume>
+            <Issue>1</Issue>
+            <PubDate>
+              <Year>2024</Year>
+            </PubDate>
+          </JournalIssue>
+          <Title>Journal of Special Characters</Title>
+          <ISOAbbreviation>J Spec Char</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Unicode: Müller, naïve, 日本語, emoji 🧬, carriage return&#13;here.</ArticleTitle>
+        <Abstract>
+          <AbstractText>Testing: tabs&#9;here, newlines&#10;here, CR&#13;here, combined&#13;&#10;CRLF, plus accents éàü and symbols ±°©®™.</AbstractText>
+        </Abstract>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Müller</LastName>
+            <ForeName>François</ForeName>
+            <Initials>FM</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>山田</LastName>
+            <ForeName>太郎</ForeName>
+            <Initials>TY</Initials>
+          </Author>
+        </AuthorList>
+        <Language>eng</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+        </PublicationTypeList>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>United States</Country>
+        <MedlineTA>J Spec Char</MedlineTA>
+        <NlmUniqueID>1234567</NlmUniqueID>
+      </MedlineJournalInfo>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>2024</Year>
+          <Month>01</Month>
+          <Day>15</Day>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">99904</ArticleId>
+        <ArticleId IdType="doi">10.1234/test.unicode.004</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>

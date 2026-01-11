@@ -133,7 +133,107 @@ cat fixtures/edge-cases/complete.xml | \
 
 **Avantage** : On compare notre implémentation à l'outil officiel NCBI.
 
-### 0.7 Mapping final documenté
+### 0.7 Valider la conversion TSV→JSONL dans generate-golden.sh
+
+#### Investigation Findings (2026-01-11)
+
+**Critical Bug Discovered:** The current awk-based TSV→JSONL parser is fundamentally broken
+when xtract outputs data containing embedded tabs or newlines.
+
+**Root Cause Analysis:**
+1. xtract uses TAB as field separator and NEWLINE as record separator
+2. xtract does NOT escape tabs/newlines that appear within the XML data
+3. If XML contains `&#9;` (tab) or `&#10;` (newline), xtract decodes them literally
+4. This corrupts TSV field boundaries, making awk parsing impossible
+
+**Demonstrated Failures:**
+```bash
+# Input: <ArticleTitle>Title with embedded&#9;tab</ArticleTitle>
+# xtract output: 999<TAB>Title with embedded<TAB>tab<TAB>...
+# Result: fields are shifted, authors array contains journal name, etc.
+
+# Input: <ArticleTitle>Line1&#10;Line2</ArticleTitle>
+# xtract output: Two lines instead of one
+# Result: Two corrupted JSON objects instead of one valid object
+```
+
+**Current awk json_escape() handles:**
+- Backslashes (`\` → `\\`) - OK
+- Double quotes (`"` → `\"`) - OK
+- Newlines in strings (`\n` → `\\n`) - OK, but never reached if xtract breaks records
+- Carriage returns (`\r` → `\\r`) - OK
+- Tabs (`\t` → `\\t`) - OK, but never reached if xtract breaks fields
+
+**Current awk json_escape() MISSING:**
+- Unicode control characters (U+0000 to U+001F except already handled)
+- Proper handling when xtract output is already corrupted
+
+**Real-world risk assessment:**
+- In 500k lines of pubmed25n0001.xml.gz: No `&#9;` or `&#10;` entities found
+- Quotes (`"`) are common (117k+ occurrences) - handled correctly
+- Backslashes are rare - handled correctly
+- Risk is LOW for current baseline but HIGH for edge cases in other data
+
+#### Recommended Solution: Hybrid Approach
+
+**Strategy:** Keep xtract for extraction but use jq for JSON construction.
+
+**Why jq over awk:**
+- jq `-Rs` mode properly escapes all special characters automatically
+- jq guarantees valid JSON output
+- Eliminates manual escape sequence handling
+- Handles Unicode properly
+
+**Implementation Options:**
+
+**Option A: Replace awk entirely with jq (Recommended)**
+- Change xtract separator to something rare (e.g., `|` or `$'\x1e'` record separator)
+- Use jq to build JSON objects from parsed fields
+- Pro: Robust, maintainable, handles all edge cases
+- Con: Slight performance overhead (acceptable for golden file generation)
+
+**Option B: Sanitize xtract output before awk**
+- Post-process xtract output to escape embedded tabs/newlines
+- Keep existing awk parser
+- Pro: Minimal code changes
+- Con: Fragile, hard to maintain, may miss edge cases
+
+**Option C: Use JSONL output directly from xtract**
+- xtract has `-j` flag for JSON output (limited support)
+- Pro: No custom parsing needed
+- Con: May not support all our fields, less control over format
+
+#### Tasks for Phase 0.7
+
+**0.7.1 Create test fixtures for edge cases**
+- [x] Create `fixtures/edge-cases/special-chars/embedded-tab.xml`
+- [x] Create `fixtures/edge-cases/special-chars/embedded-newline.xml`
+- [x] Create `fixtures/edge-cases/special-chars/quotes-backslash.xml`
+- [x] Create `fixtures/edge-cases/special-chars/unicode-control.xml`
+
+**0.7.2 Add bats tests for generate-golden.sh**
+- [x] Test: valid JSON output for each edge case fixture
+- [x] Test: embedded tabs produce valid JSON (not corrupted fields)
+- [x] Test: embedded newlines produce single JSONL line per article
+- [x] Test: quotes and backslashes are properly escaped
+- [ ] Test: output matches expected golden files
+
+**0.7.3 Implement robust TSV→JSONL conversion**
+- [x] Refactor generate-golden.sh to use jq for JSON construction
+- [x] Validate output with `jq .` for each record (jq -c does this automatically)
+- Note: Removed awk entirely; jq --arg handles all escaping properly
+
+**0.7.4 Update pm-parse to handle same edge cases**
+- [ ] Verify pm-parse awk json_escape handles all cases
+- [ ] Add missing control character escaping to pm-parse
+- [ ] Add corresponding tests to pm-parse.bats
+
+**0.7.5 Regenerate all golden files**
+- [ ] Re-run generate-golden.sh on all fixtures
+- [ ] Verify all tests pass with new golden files
+- [ ] Document any differences from previous output
+
+### 0.8 Mapping final documenté
 ```
 generated/mapping.json
 {

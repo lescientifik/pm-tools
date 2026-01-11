@@ -1,0 +1,63 @@
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM">
+      <PMID Version="1">99903</PMID>
+      <DateCompleted>
+        <Year>2024</Year>
+        <Month>01</Month>
+        <Day>15</Day>
+      </DateCompleted>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Electronic">1234-5678</ISSN>
+          <JournalIssue CitedMedium="Internet">
+            <Volume>10</Volume>
+            <Issue>1</Issue>
+            <PubDate>
+              <Year>2024</Year>
+            </PubDate>
+          </JournalIssue>
+          <Title>Journal of Special Characters</Title>
+          <ISOAbbreviation>J Spec Char</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Study of "quoted text" and C:\path\to\file in scientific literature.</ArticleTitle>
+        <Abstract>
+          <AbstractText>The results show that "significant" effects were found. The data directory was C:\data\results\output. Multiple "quoted" "terms" appear here with \backslash\ characters.</AbstractText>
+        </Abstract>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>O'Brien</LastName>
+            <ForeName>John "Jack"</ForeName>
+            <Initials>JJ</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>M\u00fcller</LastName>
+            <ForeName>Hans</ForeName>
+            <Initials>HM</Initials>
+          </Author>
+        </AuthorList>
+        <Language>eng</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+        </PublicationTypeList>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>United States</Country>
+        <MedlineTA>J Spec Char</MedlineTA>
+        <NlmUniqueID>1234567</NlmUniqueID>
+      </MedlineJournalInfo>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>2024</Year>
+          <Month>01</Month>
+          <Day>15</Day>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">99903</ArticleId>
+        <ArticleId IdType="doi">10.1234/test.quotes.003</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
