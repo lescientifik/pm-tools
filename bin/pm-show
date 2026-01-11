@@ -41,11 +41,8 @@ while IFS= read -r line; do
         echo -e "  ${YELLOW}${authors}${suffix}${RESET}"
     fi
     if [[ -n "$abstract" ]]; then
-        # Truncate abstract to ~200 chars
-        short_abstract="${abstract:0:200}"
-        [[ ${#abstract} -gt 200 ]] && short_abstract="${short_abstract}..."
         echo ""
-        echo -e "  ${DIM}${short_abstract}${RESET}"
+        echo -e "  ${DIM}${abstract}${RESET}"
     fi
     echo ""
 done
