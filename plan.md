@@ -507,25 +507,29 @@ Remaining 10 differences are abstract separator style (space vs pipe), not data 
 - [x] Use awk for JSON construction (like pm-parse)
 - Achieved: ~1000+ articles/sec (20x improvement from ~50 articles/sec)
 
-### Structured Abstract Parsing
-Currently both pm-parse and xtract discard the `Label` attribute from `<AbstractText>` elements.
+### ~~Structured Abstract Parsing~~ DONE
 
-```xml
-<AbstractText Label="BACKGROUND">...</AbstractText>
-<AbstractText Label="METHODS">...</AbstractText>
-<AbstractText Label="RESULTS">...</AbstractText>
-<AbstractText Label="CONCLUSIONS">...</AbstractText>
+**Completed 2026-01-11:** Added `abstract_sections` array for structured abstracts.
+
+**Implementation (Option 3 - backwards compatible):**
+- [x] Keep `abstract` field as flat text (unchanged)
+- [x] Add `abstract_sections` array when Label attributes exist
+- [x] Only present when at least one section has a label
+
+**Output format:**
+```json
+{
+  "abstract": "Background text. Methods text.",
+  "abstract_sections": [
+    {"label": "BACKGROUND", "text": "Background text."},
+    {"label": "METHODS", "text": "Methods text."}
+  ]
+}
 ```
 
-**Enhancement options:**
-- [ ] Structured object: `{"abstract": {"background": "...", "methods": "...", "results": "..."}}`
-- [ ] Preserve labels inline: `"BACKGROUND: ... METHODS: ... RESULTS: ..."`
-- [ ] Add `abstract_sections` array alongside flat `abstract` field
-
-**Considerations:**
-- Not all abstracts are structured (many are plain text)
-- Label names vary (BACKGROUND vs INTRODUCTION, etc.)
-- Backwards compatibility with existing `abstract` field
+**Notes:**
+- Not all abstracts have labels (~22 in 30k baseline articles)
+- Label names vary (BACKGROUND, UNLABELLED, RESULTS, etc.)
 
 ### Complete Date Parsing
 Currently we only extract the year from PubDate. PubMed has multiple date formats:

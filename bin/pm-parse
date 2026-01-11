@@ -76,6 +76,10 @@ BEGIN {
 
     # Track if we are inside a DOI ArticleId
     in_doi_id = 0
+
+    # Abstract section handling
+    abstract_section_count = 0
+    current_abstract_label = ""
 }
 
 # New PubmedArticle starts
@@ -95,6 +99,10 @@ BEGIN {
     current_lastname = ""
     current_forename = ""
     in_doi_id = 0
+    abstract_section_count = 0
+    current_abstract_label = ""
+    delete abstract_sections
+    delete abstract_section_labels
     next
 }
 
@@ -169,10 +177,14 @@ BEGIN {
     next
 }
 
-# Extract abstract (all AbstractText elements joined with space)
-# Note: This matches xtract oracle behavior. Embedded newlines within a single
-# AbstractText will be collapsed to spaces, but this is rare in real PubMed data
-# and structured abstracts (common) should be space-joined.
+# Capture abstract section label (comes before the text)
+/\/Abstract\/AbstractText\/@Label=/ {
+    current_abstract_label = substr($0, index($0, "=") + 1)
+    next
+}
+
+# Extract abstract text (all AbstractText elements joined with space)
+# Also store sections with labels for structured output
 /\/Abstract\/AbstractText=/ {
     text = substr($0, index($0, "=") + 1)
     if (abstract == "") {
@@ -180,6 +192,14 @@ BEGIN {
     } else {
         abstract = abstract " " text
     }
+
+    # Store section with label if present
+    if (current_abstract_label != "") {
+        abstract_section_count++
+        abstract_section_labels[abstract_section_count] = current_abstract_label
+        abstract_sections[abstract_section_count] = text
+    }
+    current_abstract_label = ""
     next
 }
 
@@ -249,6 +269,17 @@ function output_article() {
     }
     authors_json = authors_json "]"
 
+    # Build abstract_sections JSON array (only if labels exist)
+    abstract_sections_json = ""
+    if (abstract_section_count > 0) {
+        abstract_sections_json = "["
+        for (i = 1; i <= abstract_section_count; i++) {
+            if (i > 1) abstract_sections_json = abstract_sections_json ","
+            abstract_sections_json = abstract_sections_json "{\"label\":\"" json_escape(abstract_section_labels[i]) "\",\"text\":\"" json_escape(abstract_sections[i]) "\"}"
+        }
+        abstract_sections_json = abstract_sections_json "]"
+    }
+
     # Output JSON
     printf "{\"pmid\":\"%s\"", json_escape(pmid)
     if (title != "") printf ",\"title\":\"%s\"", json_escape(title)
@@ -257,6 +288,7 @@ function output_article() {
     if (year != "") printf ",\"year\":\"%s\"", json_escape(year)
     if (doi != "") printf ",\"doi\":\"%s\"", json_escape(doi)
     if (abstract != "") printf ",\"abstract\":\"%s\"", json_escape(abstract)
+    if (abstract_sections_json != "") printf ",\"abstract_sections\":%s", abstract_sections_json
     print "}"
 
     # Verbose output to stderr
@@ -265,8 +297,11 @@ function output_article() {
         printf "Parsed article %d: PMID %s\n", article_count, pmid > "/dev/stderr"
     }
 
-    # Reset author array
+    # Reset arrays
     delete authors
     author_count = 0
+    delete abstract_sections
+    delete abstract_section_labels
+    abstract_section_count = 0
 }
 '

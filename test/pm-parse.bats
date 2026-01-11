@@ -164,6 +164,64 @@ setup() {
     [[ $(echo "$result" | jq -r '.authors[1]') == "OgataK" ]]
 }
 
+# --- Structured abstract tests ---
+
+@test "pm-parse: structured abstract extracts sections with labels" {
+    # Given: article with structured abstract (labeled sections)
+    local xml='<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>12345</PMID>
+    <Article>
+      <Abstract>
+        <AbstractText Label="BACKGROUND">This is background.</AbstractText>
+        <AbstractText Label="METHODS">These are methods.</AbstractText>
+        <AbstractText Label="RESULTS">These are results.</AbstractText>
+      </Abstract>
+    </Article>
+  </MedlineCitation>
+</PubmedArticle>
+</PubmedArticleSet>'
+
+    # When: parsing
+    result=$(echo "$xml" | "$PM_PARSE")
+
+    # Then: abstract field contains flat text (backwards compatible)
+    [[ $(echo "$result" | jq -r '.abstract') == "This is background. These are methods. These are results." ]]
+
+    # And: abstract_sections contains labeled sections
+    [ "$(echo "$result" | jq -r '.abstract_sections | length')" -eq 3 ]
+    [[ $(echo "$result" | jq -r '.abstract_sections[0].label') == "BACKGROUND" ]]
+    [[ $(echo "$result" | jq -r '.abstract_sections[0].text') == "This is background." ]]
+    [[ $(echo "$result" | jq -r '.abstract_sections[1].label') == "METHODS" ]]
+    [[ $(echo "$result" | jq -r '.abstract_sections[2].label') == "RESULTS" ]]
+}
+
+@test "pm-parse: plain abstract has no abstract_sections field" {
+    # Given: article with plain abstract (no labels)
+    local xml='<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>12345</PMID>
+    <Article>
+      <Abstract>
+        <AbstractText>This is a plain abstract without sections.</AbstractText>
+      </Abstract>
+    </Article>
+  </MedlineCitation>
+</PubmedArticle>
+</PubmedArticleSet>'
+
+    # When: parsing
+    result=$(echo "$xml" | "$PM_PARSE")
+
+    # Then: abstract field contains the text
+    [[ $(echo "$result" | jq -r '.abstract') == "This is a plain abstract without sections." ]]
+
+    # And: abstract_sections is not present (only added when labels exist)
+    [ "$(echo "$result" | jq -r '.abstract_sections // "null"')" == "null" ]
+}
+
 # --- Multiple articles test ---
 
 @test "pm-parse: multiple articles produce multiple lines" {
