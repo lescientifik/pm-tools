@@ -135,11 +135,23 @@ shellcheck bin/* scripts/* && bats test/
    - **Right**: "The problem is X. Here's the fix: [implement fix]"
    - Explanations are valuable, but they come AFTER the fix, not instead of it
 
+7. **Differences from oracle are bugs, not documentation**: When your implementation produces different output than the reference/oracle (golden files, xtract, etc.):
+   - **Wrong**: Document the difference as "known behavior" and commit
+   - **Right**: Treat it as a bug - either fix your code or fix the oracle
+   - Example of what NOT to do: "Note: pm-parse only extracts first AbstractText. This is a known difference."
+   - The oracle defines correct behavior. Differences mean something is broken.
+
+8. **Test custom parsers extensively**: When writing custom format converters (TSV→JSONL, XML→JSON, etc.):
+   - **Wrong**: Test a few happy-path cases and assume it works
+   - **Right**: Test edge cases (special characters, empty fields, malformed input)
+   - Custom parsers are high-risk code - they need more testing, not less
+
 ### Quality Gates
 
 Before any commit:
 - [ ] All tests pass (`bats test/`)
 - [ ] shellcheck passes on all scripts (`shellcheck bin/* scripts/*`)
+- [ ] If golden files exist, verify output matches them
 - [ ] Code review completed (for sub-phase completion)
 
 ### Explain Your Decisions
