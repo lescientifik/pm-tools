@@ -452,16 +452,16 @@ Refactor to single xtract call extracting all fields at once → ~15,000 article
 ## Phase 4 : `pm-search`
 
 ### 4.1 Tests pm-search (avec mocks)
-- [ ] Test : requête simple → liste de PMIDs
-- [ ] Test : --max N → limite respectée
-- [ ] Test : requête vide → erreur
-- [ ] Test : aucun résultat → output vide (pas d'erreur)
+- [x] Test : requête simple → liste de PMIDs
+- [x] Test : --max N → limite respectée
+- [x] Test : requête vide → erreur
+- [x] Test : aucun résultat → output vide (pas d'erreur)
 
 ### 4.2 Implémentation pm-search
-- [ ] Appel curl à esearch
-- [ ] Parsing du XML de réponse (count, ids)
-- [ ] Pagination si > 10000 résultats
-- [ ] Output PMIDs un par ligne
+- [x] Appel curl à esearch
+- [x] Parsing du XML de réponse (grep -oP for IDs)
+- [ ] Pagination si > 10000 résultats (deferred: --max handles most use cases)
+- [x] Output PMIDs un par ligne
 
 ---
 
