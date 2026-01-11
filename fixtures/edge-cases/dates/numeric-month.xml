@@ -1,0 +1,18 @@
+<PubmedArticle>
+  <MedlineCitation Status="MEDLINE" Owner="NLM">
+    <PMID Version="1">99990</PMID>
+    <Article>
+      <Journal>
+        <JournalIssue CitedMedium="Print">
+          <PubDate>
+            <Year>1975</Year>
+            <Month>09</Month>
+            <Day>15</Day>
+          </PubDate>
+        </JournalIssue>
+        <Title>Test Journal</Title>
+      </Journal>
+      <ArticleTitle>Test Article Numeric Month</ArticleTitle>
+    </Article>
+  </MedlineCitation>
+</PubmedArticle>
