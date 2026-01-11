@@ -348,7 +348,7 @@ setup() {
     [ "$output" -eq 30000 ]
 }
 
-@test "pm-parse: baseline performance > 1000 articles/second" {
+@test "pm-parse: baseline performance > 3000 articles/second" {
     # Given: full baseline file
     local baseline="${PROJECT_DIR}/data/pubmed25n0001.xml.gz"
     [ -f "$baseline" ] || skip "Baseline file not found"
@@ -359,7 +359,7 @@ setup() {
     zcat "$baseline" | "$PM_PARSE" > /dev/null
     end=$(date +%s.%N)
 
-    # Then: performance should be > 1000 articles/second
+    # Then: performance should be > 3000 articles/second (with margin for system load)
     elapsed=$(echo "$end - $start" | bc)
     rate=$(echo "30000 / $elapsed" | bc)
 
@@ -367,7 +367,26 @@ setup() {
     echo "# Performance: $rate articles/second (${elapsed}s for 30000 articles)" >&3
 
     # Assert minimum performance threshold
-    [ "$rate" -ge 1000 ]
+    # Target is 5000+, threshold is 3000 to allow for system load
+    [ "$rate" -ge 3000 ]
+}
+
+@test "pm-parse: output unchanged after optimization (regression)" {
+    # Given: full baseline file and known output hash
+    local baseline="${PROJECT_DIR}/data/pubmed25n0001.xml.gz"
+    [ -f "$baseline" ] || skip "Baseline file not found"
+
+    # Expected hash generated before optimization
+    local expected_hash="d0db3c9cfba8d77ae978dd4bc0fffbae"
+
+    # When: parsing baseline and computing hash
+    local actual_hash
+    actual_hash=$(zcat "$baseline" | "$PM_PARSE" | md5sum | cut -d' ' -f1)
+
+    # Then: output hash must match exactly (no regression)
+    echo "# Expected: $expected_hash" >&3
+    echo "# Actual:   $actual_hash" >&3
+    [ "$actual_hash" = "$expected_hash" ]
 }
 
 # --- Special characters edge cases (Phase 0.7.4) ---

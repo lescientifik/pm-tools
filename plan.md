@@ -542,6 +542,85 @@ Remaining 10 differences are abstract separator style (space vs pipe), not data 
 
 See `docs/date-parsing-plan.md` for detailed implementation plan.
 
+### Optimize pm-parse Performance (Phase 7)
+
+**Problem:** Performance test fails under system load. Current implementation processes
+all 4.5M lines from xml2 through awk regex matching, causing ~27 seconds of CPU time
+for the awk stage alone on 30k articles.
+
+**Profiling Results (2026-01-11):**
+
+| Component | Time | Notes |
+|-----------|------|-------|
+| zcat | 1.0s | Decompression (195MB uncompressed) |
+| xml2 | 2.5s | XML to path=value conversion |
+| awk (current) | 27.0s | Regex matching on 4.5M lines |
+| **Total** | **30.5s** | ~987 articles/sec |
+
+**Root Cause:** xml2 produces ~153 lines per article, but pm-parse only needs ~35 lines
+per article. The awk script applies 17 regex patterns to every single line, including
+the 3.5M irrelevant lines (MeSH terms, ChemicalList, etc.).
+
+**Optimization Strategies (Unix Philosophy: use the right tool for each job):**
+
+| Approach | Time | Speedup | Notes |
+|----------|------|---------|-------|
+| Current (gawk, no filter) | 30.4s | 1x | Baseline |
+| mawk (no filter) | 10.9s | 2.8x | Faster awk implementation |
+| grep prefilter + gawk | 5.7s | 5.3x | Filter 4.5M → 1M lines first |
+| grep prefilter + mawk | 4.4s | 6.9x | Best combination |
+
+**Recommended Solution:** Add grep prefilter before awk
+
+```bash
+# Before (current)
+xml2 | awk 'many_regex_patterns...'
+
+# After (optimized)
+xml2 | grep -E 'relevant_patterns' | awk 'many_regex_patterns...'
+```
+
+**Why this is Unix-friendly:**
+- Uses existing tools (grep is faster at bulk filtering)
+- grep is optimized for line matching (Boyer-Moore, etc.)
+- awk then processes only 1M lines instead of 4.5M
+- Pipeline remains readable and composable
+
+#### ~~7.1 Add grep prefilter to pm-parse (TDD)~~ DONE
+
+**Tests first:**
+- [x] Test: pm-parse output unchanged with prefilter (regression)
+- [x] Test: pm-parse performance > 3000 articles/sec (with 1000 margin for load)
+- [x] Test: pm-parse handles edge cases correctly (empty input, etc.)
+
+**Implementation:**
+- [x] Add grep prefilter stage between xml2 and awk
+- [x] Pattern: `(PubmedArticle$|PMID=|ArticleTitle=|Journal/Title=|PubDate/|ArticleId|AbstractText|LastName=|ForeName=|Author$)`
+- [x] Verify output matches current implementation exactly (MD5 hash regression test)
+- [x] Handle empty input edge case with `{ grep ... || true; }`
+
+**Result:** Performance improved from ~965 to ~3450 articles/sec (3.6x speedup)
+
+#### 7.2 Consider mawk as default (optional)
+
+**Investigation:**
+- [ ] Check mawk availability on common platforms
+- [ ] Test mawk compatibility with current awk script
+- [ ] Document mawk as optional speedup in README
+
+**Decision:** Make mawk optional recommendation, not hard requirement (gawk is more portable).
+
+#### 7.3 Update performance benchmarks
+
+- [ ] Update spec.md with new performance numbers
+- [x] Adjust performance test threshold (1000 → 3000 articles/sec)
+- [ ] Document optimization in README
+
+**Achieved Results:**
+- Performance: 965 → 3450 articles/sec (3.6x improvement)
+- Test stability: 31s → 9s (much more margin for system load)
+- Maintains Unix philosophy: composable pipeline tools
+
 ---
 
 ## Ordre d'exécution TDD
