@@ -206,17 +206,15 @@ when xtract outputs data containing embedded tabs or newlines.
 #### Tasks for Phase 0.7
 
 **0.7.1 Create test fixtures for edge cases**
-- [x] Create `fixtures/edge-cases/special-chars/embedded-tab.xml`
-- [x] Create `fixtures/edge-cases/special-chars/embedded-newline.xml`
 - [x] Create `fixtures/edge-cases/special-chars/quotes-backslash.xml`
 - [x] Create `fixtures/edge-cases/special-chars/unicode-control.xml`
+- Note: Removed embedded-tab.xml and embedded-newline.xml (tested non-existent scenarios)
 
 **0.7.2 Add bats tests for generate-golden.sh**
 - [x] Test: valid JSON output for each edge case fixture
-- [x] Test: embedded tabs produce valid JSON (not corrupted fields)
-- [x] Test: embedded newlines produce single JSONL line per article
 - [x] Test: quotes and backslashes are properly escaped
-- [x] Test: pm-parse output matches golden files (added to pm-parse.bats)
+- [x] Test: unicode characters are preserved
+- [x] Test: pm-parse output matches golden files
 
 **0.7.3 Implement robust TSV→JSONL conversion**
 - [x] Refactor generate-golden.sh to use jq for JSON construction

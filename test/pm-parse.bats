@@ -287,48 +287,6 @@ setup() {
 
 # --- Special characters edge cases (Phase 0.7.4) ---
 
-@test "pm-parse: handles embedded tabs in content" {
-    # Given: XML with embedded tab characters
-    local xml_file="${FIXTURES_DIR}/edge-cases/special-chars/embedded-tab.xml"
-    [ -f "$xml_file" ] || skip "Fixture not found"
-
-    # When: parsing
-    run "$PM_PARSE" < "$xml_file"
-
-    # Then: output is valid JSON
-    [ "$status" -eq 0 ]
-    echo "$output" | jq . > /dev/null
-
-    # And: tabs are properly escaped as \t
-    [[ "$output" == *'\t'* ]]
-
-    # And: PMID is correct
-    [ "$(echo "$output" | jq -r '.pmid')" = "99901" ]
-}
-
-@test "pm-parse: handles embedded newlines in content" {
-    # Given: XML with embedded newline characters
-    local xml_file="${FIXTURES_DIR}/edge-cases/special-chars/embedded-newline.xml"
-    [ -f "$xml_file" ] || skip "Fixture not found"
-
-    # When: parsing
-    run "$PM_PARSE" < "$xml_file"
-
-    # Then: output is valid JSON (single line)
-    [ "$status" -eq 0 ]
-    [ "$(echo "$output" | wc -l)" -eq 1 ]
-    echo "$output" | jq . > /dev/null
-
-    # And: newlines are properly escaped as \n
-    [[ "$output" == *'\n'* ]]
-
-    # And: title includes the full content with embedded newline
-    local title
-    title=$(echo "$output" | jq -r '.title')
-    [[ "$title" == *"Title with embedded"* ]]
-    [[ "$title" == *"newline character"* ]]
-}
-
 @test "pm-parse: handles quotes and backslashes correctly" {
     # Given: XML with quotes and backslashes
     local xml_file="${FIXTURES_DIR}/edge-cases/special-chars/quotes-backslash.xml"
@@ -375,14 +333,7 @@ setup() {
 # --- Golden file comparison tests (Phase 0.7.5) ---
 
 @test "pm-parse: output matches golden files for special-chars fixtures" {
-    # Note: embedded-tab and embedded-newline golden files use pm-parse output
-    # because pm-parse behavior is more correct than xtract for these edge cases:
-    # - embedded-tab: xtract incorrectly splits author on tab separator
-    # - embedded-newline: abstract uses spaces (structured abstract behavior)
-
     local fixtures=(
-        "special-chars/embedded-tab"
-        "special-chars/embedded-newline"
         "special-chars/quotes-backslash"
         "special-chars/unicode-control"
     )

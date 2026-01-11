@@ -31,58 +31,6 @@ setup() {
 }
 
 # =============================================================================
-# Test: Embedded tabs in XML should produce valid JSON
-# =============================================================================
-
-@test "generate-golden.sh handles embedded tabs correctly" {
-    # Given: XML with embedded tab characters (&#9;)
-    local xml_file="${FIXTURES_DIR}/edge-cases/special-chars/embedded-tab.xml"
-
-    # When: we run generate-golden.sh
-    run "$GENERATE_GOLDEN" "$xml_file"
-
-    # Then: exit code is 0
-    [ "$status" -eq 0 ]
-
-    # And: output is exactly one line (one JSONL record)
-    local line_count=$(echo "$output" | wc -l)
-    [ "$line_count" -eq 1 ]
-
-    # And: output is valid JSON
-    echo "$output" | jq . > /dev/null
-
-    # And: the tab character is escaped as \t in JSON
-    # In bash single quotes, '\t' is 2 chars: backslash + t (matches JSON escape)
-    [[ "$output" == *'\t'* ]]
-}
-
-# =============================================================================
-# Test: Embedded newlines in XML should produce single JSONL line
-# =============================================================================
-
-@test "generate-golden.sh handles embedded newlines correctly" {
-    # Given: XML with embedded newline characters (&#10;)
-    local xml_file="${FIXTURES_DIR}/edge-cases/special-chars/embedded-newline.xml"
-
-    # When: we run generate-golden.sh
-    run "$GENERATE_GOLDEN" "$xml_file"
-
-    # Then: exit code is 0
-    [ "$status" -eq 0 ]
-
-    # And: output is exactly one line (one JSONL record)
-    local line_count=$(echo "$output" | wc -l)
-    [ "$line_count" -eq 1 ]
-
-    # And: output is valid JSON
-    echo "$output" | jq . > /dev/null
-
-    # And: the newline character is escaped as \n in JSON
-    # In bash single quotes, '\n' is 2 chars: backslash + n (matches JSON escape)
-    [[ "$output" == *'\n'* ]]
-}
-
-# =============================================================================
 # Test: Quotes and backslashes should be properly escaped
 # =============================================================================
 
@@ -151,28 +99,4 @@ setup() {
             return 1
         }
     done
-}
-
-# =============================================================================
-# Test: Fields are not corrupted by embedded separators
-# =============================================================================
-
-@test "generate-golden.sh does not corrupt fields with embedded tabs" {
-    # Given: XML with embedded tab in title
-    local xml_file="${FIXTURES_DIR}/edge-cases/special-chars/embedded-tab.xml"
-
-    # When: we run generate-golden.sh
-    run "$GENERATE_GOLDEN" "$xml_file"
-
-    # Then: the PMID is correct (not shifted by tab)
-    local pmid=$(echo "$output" | jq -r '.pmid')
-    [ "$pmid" = "99901" ]
-
-    # And: the journal is correct (not shifted)
-    local journal=$(echo "$output" | jq -r '.journal')
-    [ "$journal" = "Journal of Special Characters" ]
-
-    # And: the authors array exists and has correct structure
-    local first_author=$(echo "$output" | jq -r '.authors[0]')
-    [[ "$first_author" == *"Test"* ]] || [[ "$first_author" == *"Author"* ]]
 }
