@@ -355,41 +355,28 @@ Refactor to single xtract call extracting all fields at once → ~15,000 article
 
 #### 0.9.5 Fix pm-parse bugs found in 0.9.4
 
-- [ ] For each bug identified:
-  - [ ] Write failing test first (TDD Red)
-  - [ ] Fix implementation (TDD Green)
-  - [ ] Verify fix doesn't break other tests
-  - [ ] Re-run full baseline comparison
-- [ ] Iterate until diff is clean (or oracle discrepancies documented)
+- [x] No bugs found - differences are cosmetic (see 0.9.4 results)
+- [x] Cosmetic differences documented in "Future Enhancements" section
 
 #### 0.9.6 Performance benchmarking
 
-- [ ] Benchmark pm-parse on full baseline:
-  - [ ] Record: total time, articles/sec
-  - [ ] Verify meets minimum threshold (1000 articles/sec per Phase 0.5)
-- [ ] Benchmark xtract on sample (1000 articles):
-  - [ ] Record: total time, articles/sec
-  - [ ] Note: xtract is expected to be ~100-500x slower
-- [ ] Document performance comparison in spec.md:
-  ```
-  | Parser             | Articles/sec | 30k baseline time |
-  |--------------------|-------------|-------------------|
-  | pm-parse           | ~2000       | ~15 seconds       |
-  | generate-golden.sh | ~80         | ~6-7 minutes      |
-  | raw xtract         | ~15000      | ~2 seconds        |
-  ```
-  Note: generate-golden.sh is slow due to 7 xtract calls per article
+- [x] Benchmark pm-parse on full baseline:
+  - [x] Record: total time, articles/sec (~1,175 articles/sec, ~25s for 30k)
+  - [x] Verify meets minimum threshold (1000 articles/sec per Phase 0.5) ✓
+- [x] Benchmark xtract on sample:
+  - [x] Record: raw xtract ~15,000 articles/sec, generate-golden.sh ~14 articles/sec
+- [x] Document performance comparison in spec.md
 
 #### 0.9.7 Final validation and documentation
 
-- [ ] All baseline validation tests pass
-- [ ] pm-parse output matches xtract output (or differences documented)
-- [ ] Performance meets requirements
-- [ ] Update spec.md with:
-  - [ ] Baseline validation results
-  - [ ] Any oracle discrepancies with justification
-  - [ ] Performance benchmarks
-- [ ] Commit: `test: full baseline validation against xtract oracle`
+- [x] All baseline validation tests pass (65 tests)
+- [x] pm-parse output matches xtract output (99.7% match, differences documented)
+- [x] Performance meets requirements (1,175 articles/sec > 1,000 threshold)
+- [x] Update spec.md with:
+  - [x] Baseline validation results
+  - [x] Oracle discrepancies documented (cosmetic only)
+  - [x] Performance benchmarks
+- [x] Commit: `test: full baseline validation against xtract oracle`
 
 #### Files created/modified in Phase 0.9
 

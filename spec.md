@@ -208,6 +208,40 @@ zcat pubmed24n0001.xml.gz | pm-parse | jq 'select(.year >= "2020")'
 
 ---
 
+## Validation et Performance
+
+### Baseline Validation (Phase 0.9)
+
+**Méthode:** Comparaison de `pm-parse` avec `xtract` (EDirect/NCBI) comme oracle de référence sur 30,000 articles du baseline PubMed (pubmed25n0001.xml.gz).
+
+**Résultats:**
+- **Taux de correspondance:** 99.7% (91 différences sur 30,000 articles)
+- **Type de différences:** Cosmétiques uniquement (pas d'erreurs de données)
+
+| Différence | pm-parse | xtract | Impact |
+|------------|----------|--------|--------|
+| Whitespace trailing | Préservé (`"OgataK "`) | Trimmed (`"OgataK"`) | Cosmétique |
+| Séparateur abstract multi-sections | Espace (` `) | Pipe (`\|`) | Cosmétique |
+
+**Conclusion:** Les deux parsers extraient les mêmes données. Les différences sont dans la normalisation du whitespace, pas dans le contenu sémantique.
+
+### Performance Benchmarks
+
+| Parser | Articles/sec | Temps 30k articles | Notes |
+|--------|-------------|-------------------|-------|
+| **pm-parse** | ~1,175 | ~25 sec | Streaming xml2+awk |
+| xtract (raw) | ~15,000 | ~2 sec | Perl natif, single call |
+| generate-golden.sh | ~14 | ~36 min | 7 xtract calls/article + jq |
+
+**Seuil minimum:** 1,000 articles/sec ✓
+
+**Caractéristiques de pm-parse:**
+- Streaming pur (pas de chargement en mémoire)
+- Supporte les fichiers .gz via `zcat`
+- Output JSONL validé (toutes les lignes sont du JSON valide)
+
+---
+
 ## Plan d'implémentation
 
 Voir [plan.md](plan.md) pour le plan TDD détaillé.
