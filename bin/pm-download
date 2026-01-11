@@ -1,0 +1,296 @@
+#!/usr/bin/env bash
+# pm-download - Download full-text PDFs from PubMed Central and Unpaywall
+# Usage: pm-parse output | pm-download [OPTIONS]
+#        pm-download [OPTIONS] < pmids.txt
+#        pm-download [OPTIONS] --input pmids.txt
+
+set -euo pipefail
+
+# Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/pm-common.sh
+source "${SCRIPT_DIR}/../lib/pm-common.sh"
+
+# Check dependencies
+require_commands curl jq
+
+show_help() {
+    cat << 'EOF'
+pm-download - Download full-text PDFs from PubMed Central and Unpaywall
+
+Usage:
+  pm-parse output | pm-download [OPTIONS]
+  pm-download [OPTIONS] < pmids.txt
+  pm-download [OPTIONS] --input pmids.txt
+
+Input Options:
+  --input FILE         Read PMIDs from file (one per line)
+
+Output Options:
+  --output-dir DIR     Output directory (default: current directory)
+  --overwrite          Overwrite existing files
+  --dry-run            Show what would be downloaded, don't download
+
+Download Options:
+  --timeout SECS       Download timeout in seconds (default: 30)
+  --email EMAIL        Email for Unpaywall API (required for Unpaywall)
+
+Source Options:
+  --pmc-only           Only use PMC (skip Unpaywall)
+  --unpaywall-only     Only use Unpaywall (skip PMC)
+
+General:
+  -v, --verbose        Show progress on stderr
+  -h, --help           Show this help message
+
+Exit Codes:
+  0 - All requested PDFs downloaded successfully
+  1 - Usage error or some PDFs failed
+  2 - No PDFs downloaded (no sources available)
+
+Examples:
+  # Download from pipeline
+  pm-search "CRISPR" | pm-fetch | pm-parse | pm-download --output-dir ./pdfs/
+
+  # Download with dry-run first
+  pm-parse output.jsonl | pm-download --dry-run
+
+  # Download from PMID list
+  pm-download --input pmids.txt --email user@example.com
+EOF
+    exit 0
+}
+
+# Default values
+OUTPUT_DIR="."
+DRY_RUN=0
+# shellcheck disable=SC2034 # Used in Phase 6 (download implementation)
+OVERWRITE=0
+# shellcheck disable=SC2034 # Used in Phase 6 (download implementation)
+TIMEOUT=30
+EMAIL=""
+PMC_ONLY=0
+UNPAYWALL_ONLY=0
+VERBOSE=0
+INPUT_FILE=""
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --help|-h)
+            show_help
+            ;;
+        --verbose|-v)
+            VERBOSE=1
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN=1
+            shift
+            ;;
+        --overwrite)
+            OVERWRITE=1
+            shift
+            ;;
+        --output-dir)
+            OUTPUT_DIR="$2"
+            shift 2
+            ;;
+        --timeout)
+            TIMEOUT="$2"
+            shift 2
+            ;;
+        --email)
+            EMAIL="$2"
+            shift 2
+            ;;
+        --input)
+            INPUT_FILE="$2"
+            shift 2
+            ;;
+        --pmc-only)
+            PMC_ONLY=1
+            shift
+            ;;
+        --unpaywall-only)
+            UNPAYWALL_ONLY=1
+            shift
+            ;;
+        *)
+            die "Unknown option: $1. Use --help for usage."
+            ;;
+    esac
+done
+
+# Verbose logging
+log_verbose() {
+    if [[ "$VERBOSE" -eq 1 ]]; then
+        echo "$@" >&2
+    fi
+}
+
+# Determine input source
+get_input() {
+    if [[ -n "$INPUT_FILE" ]]; then
+        if [[ ! -f "$INPUT_FILE" ]]; then
+            die "Input file not found: $INPUT_FILE"
+        fi
+        cat "$INPUT_FILE"
+    else
+        cat
+    fi
+}
+
+# Detect if input is JSONL or plain PMIDs
+# Returns: "jsonl" or "pmid"
+detect_input_format() {
+    local first_line="$1"
+    if [[ "$first_line" == "{"* ]]; then
+        echo "jsonl"
+    else
+        echo "pmid"
+    fi
+}
+
+# Extract fields from JSONL line
+# Usage: extract_field "$json" "fieldname"
+extract_field() {
+    local json="$1"
+    local field="$2"
+    echo "$json" | jq -r ".$field // empty"
+}
+
+# Determine best source for a given article
+# Outputs: "pmc:PMCID" or "unpaywall:DOI" or "none"
+determine_source() {
+    local pmcid="$1"
+    local doi="$2"
+
+    # PMC has priority (unless --unpaywall-only)
+    if [[ "$UNPAYWALL_ONLY" -eq 0 && -n "$pmcid" ]]; then
+        echo "pmc:$pmcid"
+        return
+    fi
+
+    # Unpaywall fallback (unless --pmc-only)
+    if [[ "$PMC_ONLY" -eq 0 && -n "$doi" && -n "$EMAIL" ]]; then
+        echo "unpaywall:$doi"
+        return
+    fi
+
+    # No email but has DOI - can still report as potential source
+    if [[ "$PMC_ONLY" -eq 0 && -n "$doi" && -z "$EMAIL" ]]; then
+        echo "unpaywall-no-email:$doi"
+        return
+    fi
+
+    echo "none"
+}
+
+# Process dry-run for a single article
+process_dry_run() {
+    local pmid="$1"
+    local pmcid="$2"
+    local doi="$3"
+    local source
+
+    source=$(determine_source "$pmcid" "$doi")
+
+    case "$source" in
+        pmc:*)
+            local pmc_id="${source#pmc:}"
+            echo "PMID $pmid: Would download from PMC ($pmc_id)"
+            ;;
+        unpaywall:*)
+            local doi_val="${source#unpaywall:}"
+            echo "PMID $pmid: Would download via Unpaywall ($doi_val)"
+            ;;
+        unpaywall-no-email:*)
+            local doi_val="${source#unpaywall-no-email:}"
+            echo "PMID $pmid: Could download via Unpaywall ($doi_val) - requires --email"
+            ;;
+        none)
+            echo "PMID $pmid: No source available (no DOI or PMCID)"
+            ;;
+    esac
+}
+
+# Main processing
+main() {
+    local input
+    local first_line
+    local format
+    local line_count=0
+    local available_count=0
+    local unavailable_count=0
+
+    # Read all input
+    input=$(get_input)
+
+    # Check for empty input
+    if [[ -z "$input" ]]; then
+        die "No input provided. Use --help for usage."
+    fi
+
+    # Detect format from first line
+    first_line=$(echo "$input" | head -1)
+    format=$(detect_input_format "$first_line")
+
+    log_verbose "Input format detected: $format"
+
+    # Create output directory if needed (unless dry-run)
+    if [[ "$DRY_RUN" -eq 0 && ! -d "$OUTPUT_DIR" ]]; then
+        mkdir -p "$OUTPUT_DIR"
+    fi
+
+    # Process each line
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+
+        local pmid="" pmcid="" doi=""
+
+        if [[ "$format" == "jsonl" ]]; then
+            pmid=$(extract_field "$line" "pmid")
+            pmcid=$(extract_field "$line" "pmcid")
+            doi=$(extract_field "$line" "doi")
+        else
+            # Plain PMID - we'd need to use ID converter to get DOI/PMCID
+            pmid="$line"
+            # For now, just report no source (ID conversion will be Phase 3)
+        fi
+
+        line_count=$((line_count + 1))
+
+        if [[ "$DRY_RUN" -eq 1 ]]; then
+            process_dry_run "$pmid" "$pmcid" "$doi"
+            source=$(determine_source "$pmcid" "$doi")
+            if [[ "$source" != "none" && "$source" != unpaywall-no-email:* ]]; then
+                available_count=$((available_count + 1))
+            else
+                unavailable_count=$((unavailable_count + 1))
+            fi
+        else
+            # Actual download (Phase 4-6)
+            log_verbose "[$line_count] Processing PMID $pmid..."
+            log_verbose "Options: output=$OUTPUT_DIR, overwrite=$OVERWRITE, timeout=$TIMEOUT"
+            # TODO: Implement actual download
+            echo "Download not yet implemented - use --dry-run"
+            exit 1
+        fi
+    done <<< "$input"
+
+    # Summary for dry-run
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+        echo ""
+        echo "Summary: $available_count available, $unavailable_count not available"
+    fi
+
+    # Exit codes
+    if [[ "$available_count" -eq 0 ]]; then
+        exit 2  # No sources available
+    fi
+
+    exit 0
+}
+
+main
