@@ -1,6 +1,8 @@
 ---
 name: reviewing-code
 description: Reviews implemented features for code quality, test coverage, and requirement compliance. Use after completing a coding task, before creating a pull request, or to validate implementation matches requirements.
+context: fork
+agent: general-purpose
 ---
 
 # Code Review
@@ -68,9 +70,12 @@ If a skill exists for the primary language, load it.
 
 ### Step 6: Run Tests (Only if Quality Passes)
 
-```bash
-uv run pytest  # Or appropriate test command
-```
+Detect test framework and run:
+- Shell/Bash: `bats test/`
+- Python: `pytest` or `uv run pytest`
+- JavaScript: `npm test`
+- Go: `go test ./...`
+- Other: check README or package manager
 
 ## Output Format
 

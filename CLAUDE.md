@@ -15,6 +15,14 @@ If user says **"go"** or **"continue"**:
 3. Start working on the next unchecked `- [ ]` task
 4. Follow TDD: write test first, then implement
 
+## After Each Sub-Phase (0.1, 0.2, 1.1, etc.)
+
+Run a review before moving to the next sub-phase:
+1. Load skill: `/reviewing-code` (runs in fork mode, isolated context)
+2. Review validates: code quality, test coverage, requirements
+3. If approved → commit and continue to next sub-phase
+4. If needs revision → fix issues first
+
 ## Before Starting Any Work
 
 1. **Load the TDD skill**: `/developing-tdd-shell`
