@@ -376,8 +376,8 @@ setup() {
     local baseline="${PROJECT_DIR}/data/pubmed25n0001.xml.gz"
     [ -f "$baseline" ] || skip "Baseline file not found"
 
-    # Expected hash generated before optimization
-    local expected_hash="d0db3c9cfba8d77ae978dd4bc0fffbae"
+    # Expected hash (updated 2026-01-11 after adding pmcid field)
+    local expected_hash="05e20d80ab65f1f8bfde90e4fb5bdb70"
 
     # When: parsing baseline and computing hash
     local actual_hash
@@ -462,6 +462,61 @@ setup() {
 }
 
 # --- Verbose mode tests ---
+
+# --- PMCID extraction tests (for pm-download prerequisite) ---
+
+@test "pm-parse: extracts PMCID when present" {
+    # Given: XML with PMCID in ArticleIdList
+    local xml='<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>12345678</PMID>
+    <Article>
+      <ArticleTitle>Test Article</ArticleTitle>
+    </Article>
+  </MedlineCitation>
+  <PubmedData>
+    <ArticleIdList>
+      <ArticleId IdType="pubmed">12345678</ArticleId>
+      <ArticleId IdType="pmc">PMC1234567</ArticleId>
+      <ArticleId IdType="doi">10.1234/test</ArticleId>
+    </ArticleIdList>
+  </PubmedData>
+</PubmedArticle>
+</PubmedArticleSet>'
+
+    # When: parsing
+    result=$(echo "$xml" | "$PM_PARSE")
+
+    # Then: PMCID is extracted
+    [[ $(echo "$result" | jq -r '.pmcid') == "PMC1234567" ]]
+}
+
+@test "pm-parse: omits pmcid field when not present" {
+    # Given: XML without PMCID (only pubmed and doi)
+    local xml='<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>12345678</PMID>
+    <Article>
+      <ArticleTitle>Test Article</ArticleTitle>
+    </Article>
+  </MedlineCitation>
+  <PubmedData>
+    <ArticleIdList>
+      <ArticleId IdType="pubmed">12345678</ArticleId>
+      <ArticleId IdType="doi">10.1234/test</ArticleId>
+    </ArticleIdList>
+  </PubmedData>
+</PubmedArticle>
+</PubmedArticleSet>'
+
+    # When: parsing
+    result=$(echo "$xml" | "$PM_PARSE")
+
+    # Then: pmcid field is absent (not even null)
+    [ "$(echo "$result" | jq 'has("pmcid")')" = "false" ]
+}
 
 @test "pm-parse: --verbose outputs progress to stderr" {
     # Given: minimal article

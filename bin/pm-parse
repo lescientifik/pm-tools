@@ -32,7 +32,7 @@ Options:
 
 Output:
   One JSON object per line (JSONL format) with fields:
-    pmid, title, authors, journal, year, doi, abstract
+    pmid, title, authors, journal, year, date, doi, pmcid, abstract
 
 Examples:
   # Parse XML file
@@ -68,6 +68,7 @@ done
 # The grep prefilter reduces 4.5M lines to ~1M by keeping only relevant paths,
 # improving performance from ~1000 to ~6000 articles/sec (Unix philosophy: right tool for each job)
 # Note: { grep ... || true; } handles empty input gracefully (grep returns 1 when no matches)
+# shellcheck disable=SC2016 # Single quotes intentional for awk script
 xml2 2>/dev/null | { grep -E '(PubmedArticle$|PMID=|ArticleTitle=|Journal/Title=|PubDate/|ArticleId|AbstractText|LastName=|ForeName=|Author$)' || true; } | $AWK_CMD -v verbose="$VERBOSE" '
 BEGIN {
     # Track current article data
@@ -88,8 +89,10 @@ BEGIN {
     current_lastname = ""
     current_forename = ""
 
-    # Track if we are inside a DOI ArticleId
+    # Track if we are inside a DOI or PMC ArticleId
     in_doi_id = 0
+    in_pmc_id = 0
+    pmcid = ""
 
     # Abstract section handling
     abstract_section_count = 0
@@ -112,11 +115,13 @@ BEGIN {
     season = ""
     medline_date = ""
     doi = ""
+    pmcid = ""
     abstract = ""
     author_count = 0
     current_lastname = ""
     current_forename = ""
     in_doi_id = 0
+    in_pmc_id = 0
     abstract_section_count = 0
     current_abstract_label = ""
     delete abstract_sections
@@ -208,18 +213,29 @@ BEGIN {
     next
 }
 
-# Extract DOI value
+# Track PMC ArticleId
+/\/ArticleId\/@IdType=pmc/ {
+    in_pmc_id = 1
+    next
+}
+
+# Extract DOI or PMCID value
 /\/ArticleIdList\/ArticleId=/ {
     if (in_doi_id == 1) {
         doi = substr($0, index($0, "=") + 1)
         in_doi_id = 0
     }
+    if (in_pmc_id == 1) {
+        pmcid = substr($0, index($0, "=") + 1)
+        in_pmc_id = 0
+    }
     next
 }
 
-# Reset DOI tracking when new ArticleId starts
+# Reset DOI/PMC tracking when new ArticleId starts
 /\/ArticleIdList\/ArticleId$/ {
     in_doi_id = 0
+    in_pmc_id = 0
     next
 }
 
@@ -423,6 +439,7 @@ function output_article(    date) {
     if (year != "") printf ",\"year\":\"%s\"", json_escape(year)
     if (date != "") printf ",\"date\":\"%s\"", json_escape(date)
     if (doi != "") printf ",\"doi\":\"%s\"", json_escape(doi)
+    if (pmcid != "") printf ",\"pmcid\":\"%s\"", json_escape(pmcid)
     if (abstract != "") printf ",\"abstract\":\"%s\"", json_escape(abstract)
     if (abstract_sections_json != "") printf ",\"abstract_sections\":%s", abstract_sections_json
     print "}"
