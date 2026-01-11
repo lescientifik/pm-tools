@@ -435,17 +435,17 @@ Refactor to single xtract call extracting all fields at once → ~15,000 article
 ## Phase 3 : `pm-fetch`
 
 ### 3.1 Tests pm-fetch (avec mocks)
-- [ ] Test : un PMID → appel curl correct
-- [ ] Test : multiple PMIDs → batching (≤200 par requête)
-- [ ] Test : rate limiting respecté (≤3 req/sec)
-- [ ] Test : erreur réseau → exit 1
+- [x] Test : un PMID → appel curl correct
+- [x] Test : multiple PMIDs → batching (≤200 par requête)
+- [x] Test : rate limiting respecté (≤3 req/sec)
+- [x] Test : erreur réseau → exit 1
 
 ### 3.2 Implémentation pm-fetch
-- [ ] Lecture PMIDs depuis stdin
-- [ ] Batching avec awk/split
-- [ ] Appels curl à efetch
-- [ ] Rate limiting avec sleep
-- [ ] Output XML sur stdout
+- [x] Lecture PMIDs depuis stdin
+- [x] Batching avec bash arrays (200 PMIDs par batch)
+- [x] Appels curl à efetch
+- [x] Rate limiting avec sleep (0.34s = ~3 req/sec)
+- [x] Output XML sur stdout
 
 ---
 
