@@ -3,8 +3,8 @@ data/
 *.xml.gz
 *.xml
 
-# Generated files
-generated/
+# Generated files (root only, not test/generated/)
+/generated/
 
 # Editor
 .vscode/

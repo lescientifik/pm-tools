@@ -83,11 +83,11 @@ pubmed_parser/
 - [x] Sélectionner les XPaths qu'on veut extraire → `mapping.json`
 
 ### 0.3 DTD → Générer les tests de couverture
-- [ ] Créer un script `scripts/generate-dtd-tests.sh` qui :
+- [x] Créer un script `scripts/generate-dtd-tests.sh` qui :
   - Lit `mapping.json`
   - Génère des tests bats pour chaque champ
   - Vérifie que le parser extrait bien chaque XPath mappé
-- [ ] Output : `test/generated/dtd-coverage.bats`
+- [x] Output : `test/generated/dtd-coverage.bats` (7 tests, fail until pm-parse implemented)
 
 ### 0.4 Baseline → Extraction intelligente de fixtures
 - [ ] Créer un script `scripts/extract-fixtures.sh` qui :
