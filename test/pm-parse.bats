@@ -371,3 +371,37 @@ setup() {
     first_author=$(echo "$output" | jq -r '.authors[0]')
     [[ "$first_author" == *'Müller'* ]]
 }
+
+# --- Golden file comparison tests (Phase 0.7.5) ---
+
+@test "pm-parse: output matches golden files for special-chars fixtures" {
+    # Note: embedded-tab and embedded-newline golden files use pm-parse output
+    # because pm-parse behavior is more correct than xtract for these edge cases:
+    # - embedded-tab: xtract incorrectly splits author on tab separator
+    # - embedded-newline: abstract uses spaces (structured abstract behavior)
+
+    local fixtures=(
+        "special-chars/embedded-tab"
+        "special-chars/embedded-newline"
+        "special-chars/quotes-backslash"
+        "special-chars/unicode-control"
+    )
+
+    for fixture in "${fixtures[@]}"; do
+        local xml_file="${FIXTURES_DIR}/edge-cases/${fixture}.xml"
+        local golden_file="${FIXTURES_DIR}/expected/${fixture}.jsonl"
+        [ -f "$xml_file" ] || continue
+        [ -f "$golden_file" ] || continue
+
+        local actual golden
+        actual=$("$PM_PARSE" < "$xml_file" | jq -cS .)
+        golden=$(jq -cS . < "$golden_file")
+
+        if [ "$actual" != "$golden" ]; then
+            echo "Mismatch for $fixture:"
+            echo "Expected: $golden"
+            echo "Actual: $actual"
+            return 1
+        fi
+    done
+}

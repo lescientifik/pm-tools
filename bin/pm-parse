@@ -120,14 +120,16 @@ BEGIN {
     next
 }
 
-# Extract abstract (append with newline to handle xml2 splitting on embedded newlines)
-# Note: This also means structured abstracts have sections joined by newlines
+# Extract abstract (all AbstractText elements joined with space)
+# Note: This matches xtract oracle behavior. Embedded newlines within a single
+# AbstractText will be collapsed to spaces, but this is rare in real PubMed data
+# and structured abstracts (common) should be space-joined.
 /\/Abstract\/AbstractText=/ {
     text = substr($0, index($0, "=") + 1)
     if (abstract == "") {
         abstract = text
     } else {
-        abstract = abstract "\n" text
+        abstract = abstract " " text
     }
     next
 }

@@ -1,1 +1,1 @@
-{"pmid":"99901","title":"Title with embedded\ttab character for testing.","authors":["Test","Author Tab"],"journal":"Journal of Special Characters","year":"2024","doi":"10.1234/test.tab.001","abstract":"This abstract also contains a\ttab character."}
+{"pmid":"99901","title":"Title with embedded\ttab character for testing.","authors":["Test\tAuthor Tab"],"journal":"Journal of Special Characters","year":"2024","doi":"10.1234/test.tab.001","abstract":"This abstract also contains a\ttab character."}

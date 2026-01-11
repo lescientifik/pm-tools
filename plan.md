@@ -216,7 +216,7 @@ when xtract outputs data containing embedded tabs or newlines.
 - [x] Test: embedded tabs produce valid JSON (not corrupted fields)
 - [x] Test: embedded newlines produce single JSONL line per article
 - [x] Test: quotes and backslashes are properly escaped
-- [ ] Test: output matches expected golden files
+- [x] Test: pm-parse output matches golden files (added to pm-parse.bats)
 
 **0.7.3 Implement robust TSV→JSONL conversion**
 - [x] Refactor generate-golden.sh to use jq for JSON construction
