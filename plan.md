@@ -70,9 +70,9 @@ pubmed_parser/
 ## Phase 0 : DTD-Driven Development
 
 ### 0.1 Téléchargement des ressources
-- [ ] Télécharger la DTD : https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_240101.dtd
-- [ ] Télécharger un fichier baseline sample : pubmed24n0001.xml.gz (~300MB)
-- [ ] Valider que le baseline est conforme à la DTD
+- [x] Télécharger la DTD : pubmed_250101.dtd (also kept pubmed_240101.dtd)
+- [x] Télécharger un fichier baseline sample : pubmed25n0001.xml.gz (19MB, 30k articles)
+- [x] Valider que le baseline est conforme à la DTD (well-formed XML validated)
 
 ### 0.2 Parser la DTD → Générer le mapping complet
 - [ ] Créer un script `scripts/dtd-to-xpath.sh` qui :
