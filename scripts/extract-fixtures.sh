@@ -196,7 +196,8 @@ extract_random() {
     local n="$2"
     local output_dir="$3"
 
-    local total=$(count_articles "$baseline")
+    local total
+    total=$(count_articles "$baseline")
     if [ "$total" -eq 0 ]; then
         die "No articles found in baseline"
     fi
@@ -204,8 +205,10 @@ extract_random() {
     echo "Extracting $n random articles from $total total..." >&2
 
     # Generate N random indices (sorted for single-pass extraction)
-    local indices=$(shuf -i 1-"$total" -n "$n" | sort -n | tr '\n' ' ')
+    local indices
+    indices=$(shuf -i 1-"$total" -n "$n" | sort -n | tr '\n' ' ')
 
+    # shellcheck disable=SC2086 # Intentional word splitting for indices
     extract_articles_by_indices "$baseline" "$output_dir" $indices
 }
 
