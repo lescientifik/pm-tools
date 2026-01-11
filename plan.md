@@ -245,6 +245,126 @@ generated/mapping.json
 }
 ```
 
+### 0.9 Full baseline validation
+
+**Goal:** Verify pm-parse produces identical output to xtract (the oracle) on 30k articles,
+and document performance characteristics.
+
+**Key principles:**
+- Differences from oracle are bugs, not documentation (per CLAUDE.md)
+- TDD: write tests first, then implement tooling
+- Performance optimization: optimize code, not tests
+
+#### 0.9.1 Create baseline comparison tooling (TDD)
+
+**Tests first:** `test/baseline-validation.bats`
+- [ ] Test: `scripts/baseline-to-xtract-jsonl.sh` produces valid JSONL
+- [ ] Test: `scripts/compare-jsonl.sh` detects identical files
+- [ ] Test: `scripts/compare-jsonl.sh` reports field-level differences
+- [ ] Test: `scripts/compare-jsonl.sh` handles missing/extra records
+- [ ] Test: `scripts/benchmark-parser.sh` outputs timing stats
+
+**Implementation:**
+- [ ] Create `scripts/baseline-to-xtract-jsonl.sh`:
+  - Processes baseline XML in batches (100 articles per batch for memory)
+  - Uses generate-golden.sh logic but optimized for batch processing
+  - Writes to stdout or file with progress on stderr
+  - Handles the full 30k articles (may take 30-60 minutes)
+- [ ] Create `scripts/compare-jsonl.sh`:
+  - Inputs: two JSONL files (xtract output, pm-parse output)
+  - Outputs: summary of differences by field
+  - Reports: identical count, different count, missing in each
+  - Shows first N differences per field for debugging
+- [ ] Create `scripts/benchmark-parser.sh`:
+  - Times execution of a parser on a given XML file
+  - Reports: total time, articles/second, memory usage (if available)
+  - Accepts parser command as argument (pm-parse, xtract, etc.)
+
+#### 0.9.2 Generate xtract baseline output
+
+**Prerequisites:** EDirect installed, baseline file available
+
+- [ ] Run `baseline-to-xtract-jsonl.sh` on `data/pubmed25n0001.xml.gz`
+- [ ] Output: `data/pubmed25n0001.xtract.jsonl` (~30k lines)
+- [ ] Verify line count matches expected article count
+- [ ] Verify all lines are valid JSON (`jq -c . < file > /dev/null`)
+
+**Note:** xtract is slow (~5-10 articles/sec). Expect 1-2 hours for 30k articles.
+Consider running in background with progress logging.
+
+#### 0.9.3 Generate pm-parse baseline output
+
+- [ ] Run `zcat data/pubmed25n0001.xml.gz | pm-parse > data/pubmed25n0001.pm-parse.jsonl`
+- [ ] Verify line count matches xtract output
+- [ ] Verify all lines are valid JSON
+
+**Expected:** ~1700-2200 articles/sec based on Phase 0.5 measurements.
+
+#### 0.9.4 Compare outputs and analyze differences
+
+- [ ] Run `compare-jsonl.sh` on both JSONL files
+- [ ] Document all differences found
+- [ ] For each difference type:
+  - [ ] Determine if pm-parse bug or xtract quirk
+  - [ ] If pm-parse bug: create issue/fix in separate task
+  - [ ] If xtract quirk: document in spec.md with justification
+- [ ] **Goal: Zero differences** (or document why oracle is wrong)
+
+**Common difference patterns to watch for:**
+- Author name formatting (LastName ForeName vs ForeName LastName)
+- Abstract whitespace handling (single space vs preserved newlines)
+- Year extraction from MedlineDate
+- DOI extraction when multiple ArticleIds present
+- Unicode normalization differences
+
+#### 0.9.5 Fix pm-parse bugs found in 0.9.4
+
+- [ ] For each bug identified:
+  - [ ] Write failing test first (TDD Red)
+  - [ ] Fix implementation (TDD Green)
+  - [ ] Verify fix doesn't break other tests
+  - [ ] Re-run full baseline comparison
+- [ ] Iterate until diff is clean (or oracle discrepancies documented)
+
+#### 0.9.6 Performance benchmarking
+
+- [ ] Benchmark pm-parse on full baseline:
+  - [ ] Record: total time, articles/sec
+  - [ ] Verify meets minimum threshold (1000 articles/sec per Phase 0.5)
+- [ ] Benchmark xtract on sample (1000 articles):
+  - [ ] Record: total time, articles/sec
+  - [ ] Note: xtract is expected to be ~100-500x slower
+- [ ] Document performance comparison in spec.md:
+  ```
+  | Parser   | Articles/sec | 30k baseline time |
+  |----------|-------------|-------------------|
+  | pm-parse | ~2000       | ~15 seconds       |
+  | xtract   | ~5-10       | ~1-2 hours        |
+  ```
+
+#### 0.9.7 Final validation and documentation
+
+- [ ] All baseline validation tests pass
+- [ ] pm-parse output matches xtract output (or differences documented)
+- [ ] Performance meets requirements
+- [ ] Update spec.md with:
+  - [ ] Baseline validation results
+  - [ ] Any oracle discrepancies with justification
+  - [ ] Performance benchmarks
+- [ ] Commit: `test: full baseline validation against xtract oracle`
+
+#### Files created/modified in Phase 0.9
+
+| File | Purpose |
+|------|---------|
+| `test/baseline-validation.bats` | Tests for validation scripts |
+| `scripts/baseline-to-xtract-jsonl.sh` | Generate xtract output for baseline |
+| `scripts/compare-jsonl.sh` | Field-level JSONL comparison |
+| `scripts/benchmark-parser.sh` | Performance measurement |
+| `data/pubmed25n0001.xtract.jsonl` | Xtract oracle output (gitignore) |
+| `data/pubmed25n0001.pm-parse.jsonl` | Our parser output (gitignore) |
+| `spec.md` | Updated with validation results |
+
 ---
 
 ## Phase 1 : Infrastructure (tests en premier)
