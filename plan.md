@@ -151,14 +151,14 @@ generated/mapping.json
 ## Phase 1 : Infrastructure (tests en premier)
 
 ### 1.1 Setup projet + bats
-- [ ] Créer la structure de dossiers
-- [ ] Installer/vérifier bats-core
-- [ ] Créer `test_helper.bash` avec fonctions utilitaires
+- [x] Créer la structure de dossiers
+- [x] Installer/vérifier bats-core
+- [x] Créer `test_helper.bash` avec fonctions utilitaires
 
 ### 1.2 Tests pour `pm-common.sh`
-- [ ] Test : `log_verbose` écrit sur stderr seulement si --verbose
-- [ ] Test : `die` affiche erreur et exit 1
-- [ ] Implémenter `lib/pm-common.sh`
+- [x] Test : `log_verbose` écrit sur stderr seulement si --verbose
+- [x] Test : `die` affiche erreur et exit 1
+- [x] Implémenter `lib/pm-common.sh`
 
 ---
 
