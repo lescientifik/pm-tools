@@ -107,8 +107,34 @@ apt install bats jq xml2 curl
 bats test/
 
 # Check shell scripts
-shellcheck bin/*
+shellcheck bin/* scripts/*
 
 # Lint + test
-shellcheck bin/* && bats test/
+shellcheck bin/* scripts/* && bats test/
 ```
+
+## Anti-Patterns to Avoid
+
+### Never Take Shortcuts
+
+1. **Missing tools**: If a required tool (shellcheck, bats, etc.) is not installed, **install it immediately**. Never say "let's skip this" or "let's move on".
+
+2. **Slow tests**: If tests are slow, **optimize the code**, not the tests. Never create simplified test fixtures to avoid the real workload.
+
+3. **Problems are blockers**: When encountering a problem, **solve it**. Don't work around it, don't defer it, don't minimize it.
+
+4. **Dependencies matter**: The project specifies dependencies for a reason. Ensure all are installed and working before proceeding.
+
+### Quality Gates
+
+Before any commit:
+- [ ] All tests pass (`bats test/`)
+- [ ] shellcheck passes on all scripts (`shellcheck bin/* scripts/*`)
+- [ ] Code review completed (for sub-phase completion)
+
+### Self-Correction
+
+When the user points out a shortcut or mistake:
+1. Acknowledge the error explicitly
+2. Fix it immediately
+3. Consider if CLAUDE.md needs updating to prevent recurrence
