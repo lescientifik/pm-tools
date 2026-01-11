@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# pm-show - Pretty print pm-parse JSONL output
+# Usage: pm-parse articles.xml | pm-show
+#        pm-search "query" | pm-fetch | pm-parse | pm-show
+
+set -euo pipefail
+
+# Colors (disable with NO_COLOR=1)
+if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]]; then
+    BOLD='\033[1m'
+    DIM='\033[2m'
+    CYAN='\033[36m'
+    YELLOW='\033[33m'
+    GREEN='\033[32m'
+    RESET='\033[0m'
+else
+    BOLD='' DIM='' CYAN='' YELLOW='' GREEN='' RESET=''
+fi
+
+# Process each JSON line
+while IFS= read -r line; do
+    # Parse JSON fields
+    pmid=$(echo "$line" | jq -r '.pmid // "?"')
+    title=$(echo "$line" | jq -r '.title // "No title"')
+    journal=$(echo "$line" | jq -r '.journal // "Unknown journal"')
+    year=$(echo "$line" | jq -r '.year // "?"')
+    doi=$(echo "$line" | jq -r '.doi // empty')
+    authors=$(echo "$line" | jq -r '(.authors // [])[0:3] | join(", ")')
+    author_count=$(echo "$line" | jq -r '(.authors // []) | length')
+    abstract=$(echo "$line" | jq -r '.abstract // empty')
+
+    # Print formatted output
+    echo -e "${DIM}────────────────────────────────────────────────────────────────────────────────${RESET}"
+    echo -e "${BOLD}${title}${RESET}"
+    echo ""
+    echo -e "  ${CYAN}${journal}${RESET} ${DIM}(${year})${RESET}"
+    echo -e "  ${GREEN}PMID: ${pmid}${RESET}${doi:+  •  DOI: $doi}"
+    if [[ -n "$authors" ]]; then
+        suffix=""
+        [[ "$author_count" -gt 3 ]] && suffix=" et al."
+        echo -e "  ${YELLOW}${authors}${suffix}${RESET}"
+    fi
+    if [[ -n "$abstract" ]]; then
+        # Truncate abstract to ~200 chars
+        short_abstract="${abstract:0:200}"
+        [[ ${#abstract} -gt 200 ]] && short_abstract="${short_abstract}..."
+        echo ""
+        echo -e "  ${DIM}${short_abstract}${RESET}"
+    fi
+    echo ""
+done

@@ -61,7 +61,7 @@ cp "${SOURCE_DIR}/lib/pm-common.sh" "${LIB_DIR}/"
 echo "  Installed: ${LIB_DIR}/pm-common.sh"
 
 # Install binaries with updated library path
-for cmd in pm-search pm-fetch pm-parse; do
+for cmd in pm-search pm-fetch pm-parse pm-show; do
     # Update the source path in the script
     sed "s|source \"\${SCRIPT_DIR}/../lib/pm-common.sh\"|source \"${LIB_DIR}/pm-common.sh\"|" \
         "${SOURCE_DIR}/bin/${cmd}" > "${BIN_DIR}/${cmd}"
