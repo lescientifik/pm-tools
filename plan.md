@@ -507,6 +507,20 @@ Refactor to single xtract call extracting all fields at once → ~15,000 article
 
 ## Future Enhancements
 
+### Trim Trailing Whitespace in pm-parse
+pm-parse preserves trailing whitespace from XML, while xtract trims it.
+
+```
+pm-parse: "OgataK "   ← trailing space
+xtract:   "OgataK"    ← trimmed
+```
+
+**Fix:**
+- [ ] Trim whitespace in author names (LastName, ForeName)
+- [ ] Consider trimming all text fields (title, journal, abstract)
+
+**Impact:** 91 records affected in baseline (0.3%)
+
 ### Optimize baseline-to-xtract-jsonl.sh Performance
 **Priority:** Low (if current script works correctly) / High (if issues found)
 
