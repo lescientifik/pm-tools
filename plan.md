@@ -104,9 +104,9 @@ pubmed_parser/
 - [x] Output : `fixtures/` avec articles classés par edge case
 
 ### 0.5 Baseline → Tests de non-régression
-- [ ] Test : `pm-parse` ne crash sur aucun article du baseline
-- [ ] Méthode : `zcat baseline.xml.gz | pm-parse | wc -l` == nombre d'articles attendu
-- [ ] Mesurer la performance (articles/seconde)
+- [x] Test : `pm-parse` ne crash sur aucun article du baseline
+- [x] Méthode : `zcat baseline.xml.gz | pm-parse | wc -l` == nombre d'articles attendu (30000)
+- [x] Mesurer la performance (articles/seconde) : ~1700-2200 articles/sec, seuil minimum 1000
 
 ### 0.6 Golden files via EDirect (oracle officiel)
 

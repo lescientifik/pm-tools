@@ -6,19 +6,11 @@ set -euo pipefail
 
 # Source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=../lib/pm-common.sh
+# shellcheck source=lib/pm-common.sh
 source "${SCRIPT_DIR}/../lib/pm-common.sh"
 
-# Read all input to check for empty
-input=$(cat)
-
-# Exit silently if input is empty or whitespace only
-if [[ -z "${input// /}" ]]; then
-    exit 0
-fi
-
-# Process XML using xml2 and awk
-echo "$input" | xml2 | awk '
+# Process XML using xml2 and awk (streaming - no memory buffering)
+xml2 2>/dev/null | awk '
 BEGIN {
     # Track current article data
     pmid = ""

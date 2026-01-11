@@ -1,0 +1,6 @@
+# Enable following external sources
+external-sources=true
+
+# Search path for sourced files (relative to project root)
+source-path=lib
+source-path=bin

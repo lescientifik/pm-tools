@@ -247,3 +247,40 @@ setup() {
     # DOI and abstract should be null or empty, not cause error
     echo "$result" | jq . >/dev/null
 }
+
+# --- Baseline non-regression tests ---
+
+@test "pm-parse: parses entire baseline without crashing" {
+    # Given: full baseline file with 30000 articles
+    local baseline="${PROJECT_DIR}/data/pubmed25n0001.xml.gz"
+    [ -f "$baseline" ] || skip "Baseline file not found"
+
+    # When: parsing entire baseline
+    run bash -c "zcat '$baseline' | '$PM_PARSE' | wc -l"
+
+    # Then: exits successfully and produces exactly 30000 lines
+    [ "$status" -eq 0 ]
+    [ "$output" -eq 30000 ]
+}
+
+@test "pm-parse: baseline performance > 1000 articles/second" {
+    # Given: full baseline file
+    local baseline="${PROJECT_DIR}/data/pubmed25n0001.xml.gz"
+    [ -f "$baseline" ] || skip "Baseline file not found"
+
+    # When: timing the parse
+    local start end elapsed rate
+    start=$(date +%s.%N)
+    zcat "$baseline" | "$PM_PARSE" > /dev/null
+    end=$(date +%s.%N)
+
+    # Then: performance should be > 1000 articles/second
+    elapsed=$(echo "$end - $start" | bc)
+    rate=$(echo "30000 / $elapsed" | bc)
+
+    # Log performance for visibility
+    echo "# Performance: $rate articles/second (${elapsed}s for 30000 articles)" >&3
+
+    # Assert minimum performance threshold
+    [ "$rate" -ge 1000 ]
+}
