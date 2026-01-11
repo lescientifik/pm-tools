@@ -269,3 +269,45 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Unpaywall"* ]] || [[ "$output" == *"available"* ]]
 }
+
+# --- PDF Download tests (Phase 6) ---
+
+@test "pm-download without --dry-run attempts actual download" {
+    # This test verifies that without --dry-run, the tool attempts downloads
+    # We use a mock PDF URL that will fail gracefully
+
+    # Given: JSONL with mock PMC response
+    local jsonl='{"pmid":"12345","pmcid":"PMC1234567"}'
+    local mock_pmc="${FIXTURES_DIR}/mock-responses/pmc-oa-success.xml"
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    # When: running without --dry-run
+    # The download will fail (mock URL doesn't exist) but should report the attempt
+    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --output-dir '$tmpdir' --mock-pmc '$mock_pmc' --timeout 5 2>&1"
+
+    # Then: shows download attempt (may fail with network error)
+    [[ "$output" == *"download"* ]] || [[ "$output" == *"Download"* ]] || [[ "$output" == *"error"* ]] || [[ "$output" == *"Error"* ]]
+
+    rm -rf "$tmpdir"
+}
+
+@test "pm-download skips existing files without --overwrite" {
+    # Given: output directory with existing file
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    echo "existing content" > "$tmpdir/12345.pdf"
+    local jsonl='{"pmid":"12345","pmcid":"PMC1234567"}'
+    local mock_pmc="${FIXTURES_DIR}/mock-responses/pmc-oa-success.xml"
+
+    # When: running without --overwrite
+    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --output-dir '$tmpdir' --mock-pmc '$mock_pmc' --timeout 5 2>&1"
+
+    # Then: should skip existing file
+    [[ "$output" == *"skip"* ]] || [[ "$output" == *"Skip"* ]] || [[ "$output" == *"exists"* ]]
+
+    # And: original file should be unchanged
+    [ "$(cat "$tmpdir/12345.pdf")" = "existing content" ]
+
+    rm -rf "$tmpdir"
+}

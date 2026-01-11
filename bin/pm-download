@@ -329,6 +329,97 @@ unpaywall_lookup() {
     fi
 }
 
+# Download a PDF file
+# Usage: download_pdf "$url" "$output_file"
+# Returns: 0 on success, 1 on failure
+download_pdf() {
+    local url="$1"
+    local output_file="$2"
+    local http_code
+
+    # Check if file exists and skip unless --overwrite
+    if [[ -f "$output_file" && "$OVERWRITE" -eq 0 ]]; then
+        echo "Skip: $output_file already exists (use --overwrite to replace)"
+        return 2  # Skip code
+    fi
+
+    log_verbose "Downloading: $url"
+    log_verbose "To: $output_file"
+
+    # Download with timeout and capture HTTP code
+    http_code=$(curl -sL -w "%{http_code}" -o "$output_file" --connect-timeout "$TIMEOUT" --max-time "$((TIMEOUT * 3))" "$url")
+
+    if [[ "$http_code" != "200" ]]; then
+        echo "Error: HTTP $http_code for $url"
+        rm -f "$output_file"  # Clean up partial download
+        return 1
+    fi
+
+    # Verify it's a PDF (check magic bytes)
+    if [[ -f "$output_file" ]]; then
+        local magic
+        magic=$(head -c 4 "$output_file" | cat -v 2>/dev/null || true)
+        if [[ "$magic" != "%PDF" ]]; then
+            echo "Error: Downloaded file is not a PDF (got: $magic)"
+            rm -f "$output_file"
+            return 1
+        fi
+    fi
+
+    echo "Downloaded: $output_file"
+    return 0
+}
+
+# Process a single article for download (actual download, not dry-run)
+# Returns: "success" or "failed" or "skipped"
+process_download() {
+    local pmid="$1"
+    local pmcid="$2"
+    local doi="$3"
+    local output_file="$OUTPUT_DIR/$pmid.pdf"
+    local pdf_url=""
+    local download_result
+
+    # Try PMC first if we have PMCID and not --unpaywall-only
+    if [[ "$UNPAYWALL_ONLY" -eq 0 && -n "$pmcid" ]]; then
+        pdf_url=$(pmc_lookup "$pmcid")
+        if [[ -n "$pdf_url" ]]; then
+            echo "PMID $pmid: Downloading from PMC ($pmcid)..."
+            download_pdf "$pdf_url" "$output_file"
+            download_result=$?
+            if [[ $download_result -eq 0 ]]; then
+                echo "success"
+                return
+            elif [[ $download_result -eq 2 ]]; then
+                echo "skipped"
+                return
+            fi
+            log_verbose "PMC download failed, trying fallback..."
+        fi
+    fi
+
+    # Try Unpaywall if we have DOI and email (and not --pmc-only)
+    if [[ "$PMC_ONLY" -eq 0 && -n "$doi" && -n "$EMAIL" ]]; then
+        pdf_url=$(unpaywall_lookup "$doi")
+        if [[ -n "$pdf_url" ]]; then
+            echo "PMID $pmid: Downloading via Unpaywall ($doi)..."
+            download_pdf "$pdf_url" "$output_file"
+            download_result=$?
+            if [[ $download_result -eq 0 ]]; then
+                echo "success"
+                return
+            elif [[ $download_result -eq 2 ]]; then
+                echo "skipped"
+                return
+            fi
+        fi
+    fi
+
+    # No source available
+    echo "PMID $pmid: No PDF source available"
+    echo "failed"
+}
+
 # Process dry-run for a single article
 # Returns: "available" or "unavailable"
 process_dry_run() {
@@ -445,19 +536,36 @@ main() {
                 unavailable_count=$((unavailable_count + 1))
             fi
         else
-            # Actual download (Phase 4-6)
+            # Actual download
             log_verbose "[$line_count] Processing PMID $pmid..."
-            log_verbose "Options: output=$OUTPUT_DIR, overwrite=$OVERWRITE, timeout=$TIMEOUT"
-            # TODO: Implement actual download
-            echo "Download not yet implemented - use --dry-run"
-            exit 1
+            local result
+            result=$(process_download "$pmid" "$pmcid" "$doi")
+            # Print all lines except the last (which is "success"/"failed"/"skipped")
+            echo "$result" | head -n -1
+            # Get the last line for counting
+            local status_line
+            status_line=$(echo "$result" | tail -1)
+            case "$status_line" in
+                success)
+                    available_count=$((available_count + 1))
+                    ;;
+                skipped)
+                    # Count skipped as "available" since the file exists
+                    available_count=$((available_count + 1))
+                    ;;
+                failed)
+                    unavailable_count=$((unavailable_count + 1))
+                    ;;
+            esac
         fi
     done <<< "$input"
 
-    # Summary for dry-run
+    # Summary
+    echo ""
     if [[ "$DRY_RUN" -eq 1 ]]; then
-        echo ""
         echo "Summary: $available_count available, $unavailable_count not available"
+    else
+        echo "Summary: $available_count downloaded/skipped, $unavailable_count failed"
     fi
 
     # Exit codes
