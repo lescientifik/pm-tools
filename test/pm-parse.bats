@@ -356,3 +356,41 @@ setup() {
         fi
     done
 }
+
+# --- Verbose mode tests ---
+
+@test "pm-parse: --verbose outputs progress to stderr" {
+    # Given: minimal article
+    local xml='<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>12345</PMID>
+  </MedlineCitation>
+</PubmedArticle>
+</PubmedArticleSet>'
+
+    # When: parsing with --verbose
+    run bash -c "echo '$xml' | '$PM_PARSE' --verbose 2>&1 >/dev/null"
+
+    # Then: stderr contains progress info
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Parsed"* ]] || [[ "$output" == *"article"* ]]
+}
+
+@test "pm-parse: without --verbose stderr is silent" {
+    # Given: minimal article
+    local xml='<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>12345</PMID>
+  </MedlineCitation>
+</PubmedArticle>
+</PubmedArticleSet>'
+
+    # When: parsing without --verbose
+    run bash -c "echo '$xml' | '$PM_PARSE' 2>&1 >/dev/null"
+
+    # Then: stderr is empty
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+}

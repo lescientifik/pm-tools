@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # pm-parse - Parse PubMed XML to JSONL
-# Usage: cat articles.xml | pm-parse > articles.jsonl
+# Usage: cat articles.xml | pm-parse [--verbose] > articles.jsonl
 
 set -euo pipefail
 
@@ -9,12 +9,27 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/pm-common.sh
 source "${SCRIPT_DIR}/../lib/pm-common.sh"
 
+# Parse arguments
+VERBOSE=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --verbose|-v)
+            VERBOSE=1
+            shift
+            ;;
+        *)
+            die "Unknown option: $1"
+            ;;
+    esac
+done
+
 # Process XML using xml2 and awk (streaming - no memory buffering)
-xml2 2>/dev/null | awk '
+xml2 2>/dev/null | awk -v verbose="$VERBOSE" '
 BEGIN {
     # Track current article data
     pmid = ""
     title = ""
+    article_count = 0
     journal = ""
     year = ""
     doi = ""
@@ -199,6 +214,12 @@ function output_article() {
     if (doi != "") printf ",\"doi\":\"%s\"", json_escape(doi)
     if (abstract != "") printf ",\"abstract\":\"%s\"", json_escape(abstract)
     print "}"
+
+    # Verbose output to stderr
+    article_count++
+    if (verbose == 1) {
+        printf "Parsed article %d: PMID %s\n", article_count, pmid > "/dev/stderr"
+    }
 
     # Reset author array
     delete authors

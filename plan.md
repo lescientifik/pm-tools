@@ -416,19 +416,19 @@ Refactor to single xtract call extracting all fields at once → ~15,000 article
 - [x] Test : article complet (extrait baseline) → tous les champs extraits
 - [x] Test : multiple articles → une ligne JSONL par article
 - [x] Test : caractères spéciaux (accents, &amp;, unicode) → échappés correctement
-- [ ] Test : fichier .xml.gz → décompression à la volée (zcat | pm-parse)
+- [x] Test : fichier .xml.gz → décompression à la volée (zcat | pm-parse)
 
 ### 2.2 Implémentation pm-parse
 - [x] Script de base qui lit stdin
 - [x] Pipeline `xml2 | awk` pour découper par article
 - [x] Extraction des champs selon mapping DTD
-- [ ] Construction JSON avec jq
-- [ ] Gestion --verbose
+- [x] Construction JSON avec awk (originally planned jq, but awk is faster and simpler)
+- [x] Gestion --verbose
 
 ### 2.3 Fixtures (depuis baseline)
 - [x] Télécharger un fichier baseline
 - [x] Extraire 5-10 articles représentatifs
-- [ ] Créer le JSONL attendu manuellement (golden file)
+- [x] Créer le JSONL attendu (golden files via generate-golden.sh using xtract as oracle)
 
 ---
 
