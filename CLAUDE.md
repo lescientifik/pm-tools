@@ -132,6 +132,25 @@ Before any commit:
 - [ ] shellcheck passes on all scripts (`shellcheck bin/* scripts/*`)
 - [ ] Code review completed (for sub-phase completion)
 
+### Explain Your Decisions
+
+When making non-trivial decisions, **always explain clearly to the user**:
+
+1. **Modifying a test**: If changing test code rather than implementation, explain:
+   - What was wrong with the original test
+   - Why the change fixes it
+   - Example: "The test used `$status` without `run`, so `$status` was empty. Fixed by adding `run` before the assertion."
+
+2. **Ignoring warnings or non-zero exit codes**:
+   - Never silently ignore exit code 1 or warnings
+   - Explain why it's safe to proceed (e.g., "SC1091 is informational - shellcheck can't follow sourced files, but the file exists")
+   - If not safe, fix the issue before continuing
+
+3. **In your reasoning**: Before making such decisions, explicitly think through:
+   - What is the actual error/warning?
+   - Is this a real problem or a false positive?
+   - What is the correct fix?
+
 ### Self-Correction
 
 When the user points out a shortcut or mistake:
