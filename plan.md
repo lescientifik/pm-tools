@@ -488,7 +488,7 @@ Refactor to single xtract call extracting all fields at once → ~15,000 article
 ### 6.2 Polish
 - [x] --help pour chaque commande
 - [x] Vérification des dépendances au démarrage
-- [ ] README avec exemples (deferred until project mature)
+- [x] README avec exemples
 
 ---
 
