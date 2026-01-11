@@ -289,8 +289,10 @@ and document performance characteristics.
 - [ ] Verify line count matches expected article count
 - [ ] Verify all lines are valid JSON (`jq -c . < file > /dev/null`)
 
-**Note:** xtract is slow (~5-10 articles/sec). Expect 1-2 hours for 30k articles.
-Consider running in background with progress logging.
+**Benchmark (measured 2026-01-11):**
+- Raw xtract: ~15,000 articles/sec (single extraction call)
+- generate-golden.sh: ~80 articles/sec (7 xtract calls per article)
+- Estimated time for 30k articles: ~6-7 minutes
 
 #### 0.9.3 Generate pm-parse baseline output
 
@@ -336,11 +338,13 @@ Consider running in background with progress logging.
   - [ ] Note: xtract is expected to be ~100-500x slower
 - [ ] Document performance comparison in spec.md:
   ```
-  | Parser   | Articles/sec | 30k baseline time |
-  |----------|-------------|-------------------|
-  | pm-parse | ~2000       | ~15 seconds       |
-  | xtract   | ~5-10       | ~1-2 hours        |
+  | Parser             | Articles/sec | 30k baseline time |
+  |--------------------|-------------|-------------------|
+  | pm-parse           | ~2000       | ~15 seconds       |
+  | generate-golden.sh | ~80         | ~6-7 minutes      |
+  | raw xtract         | ~15000      | ~2 seconds        |
   ```
+  Note: generate-golden.sh is slow due to 7 xtract calls per article
 
 #### 0.9.7 Final validation and documentation
 
