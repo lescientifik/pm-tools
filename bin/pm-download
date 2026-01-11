@@ -75,6 +75,7 @@ VERBOSE=0
 INPUT_FILE=""
 MOCK_IDCONV=""  # For testing: path to mock ID converter response JSON
 MOCK_PMC=""     # For testing: path to mock PMC OA Service response XML
+MOCK_UNPAYWALL=""  # For testing: path to mock Unpaywall response JSON
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -124,6 +125,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --mock-pmc)
             MOCK_PMC="$2"
+            shift 2
+            ;;
+        --mock-unpaywall)
+            MOCK_UNPAYWALL="$2"
             shift 2
             ;;
         *)
@@ -273,31 +278,55 @@ pmc_lookup() {
     fi
 }
 
-# Determine best source for a given article
-# Outputs: "pmc:PMCID" or "unpaywall:DOI" or "none"
-determine_source() {
-    local pmcid="$1"
-    local doi="$2"
+# Query Unpaywall API for PDF URL
+# Usage: unpaywall_lookup "$doi"
+# Returns: PDF URL if available, empty if not
+unpaywall_lookup() {
+    local doi="$1"
+    local response
+    local pdf_url
+    local is_oa
 
-    # PMC has priority (unless --unpaywall-only)
-    if [[ "$UNPAYWALL_ONLY" -eq 0 && -n "$pmcid" ]]; then
-        echo "pmc:$pmcid"
+    if [[ -z "$EMAIL" ]]; then
+        log_verbose "Unpaywall: --email required"
         return
     fi
 
-    # Unpaywall fallback (unless --pmc-only)
-    if [[ "$PMC_ONLY" -eq 0 && -n "$doi" && -n "$EMAIL" ]]; then
-        echo "unpaywall:$doi"
+    if [[ -n "$MOCK_UNPAYWALL" ]]; then
+        # Use mock response for testing
+        if [[ -f "$MOCK_UNPAYWALL" ]]; then
+            response=$(cat "$MOCK_UNPAYWALL")
+        else
+            log_verbose "Mock Unpaywall file not found: $MOCK_UNPAYWALL"
+            return
+        fi
+    else
+        # Real API call
+        # URL-encode the DOI (basic encoding for slashes)
+        local encoded_doi
+        encoded_doi="${doi//\//%2F}"
+
+        log_verbose "Querying Unpaywall for $doi..."
+        response=$(curl -s "https://api.unpaywall.org/v2/${encoded_doi}?email=${EMAIL}")
+
+        # No rate limit needed for Unpaywall (100k/day is generous)
+    fi
+
+    # Check if OA
+    is_oa=$(echo "$response" | jq -r '.is_oa // false')
+    if [[ "$is_oa" != "true" ]]; then
+        log_verbose "Unpaywall: $doi is not Open Access"
         return
     fi
 
-    # No email but has DOI - can still report as potential source
-    if [[ "$PMC_ONLY" -eq 0 && -n "$doi" && -z "$EMAIL" ]]; then
-        echo "unpaywall-no-email:$doi"
-        return
-    fi
+    # Extract PDF URL from response
+    pdf_url=$(echo "$response" | jq -r '.best_oa_location.url_for_pdf // empty')
 
-    echo "none"
+    if [[ -n "$pdf_url" ]]; then
+        echo "$pdf_url"
+    else
+        log_verbose "Unpaywall: $doi is OA but no PDF URL available"
+    fi
 }
 
 # Process dry-run for a single article
@@ -306,7 +335,6 @@ process_dry_run() {
     local pmid="$1"
     local pmcid="$2"
     local doi="$3"
-    local source
     local pdf_url=""
 
     # Try PMC first if we have PMCID and not --unpaywall-only
@@ -320,28 +348,24 @@ process_dry_run() {
         log_verbose "PMC: No PDF for $pmcid, trying fallback..."
     fi
 
-    # Fall back to determining source without PMC lookup
-    source=$(determine_source "" "$doi")  # Pass empty pmcid since PMC failed
-
-    case "$source" in
-        pmc:*)
-            # Won't happen since we pass empty pmcid above
-            ;;
-        unpaywall:*)
-            local doi_val="${source#unpaywall:}"
-            echo "PMID $pmid: Would download via Unpaywall ($doi_val)"
+    # Try Unpaywall if we have DOI and email (and not --pmc-only)
+    if [[ "$PMC_ONLY" -eq 0 && -n "$doi" && -n "$EMAIL" ]]; then
+        pdf_url=$(unpaywall_lookup "$doi")
+        if [[ -n "$pdf_url" ]]; then
+            echo "PMID $pmid: Would download via Unpaywall ($doi) - PDF available"
             echo "available"
-            ;;
-        unpaywall-no-email:*)
-            local doi_val="${source#unpaywall-no-email:}"
-            echo "PMID $pmid: Could download via Unpaywall ($doi_val) - requires --email"
-            echo "unavailable"
-            ;;
-        none)
-            echo "PMID $pmid: No source available (no DOI or PMCID)"
-            echo "unavailable"
-            ;;
-    esac
+            return
+        fi
+        log_verbose "Unpaywall: No PDF for $doi"
+    fi
+
+    # No source available
+    if [[ -n "$doi" && -z "$EMAIL" ]]; then
+        echo "PMID $pmid: Could download via Unpaywall ($doi) - requires --email"
+    else
+        echo "PMID $pmid: No source available (no DOI or PMCID)"
+    fi
+    echo "unavailable"
 }
 
 # Main processing

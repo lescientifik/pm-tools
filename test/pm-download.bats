@@ -100,11 +100,12 @@ setup() {
 }
 
 @test "pm-download --dry-run shows Unpaywall source when only doi present" {
-    # Given: JSONL with DOI but no PMCID
+    # Given: JSONL with DOI but no PMCID, with mock Unpaywall response
     local jsonl='{"pmid":"12345","doi":"10.1234/test"}'
+    local mock_unpaywall="${FIXTURES_DIR}/mock-responses/unpaywall-success.json"
 
-    # When: running with --dry-run (requires --email for Unpaywall)
-    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --dry-run --email test@example.com"
+    # When: running with --dry-run, --email, and mock Unpaywall
+    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --dry-run --email test@example.com --mock-unpaywall '$mock_unpaywall'"
 
     # Then: shows Unpaywall as source
     [ "$status" -eq 0 ]
@@ -223,4 +224,48 @@ setup() {
 
     # Then: falls back to Unpaywall (has DOI and email)
     [[ "$output" == *"Unpaywall"* ]] || [[ "$output" == *"unpaywall"* ]] || [[ "$output" == *"not"* ]]
+}
+
+# --- Unpaywall tests (Phase 5) ---
+
+@test "pm-download fetches PDF URL from Unpaywall" {
+    # Given: JSONL with DOI but no PMCID, and mock Unpaywall response
+    local jsonl='{"pmid":"12345","doi":"10.1234/test"}'
+    local mock_unpaywall="${FIXTURES_DIR}/mock-responses/unpaywall-success.json"
+    [ -f "$mock_unpaywall" ] || skip "Mock response not found"
+
+    # When: running with --dry-run, --email, and mock Unpaywall
+    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --dry-run --email test@example.com --mock-unpaywall '$mock_unpaywall'"
+
+    # Then: shows Unpaywall source with PDF URL
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Unpaywall"* ]]
+    [[ "$output" == *"pdf"* ]] || [[ "$output" == *"PDF"* ]] || [[ "$output" == *"available"* ]]
+}
+
+@test "pm-download reports non-OA from Unpaywall" {
+    # Given: JSONL with DOI that's not OA
+    local jsonl='{"pmid":"12345","doi":"10.1234/closed"}'
+    local mock_unpaywall="${FIXTURES_DIR}/mock-responses/unpaywall-not-oa.json"
+    [ -f "$mock_unpaywall" ] || skip "Mock response not found"
+
+    # When: running with --dry-run, --email, and mock Unpaywall
+    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --dry-run --email test@example.com --mock-unpaywall '$mock_unpaywall'"
+
+    # Then: reports not available
+    [[ "$output" == *"not"* ]] || [[ "$output" == *"unavailable"* ]] || [[ "$output" == *"No source"* ]]
+}
+
+@test "pm-download falls back PMC->Unpaywall successfully" {
+    # Given: JSONL with PMCID (not in OA) and DOI (is OA via Unpaywall)
+    local jsonl='{"pmid":"12345","pmcid":"PMC9999999","doi":"10.1234/test"}'
+    local mock_pmc="${FIXTURES_DIR}/mock-responses/pmc-oa-not-oa.xml"
+    local mock_unpaywall="${FIXTURES_DIR}/mock-responses/unpaywall-success.json"
+
+    # When: running with both mocks - PMC fails, Unpaywall succeeds
+    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --dry-run --email test@example.com --mock-pmc '$mock_pmc' --mock-unpaywall '$mock_unpaywall'"
+
+    # Then: successfully falls back to Unpaywall
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Unpaywall"* ]] || [[ "$output" == *"available"* ]]
 }

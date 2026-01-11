@@ -1,0 +1,16 @@
+{
+  "doi": "10.1234/test",
+  "is_oa": true,
+  "title": "Test Article Title",
+  "best_oa_location": {
+    "url_for_pdf": "https://europepmc.org/articles/pmc1234567?pdf=render",
+    "license": "cc-by",
+    "version": "publishedVersion"
+  },
+  "oa_locations": [
+    {
+      "url_for_pdf": "https://europepmc.org/articles/pmc1234567?pdf=render",
+      "license": "cc-by"
+    }
+  ]
+}
