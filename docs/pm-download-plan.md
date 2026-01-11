@@ -255,11 +255,11 @@ Summary: 2 available, 1 not available
 
 ## Implementation Phases (TDD)
 
-### Phase 1: Prerequisites - Add PMCID to pm-parse
+### Phase 1: Prerequisites - Add PMCID to pm-parse ✅
 
 Before implementing pm-download, pm-parse needs to extract PMCID from XML.
 
-**1.1 Test: pm-parse extracts PMCID when present**
+**1.1 Test: pm-parse extracts PMCID when present** ✅
 ```bash
 @test "pm-parse extracts PMCID when present" {
     # Given: XML with PMCID
@@ -273,95 +273,95 @@ Before implementing pm-download, pm-parse needs to extract PMCID from XML.
 }
 ```
 
-**1.2 Test: pm-parse omits pmcid field when not present**
+**1.2 Test: pm-parse omits pmcid field when not present** ✅
 
-**1.3 Implementation: Add PMCID extraction to pm-parse awk script**
+**1.3 Implementation: Add PMCID extraction to pm-parse awk script** ✅
 
-### Phase 2: Core Infrastructure
+### Phase 2: Core Infrastructure ✅
 
-**2.1 Test: pm-download --help shows usage**
+**2.1 Test: pm-download --help shows usage** ✅
 
-**2.2 Test: pm-download requires input (fails with no stdin and no --input)**
+**2.2 Test: pm-download requires input (fails with no stdin and no --input)** ✅
 
-**2.3 Test: pm-download --dry-run parses JSONL input correctly**
+**2.3 Test: pm-download --dry-run parses JSONL input correctly** ✅
 
-**2.4 Test: pm-download --dry-run parses PMID input correctly**
+**2.4 Test: pm-download --dry-run parses PMID input correctly** ✅
 
-**2.5 Implementation: Argument parsing, input handling**
+**2.5 Implementation: Argument parsing, input handling** ✅
 
-### Phase 3: ID Conversion (for PMID-only input)
+### Phase 3: ID Conversion (for PMID-only input) ✅
 
-**3.1 Test: ID converter batches requests (max 200 per call)**
+**3.1 Test: ID converter batches requests (max 200 per call)** (skipped - API mock)
 
-**3.2 Test: ID converter extracts PMCID and DOI from response**
+**3.2 Test: ID converter extracts PMCID and DOI from response** ✅
 
-**3.3 Test: ID converter handles missing IDs gracefully**
+**3.3 Test: ID converter handles missing IDs gracefully** ✅
 
-**3.4 Test: ID converter respects rate limit (mock timing)**
+**3.4 Test: ID converter respects rate limit (mock timing)** (skipped - API timing)
 
-**3.5 Implementation: lib/pm-idconv.sh or inline function**
+**3.5 Implementation: inline convert_pmids function** ✅
 
-### Phase 4: PMC OA Service Integration
+### Phase 4: PMC OA Service Integration ✅
 
-**4.1 Test: PMC lookup returns PDF URL for valid PMCID**
+**4.1 Test: PMC lookup returns PDF URL for valid PMCID** ✅
 
-**4.2 Test: PMC lookup returns empty for non-OA article**
+**4.2 Test: PMC lookup returns empty for non-OA article** ✅
 
-**4.3 Test: PMC lookup handles API errors gracefully**
+**4.3 Test: PMC lookup handles API errors gracefully** ✅
 
-**4.4 Test: PMC lookup respects rate limit**
+**4.4 Test: PMC lookup respects rate limit** (implemented, 0.34s delay)
 
-**4.5 Implementation: lib/pm-pmc.sh or inline function**
+**4.5 Implementation: inline pmc_lookup function** ✅
 
-### Phase 5: Unpaywall Integration
+### Phase 5: Unpaywall Integration ✅
 
-**5.1 Test: Unpaywall lookup returns PDF URL for valid DOI**
+**5.1 Test: Unpaywall lookup returns PDF URL for valid DOI** ✅
 
-**5.2 Test: Unpaywall lookup handles is_oa=false**
+**5.2 Test: Unpaywall lookup handles is_oa=false** ✅
 
-**5.3 Test: Unpaywall lookup handles missing url_for_pdf**
+**5.3 Test: Unpaywall lookup handles missing url_for_pdf** ✅
 
-**5.4 Test: Unpaywall requires --email parameter**
+**5.4 Test: Unpaywall requires --email parameter** ✅
 
-**5.5 Implementation: lib/pm-unpaywall.sh or inline function**
+**5.5 Implementation: inline unpaywall_lookup function** ✅
 
-### Phase 6: PDF Download
+### Phase 6: PDF Download ✅
 
-**6.1 Test: Downloads PDF to correct location**
+**6.1 Test: Downloads PDF to correct location** ✅
 
-**6.2 Test: Skips existing files (without --overwrite)**
+**6.2 Test: Skips existing files (without --overwrite)** ✅
 
-**6.3 Test: --overwrite replaces existing files**
+**6.3 Test: --overwrite replaces existing files** (implemented, not tested)
 
-**6.4 Test: Handles download timeout**
+**6.4 Test: Handles download timeout** ✅ (--timeout option)
 
-**6.5 Test: Detects non-PDF response (Content-Type check)**
+**6.5 Test: Detects non-PDF response (magic byte check)** ✅
 
-**6.6 Implementation: Download function with curl**
+**6.6 Implementation: download_pdf function with curl** ✅
 
-### Phase 7: Full Pipeline Integration
+### Phase 7: Full Pipeline Integration (Partial)
 
-**7.1 Test: Pipeline from pm-parse works end-to-end (with mocks)**
+**7.1 Test: Pipeline from pm-parse works end-to-end (with mocks)** ✅
 
-**7.2 Test: PMID-only input works (with mocks)**
+**7.2 Test: PMID-only input works (with mocks)** ✅
 
-**7.3 Test: --parallel downloads multiple files concurrently**
+**7.3 Test: --parallel downloads multiple files concurrently** (not implemented)
 
-**7.4 Test: Exit codes reflect success/partial/failure**
+**7.4 Test: Exit codes reflect success/partial/failure** ✅
 
-**7.5 Test: Summary output is correct**
+**7.5 Test: Summary output is correct** ✅
 
-### Phase 8: Edge Cases and Polish
+### Phase 8: Edge Cases and Polish (Partial)
 
-**8.1 Test: Handles empty input gracefully**
+**8.1 Test: Handles empty input gracefully** ✅
 
-**8.2 Test: --pmc-only skips Unpaywall**
+**8.2 Test: --pmc-only skips Unpaywall** (implemented, not tested)
 
-**8.3 Test: --unpaywall-only skips PMC**
+**8.3 Test: --unpaywall-only skips PMC** (implemented, not tested)
 
-**8.4 Test: Articles with neither DOI nor PMCID are reported**
+**8.4 Test: Articles with neither DOI nor PMCID are reported** ✅
 
-**8.5 Integration test with real APIs (optional, @skip in CI)**
+**8.5 Integration test with real APIs (optional, @skip in CI)** (not implemented)
 
 ## Dependencies
 
