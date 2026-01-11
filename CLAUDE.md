@@ -151,6 +151,12 @@ When making non-trivial decisions, **always explain clearly to the user**:
    - Is this a real problem or a false positive?
    - What is the correct fix?
 
+4. **Explanation quality**:
+   - Explain **proactively before** the user asks, not after
+   - Be concrete: show the before/after, not just abstract concepts
+   - Use simple language first, then add technical details if needed
+   - Keep language consistent (don't mix French/English mid-explanation)
+
 ### Self-Correction
 
 When the user points out a shortcut or mistake:
