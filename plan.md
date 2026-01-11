@@ -481,14 +481,14 @@ Refactor to single xtract call extracting all fields at once → ~15,000 article
 ## Phase 6 : Intégration
 
 ### 6.1 Tests end-to-end
-- [ ] Test : pipeline complet avec fixture locale
+- [x] Test : pipeline complet avec fixture locale
 - [ ] Test : recherche réelle (optionnel, marqué @skip en CI)
-- [ ] Test : baseline → parse → filtre jq
+- [x] Test : baseline → parse → filtre jq
 
 ### 6.2 Polish
-- [ ] --help pour chaque commande
-- [ ] Vérification des dépendances au démarrage
-- [ ] README avec exemples
+- [x] --help pour chaque commande
+- [x] Vérification des dépendances au démarrage
+- [ ] README avec exemples (deferred until project mature)
 
 ---
 

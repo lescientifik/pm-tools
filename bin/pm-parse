@@ -9,6 +9,37 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/pm-common.sh
 source "${SCRIPT_DIR}/../lib/pm-common.sh"
 
+# Check dependencies
+require_commands xml2
+
+show_help() {
+    cat << 'EOF'
+pm-parse - Parse PubMed XML to JSONL
+
+Usage: cat articles.xml | pm-parse [OPTIONS] > articles.jsonl
+       zcat articles.xml.gz | pm-parse [OPTIONS] > articles.jsonl
+
+Options:
+  -v, --verbose  Show progress on stderr
+  -h, --help     Show this help message
+
+Output:
+  One JSON object per line (JSONL format) with fields:
+    pmid, title, authors, journal, year, doi, abstract
+
+Examples:
+  # Parse XML file
+  cat pubmed.xml | pm-parse > articles.jsonl
+
+  # Parse compressed baseline file
+  zcat pubmed25n0001.xml.gz | pm-parse > articles.jsonl
+
+  # With progress output
+  cat pubmed.xml | pm-parse --verbose > articles.jsonl 2>progress.log
+EOF
+    exit 0
+}
+
 # Parse arguments
 VERBOSE=0
 while [[ $# -gt 0 ]]; do
@@ -17,8 +48,11 @@ while [[ $# -gt 0 ]]; do
             VERBOSE=1
             shift
             ;;
+        --help|-h)
+            show_help
+            ;;
         *)
-            die "Unknown option: $1"
+            die "Unknown option: $1. Use --help for usage."
             ;;
     esac
 done

@@ -15,3 +15,17 @@ log_verbose() {
         echo "$*" >&2
     fi
 }
+
+# Check that required commands are available
+# Usage: require_commands curl jq xml2
+require_commands() {
+    local missing=()
+    for cmd in "$@"; do
+        if ! command -v "$cmd" &>/dev/null; then
+            missing+=("$cmd")
+        fi
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        die "Missing required commands: ${missing[*]}. Install with: apt install ${missing[*]}"
+    fi
+}

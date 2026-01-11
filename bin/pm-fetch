@@ -9,6 +9,55 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/pm-common.sh
 source "${SCRIPT_DIR}/../lib/pm-common.sh"
 
+# Check dependencies
+require_commands curl
+
+show_help() {
+    cat << 'EOF'
+pm-fetch - Fetch PubMed XML from E-utilities API
+
+Usage: echo "12345" | pm-fetch > articles.xml
+       cat pmids.txt | pm-fetch > articles.xml
+
+Options:
+  -h, --help     Show this help message
+
+Input:
+  PMIDs from stdin, one per line
+
+Output:
+  PubMed XML to stdout
+
+Features:
+  - Batches requests (200 PMIDs per API call)
+  - Rate limits to ~3 requests/second
+  - Exits with error on network failure
+
+Examples:
+  # Fetch single article
+  echo "12345" | pm-fetch > article.xml
+
+  # Fetch from file
+  cat pmids.txt | pm-fetch > articles.xml
+
+  # Full pipeline
+  pm-search "CRISPR" | pm-fetch | pm-parse > results.jsonl
+EOF
+    exit 0
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --help|-h)
+            show_help
+            ;;
+        *)
+            die "Unknown option: $1. Use --help for usage."
+            ;;
+    esac
+done
+
 # Configuration
 EFETCH_URL="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 BATCH_SIZE=200

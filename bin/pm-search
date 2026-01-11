@@ -9,6 +9,42 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/pm-common.sh
 source "${SCRIPT_DIR}/../lib/pm-common.sh"
 
+# Check dependencies
+require_commands curl grep
+
+show_help() {
+    cat << 'EOF'
+pm-search - Search PubMed and return PMIDs
+
+Usage: pm-search [OPTIONS] "search query"
+
+Options:
+  --max N        Maximum results to return (default: 10000)
+  -h, --help     Show this help message
+
+Output:
+  PMIDs to stdout, one per line
+
+Examples:
+  # Simple search
+  pm-search "CRISPR cancer therapy"
+
+  # Limit results
+  pm-search --max 100 "machine learning"
+
+  # Full pipeline
+  pm-search "covid vaccine 2024" | pm-fetch | pm-parse > results.jsonl
+
+  # Filter by journal
+  pm-search "gene editing" | pm-fetch | pm-parse | jq 'select(.journal == "Nature")'
+
+Query syntax:
+  Uses PubMed query syntax. See:
+  https://pubmed.ncbi.nlm.nih.gov/help/#search-tags
+EOF
+    exit 0
+}
+
 # Configuration
 ESEARCH_URL="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 DEFAULT_MAX=10000
@@ -19,6 +55,9 @@ query=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --help|-h)
+            show_help
+            ;;
         --max)
             shift
             max_results="${1:-}"
@@ -30,7 +69,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -*)
-            die "Unknown option: $1"
+            die "Unknown option: $1. Use --help for usage."
             ;;
         *)
             # First non-option argument is the query
