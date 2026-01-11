@@ -224,9 +224,9 @@ when xtract outputs data containing embedded tabs or newlines.
 - Note: Removed awk entirely; jq --arg handles all escaping properly
 
 **0.7.4 Update pm-parse to handle same edge cases**
-- [ ] Verify pm-parse awk json_escape handles all cases
-- [ ] Add missing control character escaping to pm-parse
-- [ ] Add corresponding tests to pm-parse.bats
+- [x] Verify pm-parse awk json_escape handles all cases
+- [x] Fix multi-line value handling (title, journal, abstract) for embedded newlines
+- [x] Add corresponding tests to pm-parse.bats (4 new tests)
 
 **0.7.5 Regenerate all golden files**
 - [ ] Re-run generate-golden.sh on all fixtures

@@ -284,3 +284,90 @@ setup() {
     # Assert minimum performance threshold
     [ "$rate" -ge 1000 ]
 }
+
+# --- Special characters edge cases (Phase 0.7.4) ---
+
+@test "pm-parse: handles embedded tabs in content" {
+    # Given: XML with embedded tab characters
+    local xml_file="${FIXTURES_DIR}/edge-cases/special-chars/embedded-tab.xml"
+    [ -f "$xml_file" ] || skip "Fixture not found"
+
+    # When: parsing
+    run "$PM_PARSE" < "$xml_file"
+
+    # Then: output is valid JSON
+    [ "$status" -eq 0 ]
+    echo "$output" | jq . > /dev/null
+
+    # And: tabs are properly escaped as \t
+    [[ "$output" == *'\t'* ]]
+
+    # And: PMID is correct
+    [ "$(echo "$output" | jq -r '.pmid')" = "99901" ]
+}
+
+@test "pm-parse: handles embedded newlines in content" {
+    # Given: XML with embedded newline characters
+    local xml_file="${FIXTURES_DIR}/edge-cases/special-chars/embedded-newline.xml"
+    [ -f "$xml_file" ] || skip "Fixture not found"
+
+    # When: parsing
+    run "$PM_PARSE" < "$xml_file"
+
+    # Then: output is valid JSON (single line)
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | wc -l)" -eq 1 ]
+    echo "$output" | jq . > /dev/null
+
+    # And: newlines are properly escaped as \n
+    [[ "$output" == *'\n'* ]]
+
+    # And: title includes the full content with embedded newline
+    local title
+    title=$(echo "$output" | jq -r '.title')
+    [[ "$title" == *"Title with embedded"* ]]
+    [[ "$title" == *"newline character"* ]]
+}
+
+@test "pm-parse: handles quotes and backslashes correctly" {
+    # Given: XML with quotes and backslashes
+    local xml_file="${FIXTURES_DIR}/edge-cases/special-chars/quotes-backslash.xml"
+    [ -f "$xml_file" ] || skip "Fixture not found"
+
+    # When: parsing
+    run "$PM_PARSE" < "$xml_file"
+
+    # Then: output is valid JSON
+    [ "$status" -eq 0 ]
+    echo "$output" | jq . > /dev/null
+
+    # And: title contains properly escaped quotes and backslashes
+    local title
+    title=$(echo "$output" | jq -r '.title')
+    [[ "$title" == *'"quoted text"'* ]]
+    [[ "$title" == *'C:\path\to\file'* ]]
+}
+
+@test "pm-parse: preserves unicode and control characters" {
+    # Given: XML with unicode and control characters
+    local xml_file="${FIXTURES_DIR}/edge-cases/special-chars/unicode-control.xml"
+    [ -f "$xml_file" ] || skip "Fixture not found"
+
+    # When: parsing
+    run "$PM_PARSE" < "$xml_file"
+
+    # Then: output is valid JSON
+    [ "$status" -eq 0 ]
+    echo "$output" | jq . > /dev/null
+
+    # And: unicode characters are preserved
+    local title
+    title=$(echo "$output" | jq -r '.title')
+    [[ "$title" == *'Müller'* ]]
+    [[ "$title" == *'日本語'* ]]
+
+    # And: authors include unicode names
+    local first_author
+    first_author=$(echo "$output" | jq -r '.authors[0]')
+    [[ "$first_author" == *'Müller'* ]]
+}

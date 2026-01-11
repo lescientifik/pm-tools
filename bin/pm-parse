@@ -56,17 +56,25 @@ BEGIN {
     next
 }
 
-# Extract title
+# Extract title (append to handle xml2 splitting on embedded newlines)
 /\/Article\/ArticleTitle=/ {
-    split($0, parts, "=")
-    title = substr($0, index($0, "=") + 1)
+    text = substr($0, index($0, "=") + 1)
+    if (title == "") {
+        title = text
+    } else {
+        title = title "\n" text
+    }
     next
 }
 
-# Extract journal
+# Extract journal (append to handle xml2 splitting on embedded newlines)
 /\/Journal\/Title=/ {
-    split($0, parts, "=")
-    journal = substr($0, index($0, "=") + 1)
+    text = substr($0, index($0, "=") + 1)
+    if (journal == "") {
+        journal = text
+    } else {
+        journal = journal "\n" text
+    }
     next
 }
 
@@ -112,13 +120,14 @@ BEGIN {
     next
 }
 
-# Extract abstract (all AbstractText elements joined with space)
+# Extract abstract (append with newline to handle xml2 splitting on embedded newlines)
+# Note: This also means structured abstracts have sections joined by newlines
 /\/Abstract\/AbstractText=/ {
     text = substr($0, index($0, "=") + 1)
     if (abstract == "") {
         abstract = text
     } else {
-        abstract = abstract " " text
+        abstract = abstract "\n" text
     }
     next
 }
