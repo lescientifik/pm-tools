@@ -229,9 +229,9 @@ when xtract outputs data containing embedded tabs or newlines.
 - [x] Add corresponding tests to pm-parse.bats (4 new tests)
 
 **0.7.5 Regenerate all golden files**
-- [ ] Re-run generate-golden.sh on all fixtures
-- [ ] Verify all tests pass with new golden files
-- [ ] Document any differences from previous output
+- [x] Re-run generate-golden.sh on all fixtures
+- [x] Generate golden files for new special-chars fixtures
+- [x] Verify all tests pass with new golden files
 
 ### 0.8 Mapping final documenté
 ```

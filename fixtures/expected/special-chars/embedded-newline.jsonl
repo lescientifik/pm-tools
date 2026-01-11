@@ -1,0 +1,1 @@
+{"pmid":"99902","title":"Title with embedded\nnewline character for testing.","authors":["Newline Test"],"journal":"Journal of Special Characters","year":"2024","doi":"10.1234/test.newline.002","abstract":"This abstract has\nmultiple\nnewlines embedded."}

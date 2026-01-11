@@ -80,7 +80,8 @@ for xml_file in "$@"; do
     abstract=$(echo "$full_xml" | xtract -pattern PubmedArticle \
         -block Abstract -sep " " -element AbstractText 2>/dev/null || true)
 
-    # Extract Authors (as newline-separated list: "LastName ForeName")
+    # Extract Authors (tab-separated: "LastName ForeName")
+    # xtract -block outputs each author block separated by tabs
     authors_raw=$(echo "$full_xml" | xtract -pattern PubmedArticle \
         -block Author -sep " " -element LastName,ForeName 2>/dev/null || true)
 
@@ -101,7 +102,7 @@ for xml_file in "$@"; do
         # Add optional fields if non-empty
         | if $title != "" then .title = $title else . end
         | if $authors_raw != "" then
-            .authors = ($authors_raw | split("\n") | map(select(. != "")))
+            .authors = ($authors_raw | split("\t") | map(select(. != "")))
           else . end
         | if $journal != "" then .journal = $journal else . end
         | if $year != "" then .year = $year else . end

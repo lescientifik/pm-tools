@@ -1,0 +1,1 @@
+{"pmid":"99904","title":"Unicode: Müller, naïve, 日本語, emoji 🧬, carriage return\rhere.","authors":["Müller François","山田 太郎"],"journal":"Journal of Special Characters","year":"2024","doi":"10.1234/test.unicode.004","abstract":"Testing: tabs\there, newlines\nhere, CR\rhere, combined\r\nCRLF, plus accents éàü and symbols ±°©®™."}
