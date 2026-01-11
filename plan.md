@@ -258,24 +258,23 @@ and document performance characteristics.
 #### 0.9.1 Create baseline comparison tooling (TDD)
 
 **Tests first:** `test/baseline-validation.bats`
-- [ ] Test: `scripts/baseline-to-xtract-jsonl.sh` produces valid JSONL
-- [ ] Test: `scripts/compare-jsonl.sh` detects identical files
-- [ ] Test: `scripts/compare-jsonl.sh` reports field-level differences
-- [ ] Test: `scripts/compare-jsonl.sh` handles missing/extra records
-- [ ] Test: `scripts/benchmark-parser.sh` outputs timing stats
+- [x] Test: `scripts/baseline-to-xtract-jsonl.sh` produces valid JSONL
+- [x] Test: `scripts/compare-jsonl.sh` detects identical files
+- [x] Test: `scripts/compare-jsonl.sh` reports field-level differences
+- [x] Test: `scripts/compare-jsonl.sh` handles missing/extra records
+- [x] Test: `scripts/benchmark-parser.sh` outputs timing stats
 
 **Implementation:**
-- [ ] Create `scripts/baseline-to-xtract-jsonl.sh`:
-  - Processes baseline XML in batches (100 articles per batch for memory)
-  - Uses generate-golden.sh logic but optimized for batch processing
-  - Writes to stdout or file with progress on stderr
-  - Handles the full 30k articles (may take 30-60 minutes)
-- [ ] Create `scripts/compare-jsonl.sh`:
+- [x] Create `scripts/baseline-to-xtract-jsonl.sh`:
+  - Uses single xtract call for all fields (optimized)
+  - Writes to stdout with progress on stderr
+  - Uses jq for proper JSON escaping
+- [x] Create `scripts/compare-jsonl.sh`:
   - Inputs: two JSONL files (xtract output, pm-parse output)
   - Outputs: summary of differences by field
   - Reports: identical count, different count, missing in each
   - Shows first N differences per field for debugging
-- [ ] Create `scripts/benchmark-parser.sh`:
+- [x] Create `scripts/benchmark-parser.sh`:
   - Times execution of a parser on a given XML file
   - Reports: total time, articles/second, memory usage (if available)
   - Accepts parser command as argument (pm-parse, xtract, etc.)
