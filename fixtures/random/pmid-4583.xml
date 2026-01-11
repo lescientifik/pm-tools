@@ -1,0 +1,220 @@
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" IndexingMethod="Manual" Owner="NLM">
+      <PMID Version="1">4583</PMID>
+      <DateCompleted>
+        <Year>1976</Year>
+        <Month>07</Month>
+        <Day>06</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2019</Year>
+        <Month>06</Month>
+        <Day>30</Day>
+      </DateRevised>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Print">0022-3042</ISSN>
+          <JournalIssue CitedMedium="Print">
+            <Volume>26</Volume>
+            <Issue>3</Issue>
+            <PubDate>
+              <Year>1976</Year>
+              <Month>Mar</Month>
+            </PubDate>
+          </JournalIssue>
+          <Title>Journal of neurochemistry</Title>
+          <ISOAbbreviation>J Neurochem</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Comparison of the effects of depolarizing agents and neurotransmitters on regional CNS cyclic GMP levels in various animals.</ArticleTitle>
+        <Pagination>
+          <MedlinePgn>527-30</MedlinePgn>
+        </Pagination>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Kinscherf</LastName>
+            <ForeName>D A</ForeName>
+            <Initials>DA</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Chang</LastName>
+            <ForeName>M M</ForeName>
+            <Initials>MM</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Rubin</LastName>
+            <ForeName>E H</ForeName>
+            <Initials>EH</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Schneider</LastName>
+            <ForeName>D R</ForeName>
+            <Initials>DR</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Ferrendelli</LastName>
+            <ForeName>J A</ForeName>
+            <Initials>JA</Initials>
+          </Author>
+        </AuthorList>
+        <Language>eng</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D003160">Comparative Study</PublicationType>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D013487">Research Support, U.S. Gov't, P.H.S.</PublicationType>
+        </PublicationTypeList>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>England</Country>
+        <MedlineTA>J Neurochem</MedlineTA>
+        <NlmUniqueID>2985190R</NlmUniqueID>
+        <ISSNLinking>0022-3042</ISSNLinking>
+      </MedlineJournalInfo>
+      <ChemicalList>
+        <Chemical>
+          <RegistryNumber>0</RegistryNumber>
+          <NameOfSubstance UI="D000596">Amino Acids</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>0</RegistryNumber>
+          <NameOfSubstance UI="D005971">Glutamates</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>0</RegistryNumber>
+          <NameOfSubstance UI="D018377">Neurotransmitter Agents</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>56-12-2</RegistryNumber>
+          <NameOfSubstance UI="D005680">gamma-Aminobutyric Acid</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>H2D2X058MU</RegistryNumber>
+          <NameOfSubstance UI="D006152">Cyclic GMP</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>N9YNS0M02X</RegistryNumber>
+          <NameOfSubstance UI="D000109">Acetylcholine</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>RWP5GA015D</RegistryNumber>
+          <NameOfSubstance UI="D011188">Potassium</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>TE7660XO1C</RegistryNumber>
+          <NameOfSubstance UI="D005998">Glycine</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>X4W3ENH1CV</RegistryNumber>
+          <NameOfSubstance UI="D009638">Norepinephrine</NameOfSubstance>
+        </Chemical>
+      </ChemicalList>
+      <CitationSubset>IM</CitationSubset>
+      <MeshHeadingList>
+        <MeshHeading>
+          <DescriptorName UI="D000109" MajorTopicYN="N">Acetylcholine</DescriptorName>
+          <QualifierName UI="Q000494" MajorTopicYN="N">pharmacology</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D000596" MajorTopicYN="N">Amino Acids</DescriptorName>
+          <QualifierName UI="Q000494" MajorTopicYN="Y">pharmacology</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D000818" MajorTopicYN="N">Animals</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D001921" MajorTopicYN="N">Brain</DescriptorName>
+          <QualifierName UI="Q000187" MajorTopicYN="N">drug effects</QualifierName>
+          <QualifierName UI="Q000378" MajorTopicYN="Y">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D002415" MajorTopicYN="N">Cats</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D002531" MajorTopicYN="N">Cerebellum</DescriptorName>
+          <QualifierName UI="Q000187" MajorTopicYN="N">drug effects</QualifierName>
+          <QualifierName UI="Q000378" MajorTopicYN="N">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D002540" MajorTopicYN="N">Cerebral Cortex</DescriptorName>
+          <QualifierName UI="Q000187" MajorTopicYN="N">drug effects</QualifierName>
+          <QualifierName UI="Q000378" MajorTopicYN="N">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006152" MajorTopicYN="N">Cyclic GMP</DescriptorName>
+          <QualifierName UI="Q000378" MajorTopicYN="Y">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D005260" MajorTopicYN="N">Female</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D005971" MajorTopicYN="N">Glutamates</DescriptorName>
+          <QualifierName UI="Q000494" MajorTopicYN="N">pharmacology</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D005998" MajorTopicYN="N">Glycine</DescriptorName>
+          <QualifierName UI="Q000494" MajorTopicYN="N">pharmacology</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006168" MajorTopicYN="N">Guinea Pigs</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D066298" MajorTopicYN="N">In Vitro Techniques</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D008297" MajorTopicYN="N">Male</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D051379" MajorTopicYN="N">Mice</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D018377" MajorTopicYN="N">Neurotransmitter Agents</DescriptorName>
+          <QualifierName UI="Q000494" MajorTopicYN="Y">pharmacology</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D009638" MajorTopicYN="N">Norepinephrine</DescriptorName>
+          <QualifierName UI="Q000494" MajorTopicYN="N">pharmacology</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D011188" MajorTopicYN="N">Potassium</DescriptorName>
+          <QualifierName UI="Q000494" MajorTopicYN="Y">pharmacology</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D011817" MajorTopicYN="N">Rabbits</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D051381" MajorTopicYN="N">Rats</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D005680" MajorTopicYN="N">gamma-Aminobutyric Acid</DescriptorName>
+          <QualifierName UI="Q000494" MajorTopicYN="N">pharmacology</QualifierName>
+        </MeshHeading>
+      </MeshHeadingList>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>1976</Year>
+          <Month>3</Month>
+          <Day>1</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="medline">
+          <Year>1976</Year>
+          <Month>3</Month>
+          <Day>1</Day>
+          <Hour>0</Hour>
+          <Minute>1</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>1976</Year>
+          <Month>3</Month>
+          <Day>1</Day>
+          <Hour>0</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">4583</ArticleId>
+        <ArticleId IdType="doi">10.1111/j.1471-4159.1976.tb01506.x</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>

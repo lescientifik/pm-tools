@@ -1,0 +1,168 @@
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" IndexingMethod="Manual" Owner="NLM">
+      <PMID Version="1">19810</PMID>
+      <DateCompleted>
+        <Year>1977</Year>
+        <Month>10</Month>
+        <Day>20</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2019</Year>
+        <Month>10</Month>
+        <Day>21</Day>
+      </DateRevised>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Print">0033-5541</ISSN>
+          <JournalIssue CitedMedium="Print">
+            <Volume>62</Volume>
+            <Issue>3</Issue>
+            <PubDate>
+              <Year>1977</Year>
+              <Month>Jul</Month>
+            </PubDate>
+          </JournalIssue>
+          <Title>Quarterly journal of experimental physiology and cognate medical sciences</Title>
+          <ISOAbbreviation>Q J Exp Physiol Cogn Med Sci</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Effects of chronic hydrochloric and lactic acid administrations on food intake, blood acid-base balance and bone composition of the rat.</ArticleTitle>
+        <Pagination>
+          <MedlinePgn>223-35</MedlinePgn>
+        </Pagination>
+        <Abstract>
+          <AbstractText>In experiment 1, weanling rats were given, for 7 weeks, a commercial rat diet supplemented with hydrochloric acid at levels up to 560 mmol.kg-1 dry matter. The supplement increased water intake but did not significantly affect food intake, live-weight gain, blood haemoglobin and haematocrit values or acid-base balance. In experiment 2, adult rats were given, for 9 weeks, a commercial rat diet supplemented with hydrochloric acid at levels up to 1250 mmol.kg-1 dry matter. Food intake and liveweight gain were not affected by hydrochloric acid concentration up to 625 mmole but at 938 mmol.kg-1 they were considerably reduced and there was 100% mortality of the rats. In experiment 3, weanling rats were given, for 12 weeks, a commercial rat diet supplemented with hydrochloric or lactic acid each at 300, 600 and 900 mmol.kg-1 dry matter. Lactic acid at the three levels and hydrochloric acid at the two lower levels did not affect food intake or live weight gain and had only a slight effect on blood acid-base balance. At a dietary concentration of 900 mmol.kg-1 dry matter, hydrochloric acid decreased food intake, induced a mild degree of metabolic acidosis and resulted in 30% mortality of the rats. In the three experiments, the acid treatments dnot directly affect the length or composition of the femur of the rats.</AbstractText>
+        </Abstract>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Upton</LastName>
+            <ForeName>P K</ForeName>
+            <Initials>PK</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>L'Estrange</LastName>
+            <ForeName>J L</ForeName>
+            <Initials>JL</Initials>
+          </Author>
+        </AuthorList>
+        <Language>eng</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+        </PublicationTypeList>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>England</Country>
+        <MedlineTA>Q J Exp Physiol Cogn Med Sci</MedlineTA>
+        <NlmUniqueID>0404466</NlmUniqueID>
+        <ISSNLinking>0033-5541</ISSNLinking>
+      </MedlineJournalInfo>
+      <ChemicalList>
+        <Chemical>
+          <RegistryNumber>0</RegistryNumber>
+          <NameOfSubstance UI="D007773">Lactates</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>9NEZ333N27</RegistryNumber>
+          <NameOfSubstance UI="D012964">Sodium</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>I38ZP9992A</RegistryNumber>
+          <NameOfSubstance UI="D008274">Magnesium</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>QTT17582CB</RegistryNumber>
+          <NameOfSubstance UI="D006851">Hydrochloric Acid</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>RWP5GA015D</RegistryNumber>
+          <NameOfSubstance UI="D011188">Potassium</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>SY7Q814VUP</RegistryNumber>
+          <NameOfSubstance UI="D002118">Calcium</NameOfSubstance>
+        </Chemical>
+      </ChemicalList>
+      <CitationSubset>IM</CitationSubset>
+      <MeshHeadingList>
+        <MeshHeading>
+          <DescriptorName UI="D000136" MajorTopicYN="Y">Acid-Base Equilibrium</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D000375" MajorTopicYN="N">Aging</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D000818" MajorTopicYN="N">Animals</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D001835" MajorTopicYN="N">Body Weight</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D001842" MajorTopicYN="N">Bone and Bones</DescriptorName>
+          <QualifierName UI="Q000378" MajorTopicYN="Y">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D002118" MajorTopicYN="N">Calcium</DescriptorName>
+          <QualifierName UI="Q000378" MajorTopicYN="N">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D004032" MajorTopicYN="N">Diet</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D004435" MajorTopicYN="Y">Eating</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006851" MajorTopicYN="N">Hydrochloric Acid</DescriptorName>
+          <QualifierName UI="Q000494" MajorTopicYN="Y">pharmacology</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006863" MajorTopicYN="N">Hydrogen-Ion Concentration</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D007773" MajorTopicYN="N">Lactates</DescriptorName>
+          <QualifierName UI="Q000494" MajorTopicYN="Y">pharmacology</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D008274" MajorTopicYN="N">Magnesium</DescriptorName>
+          <QualifierName UI="Q000378" MajorTopicYN="N">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D011188" MajorTopicYN="N">Potassium</DescriptorName>
+          <QualifierName UI="Q000378" MajorTopicYN="N">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D051381" MajorTopicYN="N">Rats</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D012964" MajorTopicYN="N">Sodium</DescriptorName>
+          <QualifierName UI="Q000378" MajorTopicYN="N">metabolism</QualifierName>
+        </MeshHeading>
+      </MeshHeadingList>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>1977</Year>
+          <Month>7</Month>
+          <Day>1</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="medline">
+          <Year>1977</Year>
+          <Month>7</Month>
+          <Day>1</Day>
+          <Hour>0</Hour>
+          <Minute>1</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>1977</Year>
+          <Month>7</Month>
+          <Day>1</Day>
+          <Hour>0</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">19810</ArticleId>
+        <ArticleId IdType="doi">10.1113/expphysiol.1977.sp002394</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>

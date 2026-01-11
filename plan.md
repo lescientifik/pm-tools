@@ -90,7 +90,7 @@ pubmed_parser/
 - [x] Output : `test/generated/dtd-coverage.bats` (7 tests, fail until pm-parse implemented)
 
 ### 0.4 Baseline → Extraction intelligente de fixtures
-- [ ] Créer un script `scripts/extract-fixtures.sh` qui :
+- [x] Créer un script `scripts/extract-fixtures.sh` qui :
   - Extrait N articles aléatoires du baseline
   - Trouve des articles représentatifs des edge cases :
     - Sans DOI
@@ -100,8 +100,8 @@ pubmed_parser/
     - Caractères spéciaux / unicode
     - MeSH terms multiples
     - Article avec corrections/errata
-  - Utilise `grep` / `xml2` pour détecter ces patterns
-- [ ] Output : `fixtures/` avec articles classés par edge case
+  - Utilise `awk` pour détecter ces patterns (optimisé pour 30k articles)
+- [x] Output : `fixtures/` avec articles classés par edge case
 
 ### 0.5 Baseline → Tests de non-régression
 - [ ] Test : `pm-parse` ne crash sur aucun article du baseline

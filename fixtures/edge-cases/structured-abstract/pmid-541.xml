@@ -1,0 +1,376 @@
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" IndexingMethod="Manual" Owner="NLM">
+      <PMID Version="1">541</PMID>
+      <DateCompleted>
+        <Year>1976</Year>
+        <Month>02</Month>
+        <Day>13</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2019</Year>
+        <Month>07</Month>
+        <Day>11</Day>
+      </DateRevised>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Print">0023-2173</ISSN>
+          <JournalIssue CitedMedium="Print">
+            <Volume>53</Volume>
+            <Issue>12</Issue>
+            <PubDate>
+              <Year>1975</Year>
+              <Month>Jun</Month>
+              <Day>15</Day>
+            </PubDate>
+          </JournalIssue>
+          <Title>Klinische Wochenschrift</Title>
+          <ISOAbbreviation>Klin Wochenschr</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Improvement of renin determination in human plasma using a commonly available renin standard in a radioimmunological method.</ArticleTitle>
+        <Pagination>
+          <MedlinePgn>559-69</MedlinePgn>
+        </Pagination>
+        <Abstract>
+          <AbstractText Label="UNLABELLED">A new method for the measurement of renin in human plasma is described. The method is based on the introduction of the internationally available renin standard of the Medical Research Council (MRC) London, as a calibration system. Thus, some principal disadvantages of methods expressing results in renin reaction velocity (angiotensin generation rate) only are avoided. Both renins, unknown and standard, react with a sheep substrate preparation and are handled identically throughout the whole procedure including the angiotensin I radioimmunoassay (RIA). The plasma renin concentration (PRC) is given in 10(-6) MRC-renin units (muM/ml).</AbstractText>
+          <AbstractText Label="RESULTS" NlmCategory="RESULTS">the renin standard is free of angiotensin, angiotensinases, and angiotensinogen; it is stable on storage. Identical enzyme kinetics are shown for both renins. An interference between endogenous and exogenous substrate could be avoided. The potentially harmful influences of proteins from the enzyme incubation mixture of the RIA dose response curve are shown. The use of an angiotensin I calibration system could be omitted. Using a standard renin dilution from 250-0.9 muU/ml also the full biological range is covered. When giving an unrestricted diet the preliminary normal values of PRC are 21.9 +/- 12.6 muU/ml in recumbent and 40.1 +/- 19.8 muU/ml in upright position (n = 16,x +/- s, age 20-35 years). Earlier findings of age-dependency of PRC were confirmed.</AbstractText>
+        </Abstract>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Hummerich</LastName>
+            <ForeName>W</ForeName>
+            <Initials>W</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Krause</LastName>
+            <ForeName>D K</ForeName>
+            <Initials>DK</Initials>
+          </Author>
+        </AuthorList>
+        <Language>eng</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+        </PublicationTypeList>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>Germany</Country>
+        <MedlineTA>Klin Wochenschr</MedlineTA>
+        <NlmUniqueID>2985205R</NlmUniqueID>
+        <ISSNLinking>0023-2173</ISSNLinking>
+      </MedlineJournalInfo>
+      <ChemicalList>
+        <Chemical>
+          <RegistryNumber>11002-13-4</RegistryNumber>
+          <NameOfSubstance UI="D000808">Angiotensinogen</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>EC 3.4.23.15</RegistryNumber>
+          <NameOfSubstance UI="D012083">Renin</NameOfSubstance>
+        </Chemical>
+      </ChemicalList>
+      <CitationSubset>IM</CitationSubset>
+      <MeshHeadingList>
+        <MeshHeading>
+          <DescriptorName UI="D000328" MajorTopicYN="N">Adult</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D000808" MajorTopicYN="N">Angiotensinogen</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006801" MajorTopicYN="N">Humans</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006863" MajorTopicYN="N">Hydrogen-Ion Concentration</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D008722" MajorTopicYN="N">Methods</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D011309" MajorTopicYN="N">Preservation, Biological</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D011863" MajorTopicYN="N">Radioimmunoassay</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D012083" MajorTopicYN="N">Renin</DescriptorName>
+          <QualifierName UI="Q000097" MajorTopicYN="Y">blood</QualifierName>
+          <QualifierName UI="Q000592" MajorTopicYN="N">standards</QualifierName>
+        </MeshHeading>
+      </MeshHeadingList>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>1975</Year>
+          <Month>6</Month>
+          <Day>15</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="medline">
+          <Year>1975</Year>
+          <Month>6</Month>
+          <Day>15</Day>
+          <Hour>0</Hour>
+          <Minute>1</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>1975</Year>
+          <Month>6</Month>
+          <Day>15</Day>
+          <Hour>0</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">541</ArticleId>
+        <ArticleId IdType="doi">10.1007/BF01468900</ArticleId>
+      </ArticleIdList>
+      <ReferenceList>
+        <Reference>
+          <Citation>Recent Prog Horm Res. 1965;21:119-77</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">14321056</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>J Clin Endocrinol Metab. 1969 Oct;29(10):1349-55</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4311082</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Z Kreislaufforsch. 1969 Sep;58(9):996-1001</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">5375050</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Lancet. 1969 Feb 1;1(7588):213-8</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4178586</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Clin Sci. 1973 Jul;45(1):51-64</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4124171</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Klin Wochenschr. 1972 Jul 15;50(14):702-5</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4341942</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Pflugers Arch. 1969;310(2):137-49</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4310422</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Biochim Biophys Acta. 1970 Dec 22;221(3):536-48</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">5499438</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>J Steroid Biochem. 1972 Apr;3(3):349-56</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4343482</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Scand J Clin Lab Invest Suppl. 1973;132:3-86</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4358365</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Lab Invest. 1966 Nov;15(11):1802-13</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4288919</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Endocrinology. 1972 Feb;90(2):422-30</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4109649</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>J Nucl Biol Med. 1972 Jan-Mar;16(1):24-31</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4347867</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Lancet. 1968 Mar 30;1(7544):657-61</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4170648</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Klin Wochenschr. 1972 Sep 1;50(17):833-40</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4342523</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Klin Wochenschr. 1972 Mar 15;50(6):327-31</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4338645</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>J Clin Invest. 1967 Mar;46(3):418-28</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">6023776</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>J Lab Clin Med. 1971 Aug;78(2):309-15</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4327882</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Dtsch Med Wochenschr. 1970 Jun 26;95(26):1404-7</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4316329</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Can J Physiol Pharmacol. 1970 Jun;48(6):350-8</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4194495</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Circ Res. 1967 Apr;20(4):391-402</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">6025403</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Klin Wochenschr. 1971 Aug 1;49(15):870-6</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4327894</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>J Lab Clin Med. 1971 Jun;77(6):1025-38</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4327019</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Acta Endocrinol Suppl (Copenh). 1973;173:160</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4542088</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Am J Clin Pathol. 1971 May;55(5):513-22</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4326232</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Nature. 1971 Aug 27;232(5313):631</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4328549</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Kidney Int. 1972 Apr;1(4):240-53</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4365636</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Circ Res. 1971 May;28(5):Suppl 2:175-91</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4327961</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Biochem J. 1964 Dec;93(3):594-600</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4284558</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Circ Res. 1968 Nov;23(5):605-9</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">5688014</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Nature. 1971 Apr 9;230(5293):382</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4323825</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Biochem J. 1964 May;91(2):346-52</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4284488</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Adv Intern Med. 1967;13:183-240</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">5334722</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Clin Sci. 1973 Jan;44(1):43-54</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4346187</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Clin Sci Mol Med Suppl. 1973 Aug;45 Suppl 1:273s-8</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4522174</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Circ Res. 1966 Oct;19(4):739-49</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4288199</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Am J Med. 1973 Sep;55(3):303-14</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4355700</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Am J Physiol. 1960 Nov;199:788-92</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">13747214</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Eur J Clin Invest. 1973 Jan;3(1):1-9</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4347094</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Verh Dtsch Ges Inn Med. 1972;78:1644-7</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4665633</ArticleId>
+          </ArticleIdList>
+        </Reference>
+        <Reference>
+          <Citation>Clin Sci. 1969 Feb;36(1):67-76</Citation>
+          <ArticleIdList>
+            <ArticleId IdType="pubmed">4306500</ArticleId>
+          </ArticleIdList>
+        </Reference>
+      </ReferenceList>
+    </PubmedData>
+  </PubmedArticle>

@@ -1,0 +1,149 @@
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" IndexingMethod="Manual" Owner="NLM">
+      <PMID Version="1">3341</PMID>
+      <DateCompleted>
+        <Year>1976</Year>
+        <Month>05</Month>
+        <Day>25</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2019</Year>
+        <Month>08</Month>
+        <Day>23</Day>
+      </DateRevised>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Print">0300-9629</ISSN>
+          <JournalIssue CitedMedium="Print">
+            <Volume>54</Volume>
+            <Issue>1</Issue>
+            <PubDate>
+              <Year>1976</Year>
+            </PubDate>
+          </JournalIssue>
+          <Title>Comparative biochemistry and physiology. A, Comparative physiology</Title>
+          <ISOAbbreviation>Comp Biochem Physiol A Comp Physiol</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Effects of pH on the olfactory responses to amino acids in rainbow trout, Salmo gairdneri.</ArticleTitle>
+        <Pagination>
+          <MedlinePgn>37-9</MedlinePgn>
+        </Pagination>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Hara</LastName>
+            <ForeName>T J</ForeName>
+            <Initials>TJ</Initials>
+          </Author>
+        </AuthorList>
+        <Language>eng</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+        </PublicationTypeList>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>England</Country>
+        <MedlineTA>Comp Biochem Physiol A Comp Physiol</MedlineTA>
+        <NlmUniqueID>1276312</NlmUniqueID>
+        <ISSNLinking>0300-9629</ISSNLinking>
+      </MedlineJournalInfo>
+      <ChemicalList>
+        <Chemical>
+          <RegistryNumber>0</RegistryNumber>
+          <NameOfSubstance UI="D000596">Amino Acids</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>30KYC7MIAI</RegistryNumber>
+          <NameOfSubstance UI="D001224">Aspartic Acid</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>452VLY9402</RegistryNumber>
+          <NameOfSubstance UI="D012694">Serine</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>7006-34-0</RegistryNumber>
+          <NameOfSubstance UI="D001216">Asparagine</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>AE28F7PNPL</RegistryNumber>
+          <NameOfSubstance UI="D008715">Methionine</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>OF5P57N2ZX</RegistryNumber>
+          <NameOfSubstance UI="D000409">Alanine</NameOfSubstance>
+        </Chemical>
+      </ChemicalList>
+      <CitationSubset>IM</CitationSubset>
+      <MeshHeadingList>
+        <MeshHeading>
+          <DescriptorName UI="D000409" MajorTopicYN="N">Alanine</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D000596" MajorTopicYN="Y">Amino Acids</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D000818" MajorTopicYN="N">Animals</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D001216" MajorTopicYN="N">Asparagine</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D001224" MajorTopicYN="N">Aspartic Acid</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D004553" MajorTopicYN="N">Electric Conductivity</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006863" MajorTopicYN="N">Hydrogen-Ion Concentration</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D008715" MajorTopicYN="N">Methionine</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D009830" MajorTopicYN="N">Olfactory Bulb</DescriptorName>
+          <QualifierName UI="Q000502" MajorTopicYN="Y">physiology</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D012487" MajorTopicYN="N">Salmonidae</DescriptorName>
+          <QualifierName UI="Q000502" MajorTopicYN="Y">physiology</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D012694" MajorTopicYN="N">Serine</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D012903" MajorTopicYN="Y">Smell</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D014337" MajorTopicYN="N">Trout</DescriptorName>
+          <QualifierName UI="Q000502" MajorTopicYN="Y">physiology</QualifierName>
+        </MeshHeading>
+      </MeshHeadingList>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>1976</Year>
+          <Month>1</Month>
+          <Day>1</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="medline">
+          <Year>1976</Year>
+          <Month>1</Month>
+          <Day>1</Day>
+          <Hour>0</Hour>
+          <Minute>1</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>1976</Year>
+          <Month>1</Month>
+          <Day>1</Day>
+          <Hour>0</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">3341</ArticleId>
+        <ArticleId IdType="doi">10.1016/s0300-9629(76)80068-0</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>

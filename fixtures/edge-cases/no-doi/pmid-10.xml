@@ -1,0 +1,152 @@
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" IndexingMethod="Manual" Owner="NLM">
+      <PMID Version="1">10</PMID>
+      <DateCompleted>
+        <Year>1976</Year>
+        <Month>01</Month>
+        <Day>23</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2024</Year>
+        <Month>08</Month>
+        <Day>23</Day>
+      </DateRevised>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Electronic">1873-2968</ISSN>
+          <JournalIssue CitedMedium="Internet">
+            <Volume>24</Volume>
+            <Issue>17</Issue>
+            <PubDate>
+              <Year>1975</Year>
+              <Month>Sep</Month>
+              <Day>01</Day>
+            </PubDate>
+          </JournalIssue>
+          <Title>Biochemical pharmacology</Title>
+          <ISOAbbreviation>Biochem Pharmacol</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Digitoxin metabolism by rat liver microsomes.</ArticleTitle>
+        <Pagination>
+          <MedlinePgn>1639-41</MedlinePgn>
+        </Pagination>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Schmoldt</LastName>
+            <ForeName>A</ForeName>
+            <Initials>A</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Benthe</LastName>
+            <ForeName>H F</ForeName>
+            <Initials>HF</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Haberland</LastName>
+            <ForeName>G</ForeName>
+            <Initials>G</Initials>
+          </Author>
+        </AuthorList>
+        <Language>eng</Language>
+        <GrantList CompleteYN="Y">
+          <Grant>
+            <GrantID>K01 AG044439</GrantID>
+            <Acronym>AG</Acronym>
+            <Agency>NIA NIH HHS</Agency>
+            <Country>United States</Country>
+          </Grant>
+        </GrantList>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+        </PublicationTypeList>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>England</Country>
+        <MedlineTA>Biochem Pharmacol</MedlineTA>
+        <NlmUniqueID>0101032</NlmUniqueID>
+        <ISSNLinking>0006-2952</ISSNLinking>
+      </MedlineJournalInfo>
+      <ChemicalList>
+        <Chemical>
+          <RegistryNumber>143-62-4</RegistryNumber>
+          <NameOfSubstance UI="D004073">Digitoxigenin</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>53-59-8</RegistryNumber>
+          <NameOfSubstance UI="D009249">NADP</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>E90NZP2L9U</RegistryNumber>
+          <NameOfSubstance UI="D004074">Digitoxin</NameOfSubstance>
+        </Chemical>
+      </ChemicalList>
+      <CitationSubset>IM</CitationSubset>
+      <MeshHeadingList>
+        <MeshHeading>
+          <DescriptorName UI="D000818" MajorTopicYN="N">Animals</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D002855" MajorTopicYN="N">Chromatography, Thin Layer</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D004073" MajorTopicYN="N">Digitoxigenin</DescriptorName>
+          <QualifierName UI="Q000378" MajorTopicYN="N">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D004074" MajorTopicYN="N">Digitoxin</DescriptorName>
+          <QualifierName UI="Q000378" MajorTopicYN="Y">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006900" MajorTopicYN="N">Hydroxylation</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D066298" MajorTopicYN="N">In Vitro Techniques</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D008297" MajorTopicYN="N">Male</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D008862" MajorTopicYN="N">Microsomes, Liver</DescriptorName>
+          <QualifierName UI="Q000378" MajorTopicYN="Y">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D009249" MajorTopicYN="N">NADP</DescriptorName>
+          <QualifierName UI="Q000378" MajorTopicYN="N">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D051381" MajorTopicYN="N">Rats</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D013997" MajorTopicYN="N">Time Factors</DescriptorName>
+        </MeshHeading>
+      </MeshHeadingList>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>1975</Year>
+          <Month>9</Month>
+          <Day>1</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="medline">
+          <Year>1975</Year>
+          <Month>9</Month>
+          <Day>1</Day>
+          <Hour>0</Hour>
+          <Minute>1</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>1975</Year>
+          <Month>9</Month>
+          <Day>1</Day>
+          <Hour>0</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">10</ArticleId>
+        <ArticleId IdType="pii">0006-2952(75)90094-5</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>

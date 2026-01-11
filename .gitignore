@@ -1,7 +1,10 @@
 # Data files (large)
 data/
 *.xml.gz
+
+# XML files (except fixtures)
 *.xml
+!fixtures/**/*.xml
 
 # Generated files (root only, not test/generated/)
 /generated/

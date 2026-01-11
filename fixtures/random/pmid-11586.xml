@@ -1,0 +1,164 @@
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" IndexingMethod="Manual" Owner="NLM">
+      <PMID Version="1">11586</PMID>
+      <DateCompleted>
+        <Year>1977</Year>
+        <Month>01</Month>
+        <Day>29</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2013</Year>
+        <Month>11</Month>
+        <Day>21</Day>
+      </DateRevised>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Print">0041-1345</ISSN>
+          <JournalIssue CitedMedium="Print">
+            <Volume>8</Volume>
+            <Issue>4</Issue>
+            <PubDate>
+              <Year>1976</Year>
+              <Month>Dec</Month>
+            </PubDate>
+          </JournalIssue>
+          <Title>Transplantation proceedings</Title>
+          <ISOAbbreviation>Transplant Proc</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Marrow grafts in LD--SD typed dogs treated with cyclophosphamide.</ArticleTitle>
+        <Pagination>
+          <MedlinePgn>555-9</MedlinePgn>
+        </Pagination>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Kolb</LastName>
+            <ForeName>H J</ForeName>
+            <Initials>HJ</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Rieder</LastName>
+            <ForeName>I</ForeName>
+            <Initials>I</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Gross-Wilde</LastName>
+            <ForeName>H</ForeName>
+            <Initials>H</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Abb</LastName>
+            <ForeName>J</ForeName>
+            <Initials>J</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Albert</LastName>
+            <ForeName>E</ForeName>
+            <Initials>E</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Kolb</LastName>
+            <ForeName>H</ForeName>
+            <Initials>H</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Schäffer</LastName>
+            <ForeName>E</ForeName>
+            <Initials>E</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Thierfelder</LastName>
+            <ForeName>S</ForeName>
+            <Initials>S</Initials>
+          </Author>
+        </AuthorList>
+        <Language>eng</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D013487">Research Support, U.S. Gov't, P.H.S.</PublicationType>
+        </PublicationTypeList>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>United States</Country>
+        <MedlineTA>Transplant Proc</MedlineTA>
+        <NlmUniqueID>0243532</NlmUniqueID>
+        <ISSNLinking>0041-1345</ISSNLinking>
+      </MedlineJournalInfo>
+      <ChemicalList>
+        <Chemical>
+          <RegistryNumber>8N3DW7272P</RegistryNumber>
+          <NameOfSubstance UI="D003520">Cyclophosphamide</NameOfSubstance>
+        </Chemical>
+      </ChemicalList>
+      <CitationSubset>IM</CitationSubset>
+      <MeshHeadingList>
+        <MeshHeading>
+          <DescriptorName UI="D000818" MajorTopicYN="N">Animals</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D001803" MajorTopicYN="N">Blood Transfusion</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D001854" MajorTopicYN="Y">Bone Marrow Cells</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D016026" MajorTopicYN="Y">Bone Marrow Transplantation</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D003520" MajorTopicYN="N">Cyclophosphamide</DescriptorName>
+          <QualifierName UI="Q000627" MajorTopicYN="Y">therapeutic use</QualifierName>
+          <QualifierName UI="Q000633" MajorTopicYN="N">toxicity</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D004285" MajorTopicYN="N">Dogs</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006087" MajorTopicYN="N">Graft vs Host Reaction</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006238" MajorTopicYN="N">Haploidy</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006648" MajorTopicYN="N">Histocompatibility</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006650" MajorTopicYN="Y">Histocompatibility Testing</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D007962" MajorTopicYN="N">Leukocytes</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D007959" MajorTopicYN="N">Lymphocyte Culture Test, Mixed</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D014184" MajorTopicYN="N">Transplantation, Homologous</DescriptorName>
+        </MeshHeading>
+      </MeshHeadingList>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>1976</Year>
+          <Month>12</Month>
+          <Day>1</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="medline">
+          <Year>1976</Year>
+          <Month>12</Month>
+          <Day>1</Day>
+          <Hour>0</Hour>
+          <Minute>1</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>1976</Year>
+          <Month>12</Month>
+          <Day>1</Day>
+          <Hour>0</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">11586</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>

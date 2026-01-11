@@ -1,0 +1,130 @@
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" IndexingMethod="Manual" Owner="NLM">
+      <PMID Version="1">12454</PMID>
+      <DateCompleted>
+        <Year>1977</Year>
+        <Month>02</Month>
+        <Day>26</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2013</Year>
+        <Month>11</Month>
+        <Day>21</Day>
+      </DateRevised>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Print">0026-3664</ISSN>
+          <JournalIssue CitedMedium="Print">
+            <Volume>38</Volume>
+            <Issue>6</Issue>
+            <PubDate>
+              <MedlineDate>1976 Nov-Dec</MedlineDate>
+            </PubDate>
+          </JournalIssue>
+          <Title>Mikrobiolohichnyi zhurnal</Title>
+          <ISOAbbreviation>Mikrobiol Zh</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>[Various peculiarities of Acinetobacter anitratum K-9 growth on media with ethanol].</ArticleTitle>
+        <Pagination>
+          <MedlinePgn>683-6</MedlinePgn>
+        </Pagination>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Krasnykov</LastName>
+            <ForeName>Ie I</ForeName>
+            <Initials>IeI</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Havrylenko</LastName>
+            <ForeName>M M</ForeName>
+            <Initials>MM</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Pavlenko</LastName>
+            <ForeName>M I</ForeName>
+            <Initials>MI</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Sumnevych</LastName>
+            <ForeName>V H</ForeName>
+            <Initials>VH</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Solomko</LastName>
+            <ForeName>E F</ForeName>
+            <Initials>EF</Initials>
+          </Author>
+        </AuthorList>
+        <Language>ukr</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D004740">English Abstract</PublicationType>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+        </PublicationTypeList>
+        <VernacularTitle>Deiaki osoblynosti rostu Acinetobacter anitratum, shtam K-9, naseredovyshchakh z etanolom</VernacularTitle>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>Ukraine</Country>
+        <MedlineTA>Mikrobiol Zh</MedlineTA>
+        <NlmUniqueID>7910045</NlmUniqueID>
+        <ISSNLinking>0026-3664</ISSNLinking>
+      </MedlineJournalInfo>
+      <ChemicalList>
+        <Chemical>
+          <RegistryNumber>0</RegistryNumber>
+          <NameOfSubstance UI="D003470">Culture Media</NameOfSubstance>
+        </Chemical>
+        <Chemical>
+          <RegistryNumber>3K9958V90M</RegistryNumber>
+          <NameOfSubstance UI="D000431">Ethanol</NameOfSubstance>
+        </Chemical>
+      </ChemicalList>
+      <CitationSubset>IM</CitationSubset>
+      <MeshHeadingList>
+        <MeshHeading>
+          <DescriptorName UI="D000150" MajorTopicYN="N">Acinetobacter</DescriptorName>
+          <QualifierName UI="Q000254" MajorTopicYN="Y">growth &amp; development</QualifierName>
+          <QualifierName UI="Q000378" MajorTopicYN="N">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D003470" MajorTopicYN="N">Culture Media</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D000431" MajorTopicYN="N">Ethanol</DescriptorName>
+          <QualifierName UI="Q000378" MajorTopicYN="Y">metabolism</QualifierName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D006863" MajorTopicYN="N">Hydrogen-Ion Concentration</DescriptorName>
+        </MeshHeading>
+        <MeshHeading>
+          <DescriptorName UI="D013696" MajorTopicYN="N">Temperature</DescriptorName>
+        </MeshHeading>
+      </MeshHeadingList>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>1976</Year>
+          <Month>11</Month>
+          <Day>1</Day>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="medline">
+          <Year>1976</Year>
+          <Month>11</Month>
+          <Day>1</Day>
+          <Hour>0</Hour>
+          <Minute>1</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>1976</Year>
+          <Month>11</Month>
+          <Day>1</Day>
+          <Hour>0</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">12454</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
