@@ -1,0 +1,19 @@
+{
+  "status": "ok",
+  "responseDate": "2026-01-11 12:00:00",
+  "request": "ids=11111,22222,33333;format=json",
+  "records": [
+    {
+      "pmid": "11111",
+      "pmcid": "PMC1111111",
+      "doi": "10.1111/article.11111"
+    },
+    {
+      "pmid": "22222",
+      "doi": "10.2222/article.22222"
+    },
+    {
+      "pmid": "33333"
+    }
+  ]
+}

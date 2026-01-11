@@ -153,3 +153,40 @@ setup() {
     # OR exit with error explaining the issue
     [ "$status" -eq 0 ] || [ "$status" -eq 1 ] || [ "$status" -eq 2 ]
 }
+
+# --- ID Converter tests (Phase 3) ---
+# These tests use --mock-idconv to provide canned responses
+
+@test "pm-download converts PMIDs to get DOI and PMCID" {
+    # Given: plain PMID input with mock response
+    local mock_response="${FIXTURES_DIR}/mock-responses/idconv-success.json"
+    [ -f "$mock_response" ] || skip "Mock response not found"
+
+    # When: running with --dry-run and mock ID converter
+    run bash -c "echo '12345' | '$PM_DOWNLOAD' --dry-run --mock-idconv '$mock_response'"
+
+    # Then: shows PMC source (from converted PMCID)
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"PMC"* ]]
+}
+
+@test "pm-download handles PMID without PMCID gracefully" {
+    # Given: mock response where some PMIDs have no PMCID
+    local mock_response="${FIXTURES_DIR}/mock-responses/idconv-partial.json"
+    [ -f "$mock_response" ] || skip "Mock response not found"
+
+    # When: running with plain PMIDs
+    run bash -c "echo -e '22222\n33333' | '$PM_DOWNLOAD' --dry-run --mock-idconv '$mock_response' --email test@example.com"
+
+    # Then: shows appropriate sources (Unpaywall for DOI-only, none for neither)
+    # PMID 22222 has DOI but no PMCID -> Unpaywall
+    # PMID 33333 has neither -> no source
+    [[ "$output" == *"22222"* ]]
+    [[ "$output" == *"33333"* ]]
+}
+
+@test "pm-download batches ID conversion requests" {
+    # This test verifies batching works by checking we don't make excessive requests
+    # We'll use --verbose to see the request count
+    skip "Requires API mocking infrastructure"
+}

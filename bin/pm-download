@@ -73,6 +73,7 @@ PMC_ONLY=0
 UNPAYWALL_ONLY=0
 VERBOSE=0
 INPUT_FILE=""
+MOCK_IDCONV=""  # For testing: path to mock ID converter response JSON
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -116,6 +117,10 @@ while [[ $# -gt 0 ]]; do
             UNPAYWALL_ONLY=1
             shift
             ;;
+        --mock-idconv)
+            MOCK_IDCONV="$2"
+            shift 2
+            ;;
         *)
             die "Unknown option: $1. Use --help for usage."
             ;;
@@ -158,6 +163,69 @@ extract_field() {
     local json="$1"
     local field="$2"
     echo "$json" | jq -r ".$field // empty"
+}
+
+# Convert PMIDs to DOI/PMCID using NCBI ID Converter API
+# Usage: convert_pmids "pmid1" "pmid2" ...
+# Output: JSONL with pmid, pmcid, doi fields for each input PMID
+convert_pmids() {
+    local pmids=("$@")
+
+    if [[ -n "$MOCK_IDCONV" ]]; then
+        # Use mock response for testing
+        if [[ -f "$MOCK_IDCONV" ]]; then
+            # Extract records from mock JSON and output as JSONL
+            jq -c '.records[]' "$MOCK_IDCONV"
+        else
+            log_verbose "Mock ID converter file not found: $MOCK_IDCONV"
+        fi
+        return
+    fi
+
+    # Real API call (batch up to 200 IDs)
+    # Note: The ID Converter API requires a valid email format
+    local api_email="${EMAIL:-user@example.com}"
+
+    local batch_size=200
+    local i=0
+    while [[ $i -lt ${#pmids[@]} ]]; do
+        local batch=("${pmids[@]:$i:$batch_size}")
+        local ids_param
+        ids_param=$(IFS=,; echo "${batch[*]}")
+
+        log_verbose "Converting IDs: $ids_param"
+
+        local response
+        response=$(curl -s "https://pmc.ncbi.nlm.nih.gov/tools/idconv/api/v1/articles/?ids=${ids_param}&format=json&tool=pm-download&email=${api_email}")
+
+        # Extract records from response
+        echo "$response" | jq -c '.records[]' 2>/dev/null || true
+
+        # Rate limit: 3 requests/second
+        sleep 0.34
+
+        i=$((i + batch_size))
+    done
+}
+
+# Lookup PMID in converted data
+# Usage: lookup_converted "$pmid" "$converted_data"
+# Sets global variables: LOOKUP_PMCID, LOOKUP_DOI
+lookup_converted() {
+    local pmid="$1"
+    local converted_data="$2"
+
+    LOOKUP_PMCID=""
+    LOOKUP_DOI=""
+
+    # API returns pmid as number or string, so match either format
+    local record
+    record=$(echo "$converted_data" | grep -E "\"pmid\":(\"$pmid\"|$pmid)" | head -1)
+
+    if [[ -n "$record" ]]; then
+        LOOKUP_PMCID=$(echo "$record" | jq -r '.pmcid // empty')
+        LOOKUP_DOI=$(echo "$record" | jq -r '.doi // empty')
+    fi
 }
 
 # Determine best source for a given article
@@ -223,6 +291,7 @@ main() {
     local line_count=0
     local available_count=0
     local unavailable_count=0
+    local converted_data=""
 
     # Read all input
     input=$(get_input)
@@ -237,6 +306,20 @@ main() {
     format=$(detect_input_format "$first_line")
 
     log_verbose "Input format detected: $format"
+
+    # For PMID-only input, convert all PMIDs upfront
+    if [[ "$format" == "pmid" ]]; then
+        log_verbose "Converting PMIDs to get DOI/PMCID..."
+        local pmids=()
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            pmids+=("$line")
+        done <<< "$input"
+
+        if [[ ${#pmids[@]} -gt 0 ]]; then
+            converted_data=$(convert_pmids "${pmids[@]}")
+        fi
+    fi
 
     # Create output directory if needed (unless dry-run)
     if [[ "$DRY_RUN" -eq 0 && ! -d "$OUTPUT_DIR" ]]; then
@@ -254,9 +337,11 @@ main() {
             pmcid=$(extract_field "$line" "pmcid")
             doi=$(extract_field "$line" "doi")
         else
-            # Plain PMID - we'd need to use ID converter to get DOI/PMCID
+            # Plain PMID - look up in converted data
             pmid="$line"
-            # For now, just report no source (ID conversion will be Phase 3)
+            lookup_converted "$pmid" "$converted_data"
+            pmcid="$LOOKUP_PMCID"
+            doi="$LOOKUP_DOI"
         fi
 
         line_count=$((line_count + 1))
