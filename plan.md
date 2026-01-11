@@ -531,21 +531,16 @@ Remaining 10 differences are abstract separator style (space vs pipe), not data 
 - Not all abstracts have labels (~22 in 30k baseline articles)
 - Label names vary (BACKGROUND, UNLABELLED, RESULTS, etc.)
 
-### Complete Date Parsing
-Currently we only extract the year from PubDate. PubMed has multiple date formats:
-- `PubDate/Year`, `PubDate/Month`, `PubDate/Day` (structured)
-- `PubDate/MedlineDate` (string like "1975 Dec" or "1975 Winter")
+### ~~Complete Date Parsing~~ DONE
+**Completed 2026-01-11:** Added ISO 8601 `date` field to pm-parse output.
 
-**Enhancement options:**
-- [ ] Extract full date as ISO string (e.g., "1975-12-15")
-- [ ] Handle partial dates (year-only, year-month)
-- [ ] Parse MedlineDate with regex patterns
-- [ ] Add `date` field alongside `year` for backwards compatibility
+- [x] Extract full date as ISO string (e.g., "1975-12-15")
+- [x] Handle partial dates (year-only: "1976", year-month: "1975-06")
+- [x] Parse MedlineDate with regex patterns (month ranges, day ranges, cross-year)
+- [x] Add `date` field alongside `year` for backwards compatibility
+- [x] Handle seasons (Spring→03, Summer→06, Fall→09, Winter→12)
 
-**Considerations:**
-- Not all records have complete dates (many only have year)
-- MedlineDate formats vary (seasons, ranges like "1975-1976")
-- Need to decide on null/missing value representation
+See `docs/date-parsing-plan.md` for detailed implementation plan.
 
 ---
 
