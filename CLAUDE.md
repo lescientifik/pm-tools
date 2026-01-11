@@ -125,6 +125,16 @@ shellcheck bin/* scripts/* && bats test/
 
 4. **Dependencies matter**: The project specifies dependencies for a reason. Ensure all are installed and working before proceeding.
 
+5. **Tool warnings are problems**: If a tool (shellcheck, bats, compiler) produces warnings:
+   - **Wrong**: Explain why the warning is harmless and continue
+   - **Right**: Fix the configuration or code to eliminate the warning
+   - Example: SC1091 (source not followed) → Add `.shellcheckrc` with `external-sources=true`, not "this warning is informational"
+
+6. **Explaining is not fixing**: When you identify an issue:
+   - **Wrong**: "The problem is X. It's harmless because Y."
+   - **Right**: "The problem is X. Here's the fix: [implement fix]"
+   - Explanations are valuable, but they come AFTER the fix, not instead of it
+
 ### Quality Gates
 
 Before any commit:
