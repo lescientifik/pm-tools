@@ -1,0 +1,251 @@
+#!/usr/bin/env bash
+# pm-filter - Filter JSONL articles by field patterns
+# Usage: pm-parse | pm-filter [OPTIONS]
+
+set -euo pipefail
+
+# Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/pm-common.sh
+source "${SCRIPT_DIR}/../lib/pm-common.sh"
+
+# Check dependencies
+require_commands jq
+
+show_help() {
+    cat << 'EOF'
+pm-filter - Filter JSONL articles by field patterns
+
+Usage: pm-parse | pm-filter [OPTIONS]
+       cat articles.jsonl | pm-filter [OPTIONS]
+
+Filter Options:
+  --year PATTERN      Year filter (exact, range, or open-ended)
+                      Examples: 2024, 2020-2024, 2020-, -2024
+  --journal PATTERN   Journal contains PATTERN (case-insensitive)
+  --journal-exact STR Journal equals STR exactly
+  --author PATTERN    Any author contains PATTERN (case-insensitive)
+  --has-abstract      Article has non-empty abstract
+  --has-doi           Article has DOI
+
+General Options:
+  -v, --verbose       Show filter stats on stderr
+  -h, --help          Show this help
+
+Examples:
+  # Recent Nature articles with abstracts
+  pm-filter --year 2020- --journal nature --has-abstract
+
+  # Articles by author Smith
+  pm-filter --author smith
+
+  # Articles from specific year range
+  pm-filter --year 2020-2024
+
+Notes:
+  - Multiple filters combine with AND logic
+  - For negation, use jq: jq -c 'select(.doi | not)'
+EOF
+    exit 0
+}
+
+# Filter state
+year_filter=""
+journal_filter=""
+journal_exact=""
+author_filter=""
+has_abstract=false
+has_doi=false
+verbose=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --help|-h)
+            show_help
+            ;;
+        --year)
+            shift
+            year_filter="${1:-}"
+            [[ -z "$year_filter" ]] && die "Error: --year requires a pattern"
+            shift
+            ;;
+        --year=*)
+            year_filter="${1#*=}"
+            shift
+            ;;
+        --journal)
+            shift
+            journal_filter="${1:-}"
+            [[ -z "$journal_filter" ]] && die "Error: --journal requires a pattern"
+            shift
+            ;;
+        --journal=*)
+            journal_filter="${1#*=}"
+            shift
+            ;;
+        --journal-exact)
+            shift
+            journal_exact="${1:-}"
+            [[ -z "$journal_exact" ]] && die "Error: --journal-exact requires a value"
+            shift
+            ;;
+        --journal-exact=*)
+            journal_exact="${1#*=}"
+            shift
+            ;;
+        --author)
+            shift
+            author_filter="${1:-}"
+            [[ -z "$author_filter" ]] && die "Error: --author requires a pattern"
+            shift
+            ;;
+        --author=*)
+            author_filter="${1#*=}"
+            shift
+            ;;
+        --has-abstract)
+            has_abstract=true
+            shift
+            ;;
+        --has-doi)
+            has_doi=true
+            shift
+            ;;
+        -v|--verbose)
+            verbose=true
+            shift
+            ;;
+        -*)
+            die "Unknown option: $1. Use --help for usage."
+            ;;
+        *)
+            die "Unknown option: $1. Use --help for usage."
+            ;;
+    esac
+done
+
+# Validate year filter format
+if [[ -n "$year_filter" ]]; then
+    # Valid formats: 2024, 2020-2024, 2020-, -2024
+    if ! [[ "$year_filter" =~ ^[0-9]*-?[0-9]*$ ]] || [[ "$year_filter" == "-" ]]; then
+        die "Error: Invalid year format '$year_filter'. Use: 2024, 2020-2024, 2020-, or -2024"
+    fi
+    # Check at least one part has digits
+    if ! [[ "$year_filter" =~ [0-9] ]]; then
+        die "Error: Invalid year format '$year_filter'. Use: 2024, 2020-2024, 2020-, or -2024"
+    fi
+fi
+
+# Build jq filter expression
+build_jq_filter() {
+    local filters=()
+
+    # Year filter
+    if [[ -n "$year_filter" ]]; then
+        local year_min="" year_max=""
+
+        case "$year_filter" in
+            *-*)
+                # Range or open-ended
+                year_min="${year_filter%-*}"
+                year_max="${year_filter#*-}"
+                ;;
+            *)
+                # Exact match
+                year_min="$year_filter"
+                year_max="$year_filter"
+                ;;
+        esac
+
+        # Build year condition
+        local year_cond=""
+        if [[ -n "$year_min" && -n "$year_max" ]]; then
+            # Range: min <= year <= max
+            year_cond="(.year // \"\") >= \"$year_min\" and (.year // \"\") <= \"$year_max\""
+        elif [[ -n "$year_min" ]]; then
+            # Open minimum: year >= min
+            year_cond="(.year // \"\") >= \"$year_min\""
+        elif [[ -n "$year_max" ]]; then
+            # Open maximum: year <= max
+            year_cond="(.year // \"\") <= \"$year_max\""
+        fi
+
+        # Year must exist for filter to match
+        filters+=("(.year != null and $year_cond)")
+    fi
+
+    # Journal substring filter (case-insensitive)
+    if [[ -n "$journal_filter" ]]; then
+        local pattern_lower
+        pattern_lower=$(echo "$journal_filter" | tr '[:upper:]' '[:lower:]')
+        filters+=("((.journal // \"\") | ascii_downcase | contains(\"$pattern_lower\"))")
+    fi
+
+    # Journal exact filter
+    if [[ -n "$journal_exact" ]]; then
+        filters+=("(.journal == \"$journal_exact\")")
+    fi
+
+    # Author substring filter (case-insensitive, any author)
+    if [[ -n "$author_filter" ]]; then
+        local pattern_lower
+        pattern_lower=$(echo "$author_filter" | tr '[:upper:]' '[:lower:]')
+        filters+=("((.authors // []) | any(. | ascii_downcase | contains(\"$pattern_lower\")))")
+    fi
+
+    # Boolean filter: has-abstract (non-null and non-empty)
+    if [[ "$has_abstract" == "true" ]]; then
+        filters+=("(.abstract != null and .abstract != \"\")")
+    fi
+
+    # Boolean filter: has-doi (non-null)
+    if [[ "$has_doi" == "true" ]]; then
+        filters+=("(.doi != null)")
+    fi
+
+    # Combine filters with AND
+    if [[ ${#filters[@]} -eq 0 ]]; then
+        echo "."  # Passthrough
+    else
+        local combined=""
+        for f in "${filters[@]}"; do
+            if [[ -z "$combined" ]]; then
+                combined="$f"
+            else
+                combined="$combined and $f"
+            fi
+        done
+        echo "select($combined)"
+    fi
+}
+
+# Execute filtering
+jq_filter=$(build_jq_filter)
+
+# Build jq expression with error handling for malformed JSON
+# Using -R (raw input) + fromjson allows us to handle each line
+# try/catch skips malformed lines silently
+jq_expr="try (fromjson | $jq_filter) catch empty"
+
+if [[ "$verbose" == "true" ]]; then
+    # Verbose mode: count input/output lines for statistics
+    input_file=$(mktemp)
+    output_file=$(mktemp)
+    trap 'rm -f "$input_file" "$output_file"' EXIT
+
+    # Save input to file first (so we can count it)
+    cat > "$input_file"
+    input_count=$(wc -l < "$input_file")
+
+    # Process and save output
+    jq -Rc "$jq_expr" < "$input_file" > "$output_file"
+    output_count=$(wc -l < "$output_file")
+
+    # Output results
+    cat "$output_file"
+    echo "$output_count/$input_count articles passed filters" >&2
+else
+    # Fast path: single jq pass, no counting
+    jq -Rc "$jq_expr"
+fi
