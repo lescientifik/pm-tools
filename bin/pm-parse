@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+# pm-parse - Parse PubMed XML to JSONL
+# Usage: cat articles.xml | pm-parse > articles.jsonl
+
+set -euo pipefail
+
+# Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib/pm-common.sh
+source "${SCRIPT_DIR}/../lib/pm-common.sh"
+
+# Read all input to check for empty
+input=$(cat)
+
+# Exit silently if input is empty or whitespace only
+if [[ -z "${input// /}" ]]; then
+    exit 0
+fi
+
+# Process XML using xml2 and awk
+echo "$input" | xml2 | awk '
+BEGIN {
+    # Track current article data
+    pmid = ""
+    title = ""
+    journal = ""
+    year = ""
+    doi = ""
+    abstract = ""
+
+    # Author handling
+    author_count = 0
+    current_lastname = ""
+    current_forename = ""
+
+    # Track if we are inside a DOI ArticleId
+    in_doi_id = 0
+}
+
+# New PubmedArticle starts
+/^\/PubmedArticleSet\/PubmedArticle$/ || /^\/PubmedArticle$/ {
+    # Output previous article if we have data
+    if (pmid != "") {
+        output_article()
+    }
+    # Reset for new article
+    pmid = ""
+    title = ""
+    journal = ""
+    year = ""
+    doi = ""
+    abstract = ""
+    author_count = 0
+    current_lastname = ""
+    current_forename = ""
+    in_doi_id = 0
+    next
+}
+
+# Extract PMID
+/\/MedlineCitation\/PMID=/ {
+    split($0, parts, "=")
+    pmid = parts[2]
+    next
+}
+
+# Extract title
+/\/Article\/ArticleTitle=/ {
+    split($0, parts, "=")
+    title = substr($0, index($0, "=") + 1)
+    next
+}
+
+# Extract journal
+/\/Journal\/Title=/ {
+    split($0, parts, "=")
+    journal = substr($0, index($0, "=") + 1)
+    next
+}
+
+# Extract year
+/\/PubDate\/Year=/ {
+    if (year == "") {  # Take first year only
+        split($0, parts, "=")
+        year = parts[2]
+    }
+    next
+}
+
+# Track DOI ArticleId
+/\/ArticleId\/@IdType=doi/ {
+    in_doi_id = 1
+    next
+}
+
+# Extract DOI value
+/\/ArticleIdList\/ArticleId=/ {
+    if (in_doi_id == 1) {
+        doi = substr($0, index($0, "=") + 1)
+        in_doi_id = 0
+    }
+    next
+}
+
+# Reset DOI tracking when new ArticleId starts
+/\/ArticleIdList\/ArticleId$/ {
+    in_doi_id = 0
+    next
+}
+
+# Extract abstract (simple case - single AbstractText)
+/\/Abstract\/AbstractText=/ {
+    if (abstract == "") {
+        abstract = substr($0, index($0, "=") + 1)
+    }
+    next
+}
+
+# Author lastname
+/\/Author\/LastName=/ {
+    current_lastname = substr($0, index($0, "=") + 1)
+    next
+}
+
+# Author forename
+/\/Author\/ForeName=/ {
+    current_forename = substr($0, index($0, "=") + 1)
+    next
+}
+
+# New author starts (save previous if exists)
+/\/AuthorList\/Author$/ {
+    if (current_lastname != "") {
+        author_count++
+        authors[author_count] = current_lastname " " current_forename
+    }
+    current_lastname = ""
+    current_forename = ""
+    next
+}
+
+END {
+    # Output last article (output_article handles pending author)
+    if (pmid != "") {
+        output_article()
+    }
+}
+
+function json_escape(s) {
+    gsub(/\\/, "\\\\", s)
+    gsub(/"/, "\\\"", s)
+    gsub(/\n/, "\\n", s)
+    gsub(/\r/, "\\r", s)
+    gsub(/\t/, "\\t", s)
+    return s
+}
+
+function output_article() {
+    # Save current author if exists
+    if (current_lastname != "") {
+        author_count++
+        authors[author_count] = current_lastname " " current_forename
+        current_lastname = ""
+        current_forename = ""
+    }
+
+    # Build authors JSON array
+    authors_json = "["
+    for (i = 1; i <= author_count; i++) {
+        if (i > 1) authors_json = authors_json ","
+        authors_json = authors_json "\"" json_escape(authors[i]) "\""
+    }
+    authors_json = authors_json "]"
+
+    # Output JSON
+    printf "{\"pmid\":\"%s\"", json_escape(pmid)
+    if (title != "") printf ",\"title\":\"%s\"", json_escape(title)
+    if (author_count > 0) printf ",\"authors\":%s", authors_json
+    if (journal != "") printf ",\"journal\":\"%s\"", json_escape(journal)
+    if (year != "") printf ",\"year\":\"%s\"", json_escape(year)
+    if (doi != "") printf ",\"doi\":\"%s\"", json_escape(doi)
+    if (abstract != "") printf ",\"abstract\":\"%s\"", json_escape(abstract)
+    print "}"
+
+    # Reset author array
+    delete authors
+    author_count = 0
+}
+'

@@ -167,23 +167,23 @@ generated/mapping.json
 **Pourquoi commencer par parse ?** On peut tester offline avec des fixtures XML extraites du baseline.
 
 ### 2.1 Tests unitaires pm-parse
-- [ ] Test : input vide → output vide
-- [ ] Test : un article minimal → JSONL avec pmid
-- [ ] Test : article complet (extrait baseline) → tous les champs extraits
-- [ ] Test : multiple articles → une ligne JSONL par article
-- [ ] Test : caractères spéciaux (accents, &amp;, unicode) → échappés correctement
+- [x] Test : input vide → output vide
+- [x] Test : un article minimal → JSONL avec pmid
+- [x] Test : article complet (extrait baseline) → tous les champs extraits
+- [x] Test : multiple articles → une ligne JSONL par article
+- [x] Test : caractères spéciaux (accents, &amp;, unicode) → échappés correctement
 - [ ] Test : fichier .xml.gz → décompression à la volée (zcat | pm-parse)
 
 ### 2.2 Implémentation pm-parse
-- [ ] Script de base qui lit stdin
-- [ ] Pipeline `xml2 | awk` pour découper par article
-- [ ] Extraction des champs selon mapping DTD
+- [x] Script de base qui lit stdin
+- [x] Pipeline `xml2 | awk` pour découper par article
+- [x] Extraction des champs selon mapping DTD
 - [ ] Construction JSON avec jq
 - [ ] Gestion --verbose
 
 ### 2.3 Fixtures (depuis baseline)
-- [ ] Télécharger un fichier baseline
-- [ ] Extraire 5-10 articles représentatifs
+- [x] Télécharger un fichier baseline
+- [x] Extraire 5-10 articles représentatifs
 - [ ] Créer le JSONL attendu manuellement (golden file)
 
 ---

@@ -4,7 +4,7 @@
 # Verifies pm-parse extracts all mapped fields correctly
 
 setup() {
-    export PROJECT_DIR="${BATS_TEST_DIRNAME}/.."
+    export PROJECT_DIR="${BATS_TEST_DIRNAME}/../.."
     export PM_PARSE="${PROJECT_DIR}/bin/pm-parse"
 
     # Sample XML with all fields populated
