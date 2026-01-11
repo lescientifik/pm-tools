@@ -5,8 +5,47 @@
 
 set -euo pipefail
 
-# Colors (disable with NO_COLOR=1)
-if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]]; then
+# Parse arguments
+FORCE_COLOR=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --color)
+            FORCE_COLOR=1
+            shift
+            ;;
+        --no-color)
+            FORCE_COLOR=0
+            shift
+            ;;
+        -h|--help)
+            echo "pm-show - Pretty print pm-parse JSONL output"
+            echo ""
+            echo "Usage: pm-parse | pm-show [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --color      Force colored output (for piping to less -R, bat, etc.)"
+            echo "  --no-color   Disable colors"
+            echo "  -h, --help   Show this help"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# Colors: auto-detect unless forced
+use_color=0
+if [[ "$FORCE_COLOR" == "1" ]]; then
+    use_color=1
+elif [[ "$FORCE_COLOR" == "0" ]] || [[ -n "${NO_COLOR:-}" ]]; then
+    use_color=0
+elif [[ -t 1 ]]; then
+    use_color=1
+fi
+
+if [[ "$use_color" == "1" ]]; then
     BOLD='\033[1m'
     DIM='\033[2m'
     CYAN='\033[36m'
