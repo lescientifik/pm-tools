@@ -7,6 +7,14 @@ Building Unix-style CLI tools for PubMed data:
 - `pm-fetch` : PMIDs → XML
 - `pm-parse` : XML → JSONL
 
+## Quick Start
+
+If user says **"go"** or **"continue"**:
+1. Load skill: `/developing-tdd-shell`
+2. Read `plan.md` to find current phase and pending tasks
+3. Start working on the next unchecked `- [ ]` task
+4. Follow TDD: write test first, then implement
+
 ## Before Starting Any Work
 
 1. **Load the TDD skill**: `/developing-tdd-shell`
