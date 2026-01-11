@@ -46,11 +46,12 @@ setup() {
 }
 
 @test "pm-download accepts JSONL from stdin" {
-    # Given: JSONL input with pmid and pmcid (so we have a source)
+    # Given: JSONL input with pmid and pmcid, with mock PMC response
     local jsonl='{"pmid":"12345","pmcid":"PMC1234567","doi":"10.1234/test"}'
+    local mock_pmc="${FIXTURES_DIR}/mock-responses/pmc-oa-success.xml"
 
-    # When: running with --dry-run
-    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --dry-run"
+    # When: running with --dry-run and mock
+    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --dry-run --mock-pmc '$mock_pmc'"
 
     # Then: exits successfully and shows what would be downloaded
     [ "$status" -eq 0 ]
@@ -86,11 +87,12 @@ setup() {
 # --- Dry run output tests ---
 
 @test "pm-download --dry-run shows PMC source when pmcid present" {
-    # Given: JSONL with PMCID
+    # Given: JSONL with PMCID and mock PMC response
     local jsonl='{"pmid":"12345","pmcid":"PMC1234567","doi":"10.1234/test"}'
+    local mock_pmc="${FIXTURES_DIR}/mock-responses/pmc-oa-success.xml"
 
-    # When: running with --dry-run
-    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --dry-run"
+    # When: running with --dry-run and mock
+    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --dry-run --mock-pmc '$mock_pmc'"
 
     # Then: shows PMC as source
     [ "$status" -eq 0 ]
@@ -158,12 +160,14 @@ setup() {
 # These tests use --mock-idconv to provide canned responses
 
 @test "pm-download converts PMIDs to get DOI and PMCID" {
-    # Given: plain PMID input with mock response
-    local mock_response="${FIXTURES_DIR}/mock-responses/idconv-success.json"
-    [ -f "$mock_response" ] || skip "Mock response not found"
+    # Given: plain PMID input with mock responses for both ID conversion and PMC OA
+    local mock_idconv="${FIXTURES_DIR}/mock-responses/idconv-success.json"
+    local mock_pmc="${FIXTURES_DIR}/mock-responses/pmc-oa-success.xml"
+    [ -f "$mock_idconv" ] || skip "Mock ID converter response not found"
+    [ -f "$mock_pmc" ] || skip "Mock PMC response not found"
 
-    # When: running with --dry-run and mock ID converter
-    run bash -c "echo '12345' | '$PM_DOWNLOAD' --dry-run --mock-idconv '$mock_response'"
+    # When: running with --dry-run and both mocks
+    run bash -c "echo '12345' | '$PM_DOWNLOAD' --dry-run --mock-idconv '$mock_idconv' --mock-pmc '$mock_pmc'"
 
     # Then: shows PMC source (from converted PMCID)
     [ "$status" -eq 0 ]
@@ -189,4 +193,34 @@ setup() {
     # This test verifies batching works by checking we don't make excessive requests
     # We'll use --verbose to see the request count
     skip "Requires API mocking infrastructure"
+}
+
+# --- PMC OA Service tests (Phase 4) ---
+
+@test "pm-download fetches PDF URL from PMC OA Service" {
+    # Given: JSONL with PMCID and mock PMC response
+    local jsonl='{"pmid":"12345","pmcid":"PMC1234567"}'
+    local mock_response="${FIXTURES_DIR}/mock-responses/pmc-oa-success.xml"
+    [ -f "$mock_response" ] || skip "Mock response not found"
+
+    # When: running with --dry-run and mock PMC OA
+    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --dry-run --mock-pmc '$mock_response'"
+
+    # Then: shows PMC source with PDF URL
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"PMC"* ]]
+    [[ "$output" == *"pdf"* ]] || [[ "$output" == *"PDF"* ]]
+}
+
+@test "pm-download reports non-OA article from PMC" {
+    # Given: JSONL with PMCID that's not in OA subset
+    local jsonl='{"pmid":"12345","pmcid":"PMC9999999","doi":"10.1234/test"}'
+    local mock_response="${FIXTURES_DIR}/mock-responses/pmc-oa-not-oa.xml"
+    [ -f "$mock_response" ] || skip "Mock response not found"
+
+    # When: running with --dry-run and mock PMC OA
+    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --dry-run --mock-pmc '$mock_response' --email test@example.com"
+
+    # Then: falls back to Unpaywall (has DOI and email)
+    [[ "$output" == *"Unpaywall"* ]] || [[ "$output" == *"unpaywall"* ]] || [[ "$output" == *"not"* ]]
 }

@@ -74,6 +74,7 @@ UNPAYWALL_ONLY=0
 VERBOSE=0
 INPUT_FILE=""
 MOCK_IDCONV=""  # For testing: path to mock ID converter response JSON
+MOCK_PMC=""     # For testing: path to mock PMC OA Service response XML
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -119,6 +120,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --mock-idconv)
             MOCK_IDCONV="$2"
+            shift 2
+            ;;
+        --mock-pmc)
+            MOCK_PMC="$2"
             shift 2
             ;;
         *)
@@ -228,6 +233,46 @@ lookup_converted() {
     fi
 }
 
+# Query PMC OA Service for PDF URL
+# Usage: pmc_lookup "$pmcid"
+# Returns: PDF URL if available, empty if not
+pmc_lookup() {
+    local pmcid="$1"
+    local response
+    local pdf_url
+
+    if [[ -n "$MOCK_PMC" ]]; then
+        # Use mock response for testing
+        if [[ -f "$MOCK_PMC" ]]; then
+            response=$(cat "$MOCK_PMC")
+        else
+            log_verbose "Mock PMC file not found: $MOCK_PMC"
+            return
+        fi
+    else
+        # Real API call
+        log_verbose "Querying PMC OA Service for $pmcid..."
+        response=$(curl -s "https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id=${pmcid}")
+
+        # Rate limit
+        sleep 0.34
+    fi
+
+    # Check for error
+    if echo "$response" | grep -q "<error"; then
+        log_verbose "PMC OA: $pmcid not in Open Access subset"
+        return
+    fi
+
+    # Extract PDF URL from response
+    # XML format: <link format="pdf" ... href="ftp://..."/>
+    pdf_url=$(echo "$response" | grep -o 'format="pdf"[^>]*href="[^"]*"' | sed 's/.*href="\([^"]*\)".*/\1/' | head -1)
+
+    if [[ -n "$pdf_url" ]]; then
+        echo "$pdf_url"
+    fi
+}
+
 # Determine best source for a given article
 # Outputs: "pmc:PMCID" or "unpaywall:DOI" or "none"
 determine_source() {
@@ -256,29 +301,45 @@ determine_source() {
 }
 
 # Process dry-run for a single article
+# Returns: "available" or "unavailable"
 process_dry_run() {
     local pmid="$1"
     local pmcid="$2"
     local doi="$3"
     local source
+    local pdf_url=""
 
-    source=$(determine_source "$pmcid" "$doi")
+    # Try PMC first if we have PMCID and not --unpaywall-only
+    if [[ "$UNPAYWALL_ONLY" -eq 0 && -n "$pmcid" ]]; then
+        pdf_url=$(pmc_lookup "$pmcid")
+        if [[ -n "$pdf_url" ]]; then
+            echo "PMID $pmid: Would download from PMC ($pmcid) - PDF available"
+            echo "available"
+            return
+        fi
+        log_verbose "PMC: No PDF for $pmcid, trying fallback..."
+    fi
+
+    # Fall back to determining source without PMC lookup
+    source=$(determine_source "" "$doi")  # Pass empty pmcid since PMC failed
 
     case "$source" in
         pmc:*)
-            local pmc_id="${source#pmc:}"
-            echo "PMID $pmid: Would download from PMC ($pmc_id)"
+            # Won't happen since we pass empty pmcid above
             ;;
         unpaywall:*)
             local doi_val="${source#unpaywall:}"
             echo "PMID $pmid: Would download via Unpaywall ($doi_val)"
+            echo "available"
             ;;
         unpaywall-no-email:*)
             local doi_val="${source#unpaywall-no-email:}"
             echo "PMID $pmid: Could download via Unpaywall ($doi_val) - requires --email"
+            echo "unavailable"
             ;;
         none)
             echo "PMID $pmid: No source available (no DOI or PMCID)"
+            echo "unavailable"
             ;;
     esac
 }
@@ -347,9 +408,14 @@ main() {
         line_count=$((line_count + 1))
 
         if [[ "$DRY_RUN" -eq 1 ]]; then
-            process_dry_run "$pmid" "$pmcid" "$doi"
-            source=$(determine_source "$pmcid" "$doi")
-            if [[ "$source" != "none" && "$source" != unpaywall-no-email:* ]]; then
+            local result
+            result=$(process_dry_run "$pmid" "$pmcid" "$doi")
+            # Print all lines except the last (which is "available" or "unavailable")
+            echo "$result" | head -n -1
+            # Get the last line for counting
+            local status_line
+            status_line=$(echo "$result" | tail -1)
+            if [[ "$status_line" == "available" ]]; then
                 available_count=$((available_count + 1))
             else
                 unavailable_count=$((unavailable_count + 1))

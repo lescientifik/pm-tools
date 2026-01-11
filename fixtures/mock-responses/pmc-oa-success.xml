@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OA>
+  <records returned-count="1" total-count="1">
+    <record id="PMC1234567" citation="Test Article Title. Test Journal. 2024;1(1):1-10." license="CC BY">
+      <link format="pdf" updated="2024-01-15 10:30:00" href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_pdf/00/00/PMC1234567.pdf"/>
+      <link format="tgz" updated="2024-01-15 10:30:00" href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/00/00/PMC1234567.tar.gz"/>
+    </record>
+  </records>
+</OA>
