@@ -112,12 +112,15 @@ pubmed_parser/
 
 **Stratégie** : Utiliser `xtract` (outil officiel NCBI) comme référence.
 
-- [ ] Installer EDirect : `sh -c "$(curl -fsSL https://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/install-edirect.sh)"`
-- [ ] Créer un script `scripts/generate-golden.sh` qui :
+- [x] Installer EDirect : `sh -c "$(curl -fsSL https://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/install-edirect.sh)"`
+- [x] Créer un script `scripts/generate-golden.sh` qui :
   - Prend des articles XML en entrée
   - Utilise `xtract` pour extraire les champs
   - Convertit le TSV en JSONL (notre format cible)
   - Sauvegarde dans `fixtures/expected/`
+
+**Note**: Les golden files joignent tous les éléments AbstractText avec espace,
+tandis que pm-parse n'extrait que le premier. C'est une différence connue.
 
 ```bash
 # Exemple de génération de golden file
