@@ -520,6 +520,26 @@ Current script spawns jq for each article (30k process forks), causing high CPU 
 **Current performance:** ~50 articles/sec (~10 min for 30k articles)
 **Target:** ~1000+ articles/sec (same as pm-parse)
 
+### Structured Abstract Parsing
+Currently both pm-parse and xtract discard the `Label` attribute from `<AbstractText>` elements.
+
+```xml
+<AbstractText Label="BACKGROUND">...</AbstractText>
+<AbstractText Label="METHODS">...</AbstractText>
+<AbstractText Label="RESULTS">...</AbstractText>
+<AbstractText Label="CONCLUSIONS">...</AbstractText>
+```
+
+**Enhancement options:**
+- [ ] Structured object: `{"abstract": {"background": "...", "methods": "...", "results": "..."}}`
+- [ ] Preserve labels inline: `"BACKGROUND: ... METHODS: ... RESULTS: ..."`
+- [ ] Add `abstract_sections` array alongside flat `abstract` field
+
+**Considerations:**
+- Not all abstracts are structured (many are plain text)
+- Label names vary (BACKGROUND vs INTRODUCTION, etc.)
+- Backwards compatibility with existing `abstract` field
+
 ### Complete Date Parsing
 Currently we only extract the year from PubDate. PubMed has multiple date formats:
 - `PubDate/Year`, `PubDate/Month`, `PubDate/Day` (structured)
