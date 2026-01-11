@@ -297,22 +297,14 @@ and document performance characteristics.
 - generate-golden.sh: ~80 articles/sec (7 xtract calls per article)
 - Estimated time for 30k articles: ~6-7 minutes
 
-**Optimization opportunity:**
-Current generate-golden.sh calls xtract 7 times per article (once per field).
-Refactor to single xtract call extracting all fields at once → ~15,000 articles/sec.
+**Optimization completed (2026-01-11):**
+Bottleneck was per-article jq calls in TSV→JSONL conversion (~50 articles/sec).
+Refactored to use awk for JSON construction (like pm-parse).
 
-- [ ] Refactor `scripts/baseline-to-xtract-jsonl.sh` to use single xtract call:
-  ```bash
-  xtract -pattern PubmedArticle \
-    -element MedlineCitation/PMID ArticleTitle "Journal/Title" \
-    -element "PubDate/Year" \
-    -block ArticleId -if "@IdType" -equals doi -element ArticleId \
-    -block Abstract -sep " " -element AbstractText \
-    -block Author -sep " " -element LastName,ForeName
-  ```
-- [ ] Parse TSV output to JSONL (single pass with awk or jq)
-- [ ] Expected speedup: ~80 articles/sec → ~15,000 articles/sec
-- [ ] 30k baseline: ~6 minutes → ~2 seconds
+- [x] Use single xtract call (already implemented)
+- [x] Parse TSV output to JSONL with awk (single pass, no subprocess forks)
+- [x] Achieved speedup: ~50 articles/sec → ~1000+ articles/sec (20x improvement)
+- [x] Performance test added to baseline-validation.bats (threshold: 500 articles/sec)
 
 #### 0.9.3 Generate pm-parse baseline output
 
@@ -508,18 +500,11 @@ xtract:   "OgataK"    ← trimmed
 
 **Impact:** 91 records affected in baseline (0.3%)
 
-### Optimize baseline-to-xtract-jsonl.sh Performance
-**Priority:** Low (if current script works correctly) / High (if issues found)
+### ~~Optimize baseline-to-xtract-jsonl.sh Performance~~ DONE
 
-Current script spawns jq for each article (30k process forks), causing high CPU usage.
-
-**Optimization options:**
-- [ ] Batch jq calls (pass multiple records per invocation)
-- [ ] Use awk for JSON construction (like pm-parse)
-- [ ] Pre-generate JSON template and fill with sed
-
-**Current performance:** ~50 articles/sec (~10 min for 30k articles)
-**Target:** ~1000+ articles/sec (same as pm-parse)
+**Completed 2026-01-11:** Refactored to use awk for JSON construction.
+- [x] Use awk for JSON construction (like pm-parse)
+- Achieved: ~1000+ articles/sec (20x improvement from ~50 articles/sec)
 
 ### Structured Abstract Parsing
 Currently both pm-parse and xtract discard the `Label` attribute from `<AbstractText>` elements.

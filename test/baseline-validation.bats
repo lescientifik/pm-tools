@@ -250,3 +250,38 @@ EOF
     # And: output contains usage information
     [[ "$output" == *"Usage"* ]]
 }
+
+# =============================================================================
+# Performance tests for baseline-to-xtract-jsonl.sh
+# =============================================================================
+
+@test "baseline-to-xtract-jsonl.sh performance > 500 articles/sec" {
+    if ! xtract_available; then
+        skip "xtract not available (EDirect not installed)"
+    fi
+
+    # Given: a sample of articles from the baseline (first 50k lines, ~300 articles)
+    local baseline="${PROJECT_DIR}/data/pubmed25n0001.xml.gz"
+    if [ ! -f "$baseline" ]; then
+        skip "Baseline file not available"
+    fi
+
+    # When: we time the processing
+    local start_time end_time duration article_count
+    start_time=$(date +%s.%N)
+    article_count=$(zcat "$baseline" | head -n 50000 | "$BASELINE_TO_XTRACT" --stdin | wc -l)
+    end_time=$(date +%s.%N)
+
+    # Then: we processed at least 100 articles
+    [ "$article_count" -ge 100 ]
+
+    # Calculate articles per second
+    duration=$(echo "$end_time - $start_time" | bc)
+    articles_per_sec=$(echo "scale=0; $article_count / $duration" | bc)
+
+    # Log performance for debugging
+    echo "# Performance: $articles_per_sec articles/sec ($article_count articles in ${duration}s)" >&3
+
+    # And: performance is > 500 articles/sec (after optimization, target is 1000+)
+    [ "$articles_per_sec" -ge 500 ]
+}

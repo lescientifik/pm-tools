@@ -58,55 +58,86 @@ run_xtract() {
         -block Author -sep " " -tab "$AUTHOR_SEP" -element LastName,ForeName 2>/dev/null || true
 }
 
-# Convert xtract TSV output to JSONL
+# Convert xtract TSV output to JSONL using awk (fast, single pass)
+# TSV fields: PMID, Title, Journal, Year, MedlineDate, ArticleIds, Abstract, Authors
 tsv_to_jsonl() {
-    while IFS=$'\t' read -r pmid title journal year medline_date article_ids abstract authors_raw; do
-        # Skip if no PMID
-        [ -z "$pmid" ] && continue
+    awk -F'\t' -v empty_marker="$EMPTY_MARKER" -v author_sep="$AUTHOR_SEP" '
+function json_escape(s) {
+    gsub(/\\/, "\\\\", s)
+    gsub(/"/, "\\\"", s)
+    gsub(/\n/, "\\n", s)
+    gsub(/\r/, "\\r", s)
+    gsub(/\t/, "\\t", s)
+    return s
+}
 
-        # Handle empty marker
-        [ "$medline_date" = "$EMPTY_MARKER" ] && medline_date=""
-        [ "$abstract" = "$EMPTY_MARKER" ] && abstract=""
+{
+    pmid = $1
+    title = $2
+    journal = $3
+    year = $4
+    medline_date = $5
+    article_ids = $6
+    abstract = $7
+    authors_raw = $8
 
-        # If no Year, try to extract from MedlineDate
-        if [ -z "$year" ] || [ "$year" = "$EMPTY_MARKER" ]; then
-            year=""
-            if [ -n "$medline_date" ]; then
-                year=$(echo "$medline_date" | grep -oE '[0-9]{4}' | head -1 || true)
-            fi
-        fi
+    # Skip if no PMID
+    if (pmid == "" || pmid == empty_marker) next
 
-        # Extract DOI from article_ids (pipe-separated, DOI starts with "10.")
-        doi=""
-        if [ -n "$article_ids" ] && [ "$article_ids" != "$EMPTY_MARKER" ]; then
-            doi=$(echo "$article_ids" | tr '|' '\n' | grep -E '^10\.' | head -1 || true)
-        fi
+    # Handle empty markers
+    if (title == empty_marker) title = ""
+    if (journal == empty_marker) journal = ""
+    if (year == empty_marker) year = ""
+    if (medline_date == empty_marker) medline_date = ""
+    if (article_ids == empty_marker) article_ids = ""
+    if (abstract == empty_marker) abstract = ""
+    if (authors_raw == empty_marker) authors_raw = ""
 
-        # Split authors by unit separator
-        local authors_json="[]"
-        if [ -n "$authors_raw" ] && [ "$authors_raw" != "$EMPTY_MARKER" ]; then
-            authors_json=$(echo "$authors_raw" | tr "$AUTHOR_SEP" '\n' | jq -R . | jq -s 'map(select(. != ""))')
-        fi
+    # If no Year, try to extract from MedlineDate
+    if (year == "" && medline_date != "") {
+        if (match(medline_date, /[0-9][0-9][0-9][0-9]/)) {
+            year = substr(medline_date, RSTART, 4)
+        }
+    }
 
-        # Build JSON using jq (handles all escaping properly)
-        jq -n -c \
-            --arg pmid "$pmid" \
-            --arg title "$title" \
-            --arg journal "$journal" \
-            --arg year "$year" \
-            --arg doi "$doi" \
-            --arg abstract "$abstract" \
-            --argjson authors "$authors_json" \
-            '
-            {pmid: $pmid}
-            | if $title != "" then .title = $title else . end
-            | if ($authors | length) > 0 then .authors = $authors else . end
-            | if $journal != "" then .journal = $journal else . end
-            | if $year != "" then .year = $year else . end
-            | if $doi != "" then .doi = $doi else . end
-            | if $abstract != "" then .abstract = $abstract else . end
-            '
-    done
+    # Extract DOI from article_ids (pipe-separated, DOI starts with "10.")
+    doi = ""
+    if (article_ids != "") {
+        n = split(article_ids, ids, "|")
+        for (i = 1; i <= n; i++) {
+            if (ids[i] ~ /^10\./) {
+                doi = ids[i]
+                break
+            }
+        }
+    }
+
+    # Build authors JSON array
+    authors_json = "["
+    if (authors_raw != "") {
+        n = split(authors_raw, auth, author_sep)
+        first = 1
+        for (i = 1; i <= n; i++) {
+            if (auth[i] != "") {
+                if (!first) authors_json = authors_json ","
+                authors_json = authors_json "\"" json_escape(auth[i]) "\""
+                first = 0
+            }
+        }
+    }
+    authors_json = authors_json "]"
+
+    # Build and output JSON
+    printf "{\"pmid\":\"%s\"", json_escape(pmid)
+    if (title != "") printf ",\"title\":\"%s\"", json_escape(title)
+    if (authors_json != "[]") printf ",\"authors\":%s", authors_json
+    if (journal != "") printf ",\"journal\":\"%s\"", json_escape(journal)
+    if (year != "") printf ",\"year\":\"%s\"", json_escape(year)
+    if (doi != "") printf ",\"doi\":\"%s\"", json_escape(doi)
+    if (abstract != "") printf ",\"abstract\":\"%s\"", json_escape(abstract)
+    print "}"
+}
+'
 }
 
 # Read file content, handling gzip and wrapping
