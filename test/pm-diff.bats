@@ -102,3 +102,70 @@ EOF
     [ "$status" -eq 0 ]
     [ -z "$output" ]
 }
+
+# =============================================================================
+# Phase 3: Added Detection (7-8)
+# =============================================================================
+
+@test "detects added articles" {
+    # Given: OLD has 3 articles, NEW has 5 (2 added)
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Article Three"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Article Three"}
+{"pmid":"4","title":"Article Four"}
+{"pmid":"5","title":"Article Five"}
+EOF
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1 (differences found), shows 2 added
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Added:"*"2"* ]]
+}
+
+@test "--format added lists added PMIDs" {
+    # Given: OLD has 3 articles, NEW has 5 (2 added)
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Article Three"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Article Three"}
+{"pmid":"4","title":"Article Four"}
+{"pmid":"5","title":"Article Five"}
+EOF
+
+    # When: we get added PMIDs
+    run "$PM_DIFF" --format added "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, output contains PMIDs 4 and 5
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"4"* ]]
+    [[ "$output" == *"5"* ]]
+    # Should have exactly 2 lines
+    [ "$(echo "$output" | wc -l)" -eq 2 ]
+}
