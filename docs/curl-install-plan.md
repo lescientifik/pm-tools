@@ -3,7 +3,7 @@
 A detailed TDD implementation plan for making pm-tools installable via:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/USER/pubmed_parser/main/install-remote.sh | bash
+curl -fsSL https://raw.githubusercontent.com/lescientifik/pm-tools/main/install-remote.sh | bash
 ```
 
 ## Overview
@@ -444,7 +444,7 @@ Initial release: `1.0.0`
 ### Recommended structure:
 
 ```
-https://github.com/USER/pubmed_parser/
+https://github.com/lescientifik/pm-tools/
 ├── install-remote.sh     # Main installer
 ├── VERSION               # Version file
 ├── bin/                  # Commands

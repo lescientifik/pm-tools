@@ -14,13 +14,13 @@ pm-search "CRISPR review" --max 5 | pm-fetch | pm-parse | pm-download --output-d
 
 ```bash
 # One-line install (requires curl, xml2, jq)
-curl -fsSL https://raw.githubusercontent.com/youruser/pubmed_parser/main/install-remote.sh | bash
+curl -fsSL https://raw.githubusercontent.com/lescientifik/pm-tools/main/install-remote.sh | bash
 ```
 
 Or install from source:
 
 ```bash
-git clone https://github.com/youruser/pubmed_parser.git
+git clone https://github.com/lescientifik/pm-tools.git
 cd pubmed_parser
 ./install.sh
 ```
@@ -42,7 +42,7 @@ curl -fsSL .../install-remote.sh | bash -s -- --check-deps
 
 ```bash
 # If installed via curl
-curl -fsSL https://raw.githubusercontent.com/youruser/pubmed_parser/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/lescientifik/pm-tools/main/uninstall.sh | bash
 
 # Or run locally
 ./uninstall.sh

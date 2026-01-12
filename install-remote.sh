@@ -2,7 +2,7 @@
 # install-remote.sh - Install pm-tools from GitHub (or locally for testing)
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/USER/pubmed_parser/main/install-remote.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/lescientifik/pm-tools/main/install-remote.sh | bash
 #   ./install-remote.sh --offline --prefix ~/.local
 #
 # Options:
@@ -23,7 +23,7 @@ set -euo pipefail
 
 VERSION="1.0.0"
 DEFAULT_PREFIX="$HOME/.local"
-DEFAULT_BASE_URL="https://raw.githubusercontent.com/USER/pubmed_parser/main"
+DEFAULT_BASE_URL="https://raw.githubusercontent.com/lescientifik/pm-tools/main"
 
 # Files to install
 COMMANDS=(pm-search pm-fetch pm-parse pm-filter pm-show pm-download pm-diff pm-quick pm-skill)
