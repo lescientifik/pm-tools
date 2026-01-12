@@ -3,7 +3,11 @@
 Unix-style command-line tools for searching and parsing PubMed articles. Designed for researchers who want quick access to publication data without leaving the terminal.
 
 ```bash
+# Search, parse, and filter
 pm-search "CRISPR cancer therapy" | pm-fetch | pm-parse | jq '.title'
+
+# Full pipeline: search to PDF download
+pm-search "CRISPR review" --max 5 | pm-fetch | pm-parse | pm-download --output-dir ./pdfs/
 ```
 
 ## Installation
@@ -18,13 +22,14 @@ cd pubmed_parser
 sudo apt install xml2 curl jq
 ```
 
-## The Three Commands
+## Commands
 
 | Command | Input | Output | Purpose |
 |---------|-------|--------|---------|
 | `pm-search` | Query string | PMIDs | Search PubMed |
 | `pm-fetch` | PMIDs (stdin) | XML | Download article data |
 | `pm-parse` | XML (stdin) | JSONL | Extract structured data |
+| `pm-download` | JSONL/PMIDs | PDFs | Download Open Access PDFs |
 
 ## Quick Examples
 
@@ -116,6 +121,27 @@ pm-search "Yamanaka induced pluripotent" --max 1 | pm-fetch | pm-parse | \
   jq -r '"DOI: \(.doi)\nTitle: \(.title)"'
 ```
 
+### Download Open Access PDFs
+
+```bash
+# Preview what would be downloaded (dry-run)
+pm-search "CRISPR review" --max 10 | pm-fetch | pm-parse | \
+  pm-download --dry-run
+
+# Download PDFs to a directory
+pm-search "open access[filter] AND immunotherapy" --max 20 | \
+  pm-fetch | pm-parse | pm-download --output-dir ./papers/
+
+# Download with Unpaywall fallback (more coverage, requires email)
+pm-search "machine learning radiology" --max 10 | pm-fetch | pm-parse | \
+  pm-download --output-dir ./pdfs/ --email you@university.edu
+
+# Download from PMID list (auto-converts to DOI/PMCID)
+cat pmids.txt | pm-download --output-dir ./pdfs/
+```
+
+**Sources**: `pm-download` tries PMC Open Access first, then falls back to Unpaywall (if `--email` provided). Not all articles have free PDFs available.
+
 ## Advanced Patterns
 
 ### Build a Local Database
@@ -185,10 +211,14 @@ Each article is output as a JSON object (JSONL format):
   "authors": ["Smith John", "Doe Jane"],
   "journal": "Nature",
   "year": "2024",
+  "date": "2024-03-15",
   "doi": "10.1038/xxxxx",
+  "pmcid": "PMC1234567",
   "abstract": "Full abstract text..."
 }
 ```
+
+Fields `doi`, `pmcid`, `date`, and `abstract` are omitted when not available.
 
 ## PubMed Query Syntax
 
