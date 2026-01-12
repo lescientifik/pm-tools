@@ -62,7 +62,7 @@ while IFS= read -r line; do
     pmid=$(echo "$line" | jq -r '.pmid // "?"')
     title=$(echo "$line" | jq -r '.title // "No title"')
     journal=$(echo "$line" | jq -r '.journal // "Unknown journal"')
-    year=$(echo "$line" | jq -r '.year // "?"')
+    date=$(echo "$line" | jq -r '.date // .year // "?"')
     doi=$(echo "$line" | jq -r '.doi // empty')
     authors=$(echo "$line" | jq -r '(.authors // [])[0:3] | join(", ")')
     author_count=$(echo "$line" | jq -r '(.authors // []) | length')
@@ -72,7 +72,7 @@ while IFS= read -r line; do
     echo -e "${DIM}────────────────────────────────────────────────────────────────────────────────${RESET}"
     echo -e "${BOLD}${title}${RESET}"
     echo ""
-    echo -e "  ${CYAN}${journal}${RESET} ${DIM}(${year})${RESET}"
+    echo -e "  ${CYAN}${journal}${RESET} ${DIM}(${date})${RESET}"
     echo -e "  ${GREEN}PMID: ${pmid}${RESET}${doi:+  •  DOI: $doi}"
     if [[ -n "$authors" ]]; then
         suffix=""
