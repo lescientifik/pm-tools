@@ -359,7 +359,21 @@ Use standard [PubMed search syntax](https://pubmed.ncbi.nlm.nih.gov/help/#search
 - **Batch Size**: `pm-fetch` batches 200 PMIDs per request for efficiency
 - **Large Queries**: Use `--max` to limit results, or paginate with date ranges
 - **Verbose Mode**: Add `--verbose` to `pm-parse` to see progress on large files
-- **Performance**: `pm-parse` processes ~6,000 articles/sec with mawk (auto-detected), ~3,500/sec with gawk
+
+## Performance
+
+Benchmark on Intel Celeron N5105 @ 2.00GHz (low-power CPU):
+
+| Operation | Records | Time | Throughput |
+|-----------|---------|------|------------|
+| `pm-parse` (30k baseline file) | 30,000 | 5.1s | ~5,850 articles/sec |
+
+```bash
+# Reproduce benchmark
+zcat pubmed25n0001.xml.gz | pm-parse | wc -l
+```
+
+Performance scales with CPU. Uses `mawk` when available (auto-detected) for ~2x speedup over `gawk`.
 
 ## Dependencies
 
