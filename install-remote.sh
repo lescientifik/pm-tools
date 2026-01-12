@@ -306,8 +306,8 @@ show_path_instructions() {
     echo "  export PATH=\"$bin_dir:\$PATH\""
     echo ""
 
-    # Prompt to add to shell config if allowed
-    if [[ "$modify_path" == "true" ]] && [[ -t 0 ]]; then
+    # Prompt to add to shell config if allowed (use /dev/tty for curl|bash compatibility)
+    if [[ "$modify_path" == "true" ]] && [[ -e /dev/tty ]]; then
         local shell_rc=""
         if [[ -n "${ZSH_VERSION:-}" ]] || [[ "$SHELL" == *"zsh"* ]]; then
             shell_rc="$HOME/.zshrc"
@@ -316,7 +316,7 @@ show_path_instructions() {
         fi
 
         echo -n "Add to $shell_rc? [y/N] "
-        read -r response
+        read -r response < /dev/tty
         if [[ "$response" =~ ^[Yy]$ ]]; then
             {
                 echo ""
