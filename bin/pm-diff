@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+# pm-diff - Compare two JSONL files by PMID
+# Usage: pm-diff [OPTIONS] OLD_FILE NEW_FILE
+
+set -euo pipefail
+
+# Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/pm-common.sh
+source "${SCRIPT_DIR}/../lib/pm-common.sh"
+
+# Check dependencies
+require_commands jq
+
+show_help() {
+    cat << 'EOF'
+pm-diff - Compare two JSONL files by PMID
+
+Usage: pm-diff [OPTIONS] OLD_FILE NEW_FILE
+       pm-diff [OPTIONS] OLD_FILE - < new.jsonl
+       pm-diff [OPTIONS] - NEW_FILE < old.jsonl
+
+Arguments:
+  OLD_FILE    Baseline/reference JSONL file (or - for stdin)
+  NEW_FILE    New/comparison JSONL file (or - for stdin)
+  Note: At most one of OLD_FILE or NEW_FILE can be - (stdin)
+
+Output Formats (--format):
+  summary     Show counts only (default)
+  detailed    Show all changes with field-level diffs
+  added       List PMIDs that were added (one per line)
+  removed     List PMIDs that were removed (one per line)
+  changed     List PMIDs that were changed (one per line)
+  all         List all PMIDs with differences (added + removed + changed)
+  jsonl       Output changes as JSONL with full article data
+
+Options:
+  -f, --format FMT    Output format (see above)
+  -q, --quiet         Suppress output, just set exit code
+  --fields FIELDS     Compare only these fields (comma-separated)
+                      Default: compare all fields
+  --ignore FIELDS     Ignore these fields when comparing (comma-separated)
+  -h, --help          Show this help
+
+Exit Codes:
+  0    No differences (files are identical)
+  1    Differences found
+  2    Error (invalid arguments, file not found, malformed JSON)
+
+Examples:
+  # Summary of changes
+  pm-diff baseline_v1.jsonl baseline_v2.jsonl
+
+  # Get list of new PMIDs for fetching
+  pm-diff old.jsonl new.jsonl --format added | pm-fetch
+
+  # Detailed view of what changed
+  pm-diff old.jsonl new.jsonl --format detailed
+
+  # Just check if identical (for scripts)
+  pm-diff file1.jsonl file2.jsonl --quiet && echo "identical"
+
+  # Compare only title and abstract
+  pm-diff old.jsonl new.jsonl --fields pmid,title,abstract
+
+  # Ignore abstract changes
+  pm-diff old.jsonl new.jsonl --ignore abstract
+EOF
+    exit 0
+}
+
+# Options
+output_format="summary"
+quiet=false
+fields_filter=""
+ignore_fields=""
+
+# Positional arguments
+old_file=""
+new_file=""
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --help|-h)
+            show_help
+            ;;
+        --format|-f)
+            shift
+            output_format="${1:-}"
+            if [[ -z "$output_format" ]]; then
+                echo "Error: --format requires an argument" >&2
+                exit 2
+            fi
+            shift
+            ;;
+        --format=*)
+            output_format="${1#*=}"
+            shift
+            ;;
+        -f*)
+            output_format="${1#-f}"
+            shift
+            ;;
+        --quiet|-q)
+            quiet=true
+            shift
+            ;;
+        --fields)
+            shift
+            fields_filter="${1:-}"
+            if [[ -z "$fields_filter" ]]; then
+                echo "Error: --fields requires an argument" >&2
+                exit 2
+            fi
+            shift
+            ;;
+        --fields=*)
+            fields_filter="${1#*=}"
+            shift
+            ;;
+        --ignore)
+            shift
+            ignore_fields="${1:-}"
+            if [[ -z "$ignore_fields" ]]; then
+                echo "Error: --ignore requires an argument" >&2
+                exit 2
+            fi
+            shift
+            ;;
+        --ignore=*)
+            ignore_fields="${1#*=}"
+            shift
+            ;;
+        -*)
+            echo "Error: Unknown option: $1" >&2
+            exit 2
+            ;;
+        *)
+            # Positional argument
+            if [[ -z "$old_file" ]]; then
+                old_file="$1"
+            elif [[ -z "$new_file" ]]; then
+                new_file="$1"
+            else
+                echo "Error: Too many arguments" >&2
+                exit 2
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Validate arguments
+if [[ -z "$old_file" ]] || [[ -z "$new_file" ]]; then
+    echo "Error: Two files required" >&2
+    echo "Usage: pm-diff [OPTIONS] OLD_FILE NEW_FILE" >&2
+    exit 2
+fi
+
+# Check both aren't stdin
+if [[ "$old_file" == "-" ]] && [[ "$new_file" == "-" ]]; then
+    echo "Error: Cannot use stdin (-) for both files" >&2
+    exit 2
+fi
+
+# Validate files exist (unless stdin)
+if [[ "$old_file" != "-" ]] && [[ ! -f "$old_file" ]]; then
+    echo "Error: File does not exist: $old_file" >&2
+    exit 2
+fi
+
+if [[ "$new_file" != "-" ]] && [[ ! -f "$new_file" ]]; then
+    echo "Error: File does not exist: $new_file" >&2
+    exit 2
+fi
+
+# TODO: Implement comparison logic
+echo "Error: Not yet implemented" >&2
+exit 2
