@@ -559,3 +559,91 @@ EOF
     [[ "$output" == *"5"* ]]
     [[ "$output" == *"Old Article Five"* ]] || [[ "$output" == *"-"* ]]
 }
+
+# =============================================================================
+# Phase 8: JSONL Output (22-24)
+# =============================================================================
+
+@test "jsonl format outputs valid JSONL" {
+    # Given: files with 1 added, 1 removed, 1 changed
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Removed Article"}
+{"pmid":"2","title":"Original Title"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"2","title":"Updated Title"}
+{"pmid":"3","title":"Added Article"}
+EOF
+
+    # When: we compare with jsonl format
+    run "$PM_DIFF" --format jsonl "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, output is valid JSONL (3 lines, each valid JSON)
+    [ "$status" -eq 1 ]
+    [ "$(echo "$output" | wc -l)" -eq 3 ]
+    # Each line should be valid JSON
+    echo "$output" | while IFS= read -r line; do
+        echo "$line" | jq . > /dev/null 2>&1
+    done
+}
+
+@test "jsonl format includes full article data" {
+    # Given: NEW has an additional article
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"5","title":"New Article","year":"2024"}
+EOF
+
+    # When: we compare with jsonl format
+    run "$PM_DIFF" --format jsonl "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, added entry includes full article data
+    [ "$status" -eq 1 ]
+    # Check it has pmid, status, and new fields
+    echo "$output" | jq -e 'select(.pmid == "5") | .status == "added"'
+    echo "$output" | jq -e 'select(.pmid == "5") | .new.title == "New Article"'
+}
+
+@test "jsonl format includes diff list for changes" {
+    # Given: same PMID with different title and year
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Original Title","year":"2023"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Updated Title","year":"2024"}
+EOF
+
+    # When: we compare with jsonl format
+    run "$PM_DIFF" --format jsonl "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, changed entry includes diff list
+    [ "$status" -eq 1 ]
+    # Check it has diff array with title and year
+    echo "$output" | jq -e '.status == "changed"'
+    echo "$output" | jq -e '.diff | contains(["title"])'
+    echo "$output" | jq -e '.diff | contains(["year"])'
+}
