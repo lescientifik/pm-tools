@@ -362,3 +362,115 @@ EOF
     [ "$status" -eq 1 ]
     [[ "$output" == "2" ]]
 }
+
+# =============================================================================
+# Phase 6: Summary and Combined (16-18)
+# =============================================================================
+
+@test "detects all types of changes together" {
+    # Given: OLD has 1,2,3,4 - NEW has 2,3,4,5 (with 3 changed)
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Original Three"}
+{"pmid":"4","title":"Article Four"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Updated Three"}
+{"pmid":"4","title":"Article Four"}
+{"pmid":"5","title":"Article Five"}
+EOF
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, shows 1 added, 1 removed, 1 changed, 2 unchanged
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Added:"*"1"* ]]
+    [[ "$output" == *"Removed:"*"1"* ]]
+    [[ "$output" == *"Changed:"*"1"* ]]
+    [[ "$output" == *"Unchanged:"*"2"* ]]
+}
+
+@test "summary format shows correct counts" {
+    # Given: OLD has 4 articles, NEW has 4 (1 removed, 1 added, 1 changed)
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Original Three"}
+{"pmid":"4","title":"Article Four"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Updated Three"}
+{"pmid":"4","title":"Article Four"}
+{"pmid":"5","title":"Article Five"}
+EOF
+
+    # When: we compare them with summary format
+    run "$PM_DIFF" --format summary "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, summary shows correct counts
+    [ "$status" -eq 1 ]
+    # Check file info
+    [[ "$output" == *"OLD:"* ]]
+    [[ "$output" == *"NEW:"* ]]
+    [[ "$output" == *"4 articles"* ]]
+    # Check counts
+    [[ "$output" == *"Added:"*"1"* ]]
+    [[ "$output" == *"Removed:"*"1"* ]]
+    [[ "$output" == *"Changed:"*"1"* ]]
+    [[ "$output" == *"Unchanged:"*"2"* ]]
+}
+
+@test "--format all lists all different PMIDs" {
+    # Given: OLD has 1,2,3,4 - NEW has 2,3,4,5 (with 3 changed)
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Original Three"}
+{"pmid":"4","title":"Article Four"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Updated Three"}
+{"pmid":"4","title":"Article Four"}
+{"pmid":"5","title":"Article Five"}
+EOF
+
+    # When: we get all different PMIDs
+    run "$PM_DIFF" --format all "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, output contains PMIDs 1, 3, 5 (sorted)
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"1"* ]]
+    [[ "$output" == *"3"* ]]
+    [[ "$output" == *"5"* ]]
+    # Should NOT contain unchanged PMIDs
+    [[ "$output" != *$'\n2\n'* ]]
+    [[ "$output" != *$'\n4\n'* ]]
+    # Should have exactly 3 lines
+    [ "$(echo "$output" | wc -l)" -eq 3 ]
+}
