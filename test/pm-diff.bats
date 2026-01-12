@@ -722,3 +722,206 @@ EOF
     # Then: should still work (warn on stderr, but succeed)
     [ "$status" -eq 0 ]
 }
+
+# =============================================================================
+# Phase 10: Stdin and Edge Cases (28-37)
+# =============================================================================
+
+@test "accepts - for OLD file (stdin)" {
+    # Given: two files, one via stdin
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Article Three"}
+EOF
+
+    # When: we pipe OLD via stdin
+    run bash -c "cat '$tmpdir/old.jsonl' | '$PM_DIFF' - '$tmpdir/new.jsonl'"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: should work, detect 1 added
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Added:"*"1"* ]]
+}
+
+@test "accepts - for NEW file (stdin)" {
+    # Given: two files, one via stdin
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Article Three"}
+EOF
+
+    # When: we pipe NEW via stdin
+    run bash -c "cat '$tmpdir/new.jsonl' | '$PM_DIFF' '$tmpdir/old.jsonl' -"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: should work, detect 1 added
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Added:"*"1"* ]]
+}
+
+@test "rejects - for both files" {
+    # When: we try to use stdin for both files
+    run bash -c "echo '{}' | '$PM_DIFF' - -"
+
+    # Then: should fail with exit 2
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"Cannot use stdin"* ]] || [[ "$output" == *"both"* ]]
+}
+
+@test "empty OLD file - all articles added" {
+    # Given: empty OLD, 3 articles in NEW
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    touch "$tmpdir/old.jsonl"
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Article Three"}
+EOF
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, 3 added
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Added:"*"3"* ]]
+}
+
+@test "empty NEW file - all articles removed" {
+    # Given: 3 articles in OLD, empty NEW
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Article Three"}
+EOF
+    touch "$tmpdir/new.jsonl"
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, 3 removed
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Removed:"*"3"* ]]
+}
+
+@test "both files empty - no differences" {
+    # Given: both files empty
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    touch "$tmpdir/old.jsonl"
+    touch "$tmpdir/new.jsonl"
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 0, no differences
+    [ "$status" -eq 0 ]
+}
+
+@test "malformed JSON line skipped with warning" {
+    # Given: file with valid and invalid JSON
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Valid Article"}
+this is not json
+{"pmid":"2","title":"Another Valid"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Valid Article"}
+{"pmid":"2","title":"Another Valid"}
+EOF
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: should still work, skipping invalid line
+    [ "$status" -eq 0 ]
+}
+
+@test "duplicate PMID in same file uses last occurrence" {
+    # Given: file with duplicate PMID
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"First Occurrence"}
+{"pmid":"1","title":"Last Occurrence"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Last Occurrence"}
+EOF
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 0 (uses last occurrence which matches), warning on stderr
+    [ "$status" -eq 0 ]
+}
+
+@test "handles unicode in fields" {
+    # Given: articles with unicode characters
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"日本語タイトル","authors":["田中太郎"]}
+{"pmid":"2","title":"Résumé en français","abstract":"Ça c'est un résumé"}
+EOF
+
+    cp "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 0, no false positives from unicode handling
+    [ "$status" -eq 0 ]
+}

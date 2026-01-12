@@ -132,6 +132,18 @@ while [[ $# -gt 0 ]]; do
             ignore_fields="${1#*=}"
             shift
             ;;
+        -)
+            # Stdin marker - treat as positional argument
+            if [[ -z "$old_file" ]]; then
+                old_file="-"
+            elif [[ -z "$new_file" ]]; then
+                new_file="-"
+            else
+                echo "Error: Too many arguments" >&2
+                exit 2
+            fi
+            shift
+            ;;
         -*)
             echo "Error: Unknown option: $1" >&2
             exit 2
@@ -179,8 +191,8 @@ fi
 # Load files into associative arrays
 # =============================================================================
 
-declare -A old_articles  # pmid -> normalized JSON line
-declare -A new_articles
+declare -A old_articles=()  # pmid -> normalized JSON line
+declare -A new_articles=()
 
 # Load a file into an associative array
 # Args: $1 = file path (or - for stdin), $2 = array name reference
@@ -200,15 +212,15 @@ load_file() {
         # Skip empty lines
         [[ -z "$line" ]] && continue
 
-        # Extract PMID
-        pmid=$(echo "$line" | jq -r '.pmid // empty' 2>/dev/null)
+        # Extract PMID (handle jq parse errors gracefully)
+        pmid=$(echo "$line" | jq -r '.pmid // empty' 2>/dev/null) || true
         if [[ -z "$pmid" ]]; then
             echo "Warning: Skipping line without valid PMID" >&2
             continue
         fi
 
         # Normalize JSON (sorted keys, compact)
-        normalized=$(echo "$line" | jq -cS '.' 2>/dev/null)
+        normalized=$(echo "$line" | jq -cS '.' 2>/dev/null) || true
         if [[ -z "$normalized" ]]; then
             echo "Warning: Skipping invalid JSON line" >&2
             continue
@@ -258,7 +270,7 @@ declare -a changed_pmids=()
 declare -a unchanged_pmids=()
 
 # Find removed and changed (iterate old)
-for pmid in "${!old_articles[@]}"; do
+for pmid in ${old_articles[@]+"${!old_articles[@]}"}; do
     if [[ -z "${new_articles[$pmid]:-}" ]]; then
         removed_pmids+=("$pmid")
     else
@@ -274,7 +286,7 @@ for pmid in "${!old_articles[@]}"; do
 done
 
 # Find added (iterate new, check if not in old)
-for pmid in "${!new_articles[@]}"; do
+for pmid in ${new_articles[@]+"${!new_articles[@]}"}; do
     if [[ -z "${old_articles[$pmid]:-}" ]]; then
         added_pmids+=("$pmid")
     fi
