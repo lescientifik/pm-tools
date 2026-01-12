@@ -158,3 +158,46 @@ teardown() {
     [ "$status" -eq 0 ]
     [ -f ".claude/skills/using-pm-tools/SKILL.md" ]
 }
+
+# =============================================================================
+# Phase 4: Global Installation
+# =============================================================================
+
+@test "pm-skill --global creates in ~/.claude/skills/" {
+    # Given
+    export HOME="$TEST_DIR"
+
+    # When
+    run "$BIN_DIR/pm-skill" --global
+
+    # Then
+    [ "$status" -eq 0 ]
+    [ -f "$TEST_DIR/.claude/skills/using-pm-tools/SKILL.md" ]
+}
+
+@test "pm-skill --global fails if exists" {
+    # Given
+    export HOME="$TEST_DIR"
+    "$BIN_DIR/pm-skill" --global  # First install
+
+    # When
+    run "$BIN_DIR/pm-skill" --global  # Second install
+
+    # Then
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"already exists"* ]]
+}
+
+@test "pm-skill --global --force overwrites" {
+    # Given
+    export HOME="$TEST_DIR"
+    "$BIN_DIR/pm-skill" --global
+    echo "modified" >> "$TEST_DIR/.claude/skills/using-pm-tools/SKILL.md"
+
+    # When
+    run "$BIN_DIR/pm-skill" --global --force
+
+    # Then
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Overwritten:"* ]]
+}
