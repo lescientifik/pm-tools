@@ -42,6 +42,7 @@ while [[ $# -gt 0 ]]; do
             echo "  \${PREFIX}/bin/pm-show"
             echo "  \${PREFIX}/bin/pm-download"
             echo "  \${PREFIX}/bin/pm-diff"
+            echo "  \${PREFIX}/bin/pm-quick"
             echo "  \${PREFIX}/bin/pm-skill"
             echo "  \${PREFIX}/lib/pm-tools/pm-common.sh"
             exit 0
@@ -66,7 +67,7 @@ cp "${SOURCE_DIR}/lib/pm-common.sh" "${LIB_DIR}/"
 echo "  Installed: ${LIB_DIR}/pm-common.sh"
 
 # Install binaries with updated library path
-for cmd in pm-search pm-fetch pm-parse pm-filter pm-show pm-download pm-diff; do
+for cmd in pm-search pm-fetch pm-parse pm-filter pm-show pm-download pm-diff pm-quick; do
     # Update the source path in the script
     sed "s|source \"\${SCRIPT_DIR}/../lib/pm-common.sh\"|source \"${LIB_DIR}/pm-common.sh\"|" \
         "${SOURCE_DIR}/bin/${cmd}" > "${BIN_DIR}/${cmd}"

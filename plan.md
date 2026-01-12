@@ -11,7 +11,8 @@ pubmed_parser/
 ├── bin/
 │   ├── pm-search
 │   ├── pm-fetch
-│   └── pm-parse
+│   ├── pm-parse
+│   └── pm-quick
 ├── lib/
 │   └── pm-common.sh           # fonctions partagées (logging, etc.)
 ├── scripts/

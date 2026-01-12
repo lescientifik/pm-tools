@@ -135,6 +135,19 @@ pm-search --verbose "rare disease" 2>debug.log | pm-fetch | pm-parse
   }
   ```
 
+### `pm-quick`
+- **Entrée** : requête PubMed (argument)
+- **Sortie** : affichage formaté via pm-show (lecture humaine)
+- **Rôle** : Recherche rapide pour inspection visuelle
+- **Options** :
+  - `--max N` : limite le nombre de résultats (défaut: 100)
+  - `-v, --verbose` : logs sur stderr
+- **Usage** :
+  ```bash
+  pm-quick "CRISPR cancer" --max 20
+  ```
+- **Note** : Pour usage programmatique (JSONL), utiliser `pm-search | pm-fetch | pm-parse`
+
 ---
 
 ## Dépendances
