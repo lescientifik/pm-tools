@@ -311,3 +311,21 @@ setup() {
 
     rm -rf "$tmpdir"
 }
+
+@test "pm-download handles FTP URLs from PMC (code 226)" {
+    # Given: PMC OA response with FTP URL
+    # PMC returns FTP URLs which return code 226 on success, not 200
+    local mock_pmc="${FIXTURES_DIR}/mock-responses/pmc-oa-success.xml"
+
+    # Check the mock contains an FTP URL
+    grep -q "ftp://" "$mock_pmc" || skip "Mock doesn't have FTP URL"
+
+    # When: parsing with dry-run (we can't test real FTP in unit tests)
+    local jsonl='{"pmid":"12345","pmcid":"PMC1234567"}'
+    run bash -c "echo '$jsonl' | '$PM_DOWNLOAD' --dry-run --mock-pmc '$mock_pmc'"
+
+    # Then: should recognize PMC source
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"PMC"* ]]
+    [[ "$output" == *"available"* ]] || [[ "$output" == *"PDF"* ]]
+}

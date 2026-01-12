@@ -346,12 +346,21 @@ download_pdf() {
     log_verbose "Downloading: $url"
     log_verbose "To: $output_file"
 
-    # Download with timeout and capture HTTP code
+    # Download with timeout and capture HTTP/FTP code
+    # Note: FTP returns 226 on success, HTTP returns 200
     http_code=$(curl -sL -w "%{http_code}" -o "$output_file" --connect-timeout "$TIMEOUT" --max-time "$((TIMEOUT * 3))" "$url")
 
-    if [[ "$http_code" != "200" ]]; then
+    # Check for success (HTTP 200 or FTP 226)
+    if [[ "$http_code" != "200" && "$http_code" != "226" && "$http_code" != "000" ]]; then
         echo "Error: HTTP $http_code for $url"
         rm -f "$output_file"  # Clean up partial download
+        return 1
+    fi
+
+    # For FTP, check if file was actually downloaded
+    if [[ ! -s "$output_file" ]]; then
+        echo "Error: Empty file downloaded from $url"
+        rm -f "$output_file"
         return 1
     fi
 
