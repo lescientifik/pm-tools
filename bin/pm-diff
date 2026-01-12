@@ -175,6 +175,164 @@ if [[ "$new_file" != "-" ]] && [[ ! -f "$new_file" ]]; then
     exit 2
 fi
 
-# TODO: Implement comparison logic
-echo "Error: Not yet implemented" >&2
-exit 2
+# =============================================================================
+# Load files into associative arrays
+# =============================================================================
+
+declare -A old_articles  # pmid -> normalized JSON line
+declare -A new_articles
+
+# Load a file into an associative array
+# Args: $1 = file path (or - for stdin), $2 = array name reference
+load_file() {
+    local file="$1"
+    local -n arr=$2
+    local line pmid normalized
+
+    local input_source
+    if [[ "$file" == "-" ]]; then
+        input_source="/dev/stdin"
+    else
+        input_source="$file"
+    fi
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # Skip empty lines
+        [[ -z "$line" ]] && continue
+
+        # Extract PMID
+        pmid=$(echo "$line" | jq -r '.pmid // empty' 2>/dev/null)
+        if [[ -z "$pmid" ]]; then
+            echo "Warning: Skipping line without valid PMID" >&2
+            continue
+        fi
+
+        # Normalize JSON (sorted keys, compact)
+        normalized=$(echo "$line" | jq -cS '.' 2>/dev/null)
+        if [[ -z "$normalized" ]]; then
+            echo "Warning: Skipping invalid JSON line" >&2
+            continue
+        fi
+
+        # Check for duplicates
+        if [[ -n "${arr[$pmid]:-}" ]]; then
+            echo "Warning: Duplicate PMID $pmid, using last occurrence" >&2
+        fi
+
+        arr["$pmid"]="$normalized"
+    done < "$input_source"
+}
+
+# Load both files
+load_file "$old_file" old_articles
+load_file "$new_file" new_articles
+
+# =============================================================================
+# Compare articles
+# =============================================================================
+
+declare -a added_pmids=()
+declare -a removed_pmids=()
+declare -a changed_pmids=()
+declare -a unchanged_pmids=()
+
+# Find removed and changed (iterate old)
+for pmid in "${!old_articles[@]}"; do
+    if [[ -z "${new_articles[$pmid]:-}" ]]; then
+        removed_pmids+=("$pmid")
+    elif [[ "${old_articles[$pmid]}" != "${new_articles[$pmid]}" ]]; then
+        changed_pmids+=("$pmid")
+    else
+        unchanged_pmids+=("$pmid")
+    fi
+done
+
+# Find added (iterate new, check if not in old)
+for pmid in "${!new_articles[@]}"; do
+    if [[ -z "${old_articles[$pmid]:-}" ]]; then
+        added_pmids+=("$pmid")
+    fi
+done
+
+# Sort arrays numerically (handle empty arrays)
+if [[ ${#added_pmids[@]} -gt 0 ]]; then
+    mapfile -t added_pmids < <(printf '%s\n' "${added_pmids[@]}" | sort -n)
+fi
+if [[ ${#removed_pmids[@]} -gt 0 ]]; then
+    mapfile -t removed_pmids < <(printf '%s\n' "${removed_pmids[@]}" | sort -n)
+fi
+if [[ ${#changed_pmids[@]} -gt 0 ]]; then
+    mapfile -t changed_pmids < <(printf '%s\n' "${changed_pmids[@]}" | sort -n)
+fi
+
+# Counts
+added_count=${#added_pmids[@]}
+removed_count=${#removed_pmids[@]}
+changed_count=${#changed_pmids[@]}
+unchanged_count=${#unchanged_pmids[@]}
+
+# Determine exit code
+has_differences=false
+if [[ $added_count -gt 0 ]] || [[ $removed_count -gt 0 ]] || [[ $changed_count -gt 0 ]]; then
+    has_differences=true
+fi
+
+# =============================================================================
+# Output
+# =============================================================================
+
+# Quiet mode - just set exit code
+if [[ "$quiet" == true ]]; then
+    if [[ "$has_differences" == true ]]; then
+        exit 1
+    else
+        exit 0
+    fi
+fi
+
+# Output based on format
+case "$output_format" in
+    summary)
+        old_count=${#old_articles[@]}
+        new_count=${#new_articles[@]}
+
+        echo "OLD: $old_file ($old_count articles)"
+        echo "NEW: $new_file ($new_count articles)"
+        echo ""
+        echo "  Added:     $added_count"
+        echo "  Removed:   $removed_count"
+        echo "  Changed:   $changed_count"
+        echo "  Unchanged: $unchanged_count"
+        echo ""
+        total=$((old_count + added_count))
+        echo "Total: $total unique PMIDs"
+        ;;
+    added)
+        printf '%s\n' "${added_pmids[@]}"
+        ;;
+    removed)
+        printf '%s\n' "${removed_pmids[@]}"
+        ;;
+    changed)
+        printf '%s\n' "${changed_pmids[@]}"
+        ;;
+    all)
+        # All different PMIDs (added + removed + changed)
+        all_different=("${added_pmids[@]}" "${removed_pmids[@]}" "${changed_pmids[@]}")
+        if [[ ${#all_different[@]} -gt 0 ]]; then
+            mapfile -t all_different < <(printf '%s\n' "${all_different[@]}" | sort -n)
+            printf '%s\n' "${all_different[@]}"
+        fi
+        ;;
+    *)
+        echo "Error: Unknown format: $output_format" >&2
+        exit 2
+        ;;
+esac
+
+# Exit with appropriate code
+if [[ "$has_differences" == true ]]; then
+    exit 1
+else
+    exit 0
+fi
