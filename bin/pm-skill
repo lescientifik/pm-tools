@@ -29,7 +29,7 @@ write_skill() {
     cat << 'SKILL_EOF'
 ---
 name: using-pm-tools
-description: Searches and parses PubMed articles using pm-tools CLI. Use when user asks about PubMed, scientific papers, literature search, or mentions pm-search/pm-fetch/pm-parse.
+description: Searches and parses PubMed articles using pm-tools CLI. Use when user asks about PubMed, scientific papers, literature search, downloading PDFs, or mentions any pm-* command (pm-search, pm-fetch, pm-parse, pm-filter, pm-show, pm-download, pm-quick, pm-diff).
 ---
 
 # Using pm-tools
@@ -46,6 +46,8 @@ Unix-style CLI tools for PubMed: search -> fetch -> parse -> filter.
 | `pm-filter` | JSONL | JSONL | Filter by year/journal/author |
 | `pm-show` | JSONL | Text | Pretty-print articles |
 | `pm-download` | JSONL | PDFs | Download Open Access PDFs |
+| `pm-quick` | Query | Text | One-command search to pretty output |
+| `pm-diff` | Two JSONL files | Report | Compare article collections |
 
 ## Basic Pipeline
 
@@ -79,6 +81,19 @@ pm-search "open access[filter] AND genomics" --max 10 | pm-fetch | pm-parse | pm
 ```bash
 pm-search "alzheimer" --max 100 | pm-fetch | pm-parse | \
   jq -r '[.pmid, .year, .journal, .title] | @csv' > papers.csv
+```
+
+### Quick one-command search
+```bash
+pm-quick "CRISPR therapy"               # Pretty output, default 100 results
+pm-quick --max 20 "machine learning"    # Limit results
+```
+
+### Compare article collections
+```bash
+pm-diff old.jsonl new.jsonl             # Stream differences as JSONL
+pm-diff old.jsonl new.jsonl | jq -r 'select(.status=="added") | .pmid'  # New PMIDs
+pm-diff old.jsonl new.jsonl --quiet && echo "identical"  # Check if same
 ```
 
 ## Output Format (JSONL)

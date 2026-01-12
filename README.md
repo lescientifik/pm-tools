@@ -33,10 +33,15 @@ sudo apt install xml2 curl jq
 | `pm-diff` | Two JSONL files | Report | Compare article collections |
 | `pm-show` | JSONL (stdin) | Text | Pretty-print articles |
 | `pm-download` | JSONL/PMIDs | PDFs | Download Open Access PDFs |
+| `pm-quick` | Query string | Text | One-command search to pretty output |
+| `pm-skill` | - | File | Install Claude Code skill |
 
 ## Quick Examples
 
 ```bash
+# Simplest: one command for pretty results
+pm-quick "CRISPR cancer therapy"
+
 # Search and get titles
 pm-search "machine learning diagnosis" --max 10 | pm-fetch | pm-parse | jq -r '.title'
 
@@ -79,6 +84,23 @@ pm-filter --year 2023- --journal nature --has-abstract
 # Verbose mode shows filter stats
 pm-filter --year 2024 -v        # Output: "15/50 articles passed filters"
 ```
+
+## Quick Search with pm-quick
+
+For interactive use when you just want to see results quickly:
+
+```bash
+# Basic quick search (default 100 results)
+pm-quick "CRISPR cancer therapy"
+
+# Limit results
+pm-quick --max 20 "machine learning diagnosis"
+
+# Verbose mode shows progress
+pm-quick -v "protein folding"
+```
+
+`pm-quick` is a convenience wrapper that runs the full pipeline (`pm-search | pm-fetch | pm-parse | pm-show`) in one command. For programmatic use or custom filtering, use the individual commands.
 
 ## Daily Research Workflows
 
@@ -242,17 +264,17 @@ jq 'select(.authors[]? | test("Harvard"))' baseline.jsonl
 Use `pm-diff` to compare two JSONL files and find added, removed, or changed articles:
 
 ```bash
-# Summary of changes between two snapshots
+# Stream all differences as JSONL
 pm-diff baseline_v1.jsonl baseline_v2.jsonl
 
 # Get list of new PMIDs (for fetching updates)
-pm-diff old.jsonl new.jsonl --format added | pm-fetch | pm-parse > new_articles.jsonl
+pm-diff old.jsonl new.jsonl | jq -r 'select(.status=="added") | .pmid' | pm-fetch | pm-parse > new_articles.jsonl
 
-# Detailed field-level diff
-pm-diff old.jsonl new.jsonl --format detailed
+# Filter to just changed articles
+pm-diff old.jsonl new.jsonl | jq 'select(.status=="changed")'
 
-# Machine-readable output
-pm-diff old.jsonl new.jsonl --format jsonl | jq 'select(.status == "changed")'
+# Summary counts by status
+pm-diff old.jsonl new.jsonl | jq -s 'group_by(.status) | map({(.[0].status): length}) | add'
 
 # Compare only metadata (ignore abstract changes)
 pm-diff old.jsonl new.jsonl --ignore abstract
@@ -265,9 +287,26 @@ else
 fi
 ```
 
-**Output formats**: `summary` (default), `detailed`, `jsonl`, `added`, `removed`, `changed`, `all`
+**Output format**: Streaming JSONL with `{"pmid":"...","status":"added|removed|changed",...}`
 
 **Exit codes**: 0 = identical, 1 = differences found, 2 = error
+
+## Claude Code Integration
+
+Install a skill to teach Claude how to use pm-tools:
+
+```bash
+# Install skill for current project
+pm-skill
+
+# Install for all projects (global)
+pm-skill --global
+
+# Force overwrite if exists
+pm-skill --force
+```
+
+Once installed, Claude will understand how to search PubMed, fetch articles, and process results using the pm-tools pipeline.
 
 ## Output Format
 
