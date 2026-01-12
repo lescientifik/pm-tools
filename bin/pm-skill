@@ -47,7 +47,7 @@ Unix-style CLI tools for PubMed: search -> fetch -> parse -> filter.
 | `pm-show` | JSONL | Text | Pretty-print articles |
 | `pm-download` | JSONL | PDFs | Download Open Access PDFs |
 | `pm-quick` | Query | Text | One-command search to pretty output |
-| `pm-diff` | Two JSONL files | Report | Compare article collections |
+| `pm-diff` | Two JSONL files | JSONL | Compare article collections |
 
 ## Basic Pipeline
 
