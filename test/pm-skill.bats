@@ -42,3 +42,119 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage:"* ]]
 }
+
+# =============================================================================
+# Phase 2: Default Installation
+# =============================================================================
+
+@test "pm-skill creates .claude/skills/using-pm-tools/" {
+    # Given
+    cd "$TEST_DIR"
+
+    # When
+    run "$BIN_DIR/pm-skill"
+
+    # Then
+    [ "$status" -eq 0 ]
+    [ -d ".claude/skills/using-pm-tools" ]
+}
+
+@test "pm-skill creates SKILL.md" {
+    # Given
+    cd "$TEST_DIR"
+
+    # When
+    run "$BIN_DIR/pm-skill"
+
+    # Then
+    [ "$status" -eq 0 ]
+    [ -f ".claude/skills/using-pm-tools/SKILL.md" ]
+}
+
+@test "SKILL.md has correct frontmatter" {
+    # Given
+    cd "$TEST_DIR"
+    "$BIN_DIR/pm-skill"
+
+    # When
+    local content
+    content=$(cat ".claude/skills/using-pm-tools/SKILL.md")
+
+    # Then
+    [[ "$content" == *"name: using-pm-tools"* ]]
+    [[ "$content" == *"description:"* ]]
+}
+
+@test "SKILL.md contains pm-tools documentation" {
+    # Given
+    cd "$TEST_DIR"
+    "$BIN_DIR/pm-skill"
+
+    # When
+    local content
+    content=$(cat ".claude/skills/using-pm-tools/SKILL.md")
+
+    # Then
+    [[ "$content" == *"pm-search"* ]]
+    [[ "$content" == *"pm-fetch"* ]]
+    [[ "$content" == *"pm-parse"* ]]
+}
+
+@test "pm-skill prints success message" {
+    # Given
+    cd "$TEST_DIR"
+
+    # When
+    run "$BIN_DIR/pm-skill"
+
+    # Then
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Created:"* ]] || [[ "$output" == *".claude/skills/using-pm-tools"* ]]
+}
+
+# =============================================================================
+# Phase 3: Conflict Handling
+# =============================================================================
+
+@test "pm-skill fails if skill exists" {
+    # Given
+    cd "$TEST_DIR"
+    "$BIN_DIR/pm-skill"  # First install
+
+    # When
+    run "$BIN_DIR/pm-skill"  # Second install
+
+    # Then
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"already exists"* ]]
+}
+
+@test "pm-skill --force overwrites existing" {
+    # Given
+    cd "$TEST_DIR"
+    "$BIN_DIR/pm-skill"
+    echo "modified" >> ".claude/skills/using-pm-tools/SKILL.md"
+
+    # When
+    run "$BIN_DIR/pm-skill" --force
+
+    # Then
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Overwritten:"* ]]
+    # Verify content is restored (no "modified" at end)
+    local content
+    content=$(cat ".claude/skills/using-pm-tools/SKILL.md")
+    [[ "$content" != *"modified"* ]]
+}
+
+@test "pm-skill --force creates if not exists" {
+    # Given
+    cd "$TEST_DIR"
+
+    # When
+    run "$BIN_DIR/pm-skill" --force
+
+    # Then
+    [ "$status" -eq 0 ]
+    [ -f ".claude/skills/using-pm-tools/SKILL.md" ]
+}

@@ -25,14 +25,147 @@ EOF
     exit 0
 }
 
+write_skill() {
+    cat << 'SKILL_EOF'
+---
+name: using-pm-tools
+description: Searches and parses PubMed articles using pm-tools CLI. Use when user asks about PubMed, scientific papers, literature search, or mentions pm-search/pm-fetch/pm-parse.
+---
+
+# Using pm-tools
+
+Unix-style CLI tools for PubMed: search -> fetch -> parse -> filter.
+
+## Commands
+
+| Command | Input | Output | Purpose |
+|---------|-------|--------|---------|
+| `pm-search` | Query | PMIDs | Search PubMed |
+| `pm-fetch` | PMIDs | XML | Download article data |
+| `pm-parse` | XML | JSONL | Extract structured fields |
+| `pm-filter` | JSONL | JSONL | Filter by year/journal/author |
+| `pm-show` | JSONL | Text | Pretty-print articles |
+| `pm-download` | JSONL | PDFs | Download Open Access PDFs |
+
+## Basic Pipeline
+
+```bash
+pm-search "QUERY" | pm-fetch | pm-parse | jq '.title'
+```
+
+## Common Patterns
+
+### Search and display titles
+```bash
+pm-search "CRISPR therapy" --max 10 | pm-fetch | pm-parse | jq -r '.title'
+```
+
+### Filter recent papers
+```bash
+pm-search "machine learning" --max 50 | pm-fetch | pm-parse | pm-filter --year 2024-
+```
+
+### Pretty-print results
+```bash
+pm-search "cancer" --max 5 | pm-fetch | pm-parse | pm-show
+```
+
+### Download PDFs
+```bash
+pm-search "open access[filter] AND genomics" --max 10 | pm-fetch | pm-parse | pm-download --output-dir ./pdfs/
+```
+
+### Export to CSV
+```bash
+pm-search "alzheimer" --max 100 | pm-fetch | pm-parse | \
+  jq -r '[.pmid, .year, .journal, .title] | @csv' > papers.csv
+```
+
+## Output Format (JSONL)
+
+```json
+{
+  "pmid": "12345678",
+  "title": "Article title",
+  "authors": ["Smith John", "Doe Jane"],
+  "journal": "Nature",
+  "year": "2024",
+  "doi": "10.1038/xxxxx",
+  "abstract": "Full abstract..."
+}
+```
+
+## Filter Options
+
+```bash
+pm-filter --year 2024           # Exact year
+pm-filter --year 2020-2024      # Range
+pm-filter --year 2020-          # 2020 onwards
+pm-filter --journal nature      # Case-insensitive
+pm-filter --author zhang        # Any author matches
+pm-filter --has-abstract        # Must have abstract
+pm-filter --has-doi             # Must have DOI
+```
+
+## Notes
+
+- Rate limit: 3 req/sec (automatic)
+- Batch size: 200 PMIDs per fetch
+- Use `--max N` to limit search results
+- Use `--verbose` for progress on large operations
+SKILL_EOF
+}
+
+# Defaults
+GLOBAL=false
+FORCE=false
+
 # Parse arguments
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help)
             show_help
             ;;
+        --global)
+            GLOBAL=true
+            shift
+            ;;
+        --force)
+            FORCE=true
+            shift
+            ;;
         *)
             shift
             ;;
     esac
 done
+
+# Determine target directory
+if [[ "$GLOBAL" == "true" ]]; then
+    TARGET_DIR="$HOME/.claude/skills/using-pm-tools"
+else
+    TARGET_DIR=".claude/skills/using-pm-tools"
+fi
+
+SKILL_FILE="$TARGET_DIR/SKILL.md"
+
+# Check for existing skill
+EXISTED=false
+if [[ -f "$SKILL_FILE" ]]; then
+    if [[ "$FORCE" != "true" ]]; then
+        echo "Error: Skill already exists at $TARGET_DIR/" >&2
+        echo "Use --force to overwrite." >&2
+        exit 1
+    fi
+    EXISTED=true
+fi
+
+# Create directory and write skill
+mkdir -p "$TARGET_DIR"
+write_skill > "$SKILL_FILE"
+
+if [[ "$EXISTED" == "true" ]]; then
+    echo "Overwritten: $SKILL_FILE"
+else
+    echo "Created: $SKILL_FILE"
+fi
