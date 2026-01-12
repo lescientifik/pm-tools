@@ -21,7 +21,7 @@ Or install from source:
 
 ```bash
 git clone https://github.com/lescientifik/pm-tools.git
-cd pubmed_parser
+cd pm-tools
 ./install.sh
 ```
 
@@ -56,7 +56,7 @@ curl -fsSL https://raw.githubusercontent.com/lescientifik/pm-tools/main/uninstal
 | `pm-fetch` | PMIDs (stdin) | XML | Download article data |
 | `pm-parse` | XML (stdin) | JSONL | Extract structured data |
 | `pm-filter` | JSONL (stdin) | JSONL | Filter by year/journal/author |
-| `pm-diff` | Two JSONL files | Report | Compare article collections |
+| `pm-diff` | Two JSONL files | JSONL | Compare article collections |
 | `pm-show` | JSONL (stdin) | Text | Pretty-print articles |
 | `pm-download` | JSONL/PMIDs | PDFs | Download Open Access PDFs |
 | `pm-quick` | Query string | Text | One-command search to pretty output |
@@ -77,6 +77,9 @@ pm-search "quantum computing" --max 50 | pm-fetch | pm-parse | \
 
 # Pretty-print results in the terminal
 pm-search "CRISPR" --max 5 | pm-fetch | pm-parse | pm-show
+
+# Save results to JSONL for later use
+pm-search "alzheimer biomarkers" --max 100 | pm-fetch | pm-parse > papers.jsonl
 
 # Export to CSV
 pm-search "alzheimer biomarkers" --max 100 | pm-fetch | pm-parse | \
@@ -129,24 +132,6 @@ pm-quick -v "protein folding"
 `pm-quick` is a convenience wrapper that runs the full pipeline (`pm-search | pm-fetch | pm-parse | pm-show`) in one command. For programmatic use or custom filtering, use the individual commands.
 
 ## Daily Research Workflows
-
-### Morning Paper Alert
-
-Check for new papers in your field every morning:
-
-```bash
-# ~/.local/bin/daily-papers
-#!/bin/bash
-# Run with: daily-papers "your research topic"
-
-QUERY="${1:-CRISPR gene therapy}"
-TODAY=$(date +%Y/%m/%d)
-YESTERDAY=$(date -d "yesterday" +%Y/%m/%d)
-
-pm-search "${QUERY} AND ${YESTERDAY}:${TODAY}[dp]" --max 20 | \
-  pm-fetch | pm-parse | \
-  jq -r '"[\(.year)] \(.title)\n    → \(.journal)\n    https://pubmed.ncbi.nlm.nih.gov/\(.pmid)/\n"'
-```
 
 ### Track Your Favorite Authors
 
