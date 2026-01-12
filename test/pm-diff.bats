@@ -236,3 +236,129 @@ EOF
     # Should have exactly 2 lines
     [ "$(echo "$output" | wc -l)" -eq 2 ]
 }
+
+# =============================================================================
+# Phase 5: Changed Detection (11-15)
+# =============================================================================
+
+@test "detects changed articles - title change" {
+    # Given: same PMID with different title
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Original Title"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Updated Title"}
+EOF
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1 (differences found), shows 1 changed
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Changed:"*"1"* ]]
+}
+
+@test "detects changed articles - author change" {
+    # Given: same PMID with different authors
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Test","authors":["Smith A"]}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Test","authors":["Smith A","Jones B"]}
+EOF
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1 (differences found), shows 1 changed
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Changed:"*"1"* ]]
+}
+
+@test "detects changed articles - field added" {
+    # Given: same PMID, new file has additional field
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Test"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Test","abstract":"New abstract"}
+EOF
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1 (differences found), shows 1 changed
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Changed:"*"1"* ]]
+}
+
+@test "detects changed articles - field removed" {
+    # Given: same PMID, new file is missing a field
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Test","abstract":"Old abstract"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Test"}
+EOF
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1 (differences found), shows 1 changed
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Changed:"*"1"* ]]
+}
+
+@test "--format changed lists changed PMIDs" {
+    # Given: two articles, one changed
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Unchanged"}
+{"pmid":"2","title":"Original"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Unchanged"}
+{"pmid":"2","title":"Updated"}
+EOF
+
+    # When: we get changed PMIDs
+    run "$PM_DIFF" --format changed "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, output contains only PMID 2
+    [ "$status" -eq 1 ]
+    [[ "$output" == "2" ]]
+}
