@@ -21,7 +21,7 @@ set -euo pipefail
 # Configuration
 # =============================================================================
 
-VERSION="1.0.0"
+VERSION="0.0.1"
 DEFAULT_PREFIX="$HOME/.local"
 DEFAULT_BASE_URL="https://raw.githubusercontent.com/lescientifik/pm-tools/main"
 
