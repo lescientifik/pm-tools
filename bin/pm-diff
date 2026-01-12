@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pm-diff - Compare two JSONL files by PMID
+# pm-diff - Compare two JSONL files by PMID (streaming JSONL output)
 # Usage: pm-diff [OPTIONS] OLD_FILE NEW_FILE
 
 set -euo pipefail
@@ -25,20 +25,13 @@ Arguments:
   NEW_FILE    New/comparison JSONL file (or - for stdin)
   Note: At most one of OLD_FILE or NEW_FILE can be - (stdin)
 
-Output Formats (--format):
-  summary     Show counts only (default)
-  detailed    Show all changes with field-level diffs
-  added       List PMIDs that were added (one per line)
-  removed     List PMIDs that were removed (one per line)
-  changed     List PMIDs that were changed (one per line)
-  all         List all PMIDs with differences (added + removed + changed)
-  jsonl       Output changes as JSONL with full article data
+Output: Streaming JSONL with one line per difference:
+  {"pmid":"...","status":"added","article":{...}}
+  {"pmid":"...","status":"removed","article":{...}}
+  {"pmid":"...","status":"changed","old":{...},"new":{...}}
 
 Options:
-  -f, --format FMT    Output format (see above)
   -q, --quiet         Suppress output, just set exit code
-  --fields FIELDS     Compare only these fields (comma-separated)
-                      Default: compare all fields
   --ignore FIELDS     Ignore these fields when comparing (comma-separated)
   -h, --help          Show this help
 
@@ -48,20 +41,17 @@ Exit Codes:
   2    Error (invalid arguments, file not found, malformed JSON)
 
 Examples:
-  # Summary of changes
+  # Stream differences as JSONL
   pm-diff baseline_v1.jsonl baseline_v2.jsonl
 
-  # Get list of new PMIDs for fetching
-  pm-diff old.jsonl new.jsonl --format added | pm-fetch
+  # Get just added PMIDs
+  pm-diff old.jsonl new.jsonl | jq -r 'select(.status=="added") | .pmid'
 
-  # Detailed view of what changed
-  pm-diff old.jsonl new.jsonl --format detailed
+  # Summary counts
+  pm-diff old.jsonl new.jsonl | jq -s 'group_by(.status) | map({(.[0].status): length}) | add'
 
   # Just check if identical (for scripts)
   pm-diff file1.jsonl file2.jsonl --quiet && echo "identical"
-
-  # Compare only title and abstract
-  pm-diff old.jsonl new.jsonl --fields pmid,title,abstract
 
   # Ignore abstract changes
   pm-diff old.jsonl new.jsonl --ignore abstract
@@ -70,9 +60,7 @@ EOF
 }
 
 # Options
-output_format="summary"
 quiet=false
-fields_filter=""
 ignore_fields=""
 
 # Positional arguments
@@ -85,38 +73,8 @@ while [[ $# -gt 0 ]]; do
         --help|-h)
             show_help
             ;;
-        --format|-f)
-            shift
-            output_format="${1:-}"
-            if [[ -z "$output_format" ]]; then
-                echo "Error: --format requires an argument" >&2
-                exit 2
-            fi
-            shift
-            ;;
-        --format=*)
-            output_format="${1#*=}"
-            shift
-            ;;
-        -f*)
-            output_format="${1#-f}"
-            shift
-            ;;
         --quiet|-q)
             quiet=true
-            shift
-            ;;
-        --fields)
-            shift
-            fields_filter="${1:-}"
-            if [[ -z "$fields_filter" ]]; then
-                echo "Error: --fields requires an argument" >&2
-                exit 2
-            fi
-            shift
-            ;;
-        --fields=*)
-            fields_filter="${1#*=}"
             shift
             ;;
         --ignore)
@@ -187,285 +145,204 @@ if [[ "$new_file" != "-" ]] && [[ ! -f "$new_file" ]]; then
     exit 2
 fi
 
-# =============================================================================
-# Load files into associative arrays
-# =============================================================================
+# Create temp directory for sorted files
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
 
-declare -A old_articles=()  # pmid -> normalized JSON line
-declare -A new_articles=()
+# =============================================================================
+# Build jq filter for field exclusion (for comparison)
+# =============================================================================
+build_jq_filter() {
+    if [[ -n "$ignore_fields" ]]; then
+        # Exclude specified fields
+        local del_jq=""
+        IFS=',' read -ra fields <<< "$ignore_fields"
+        for f in "${fields[@]}"; do
+            f=$(echo "$f" | tr -d ' ')
+            if [[ -n "$del_jq" ]]; then
+                del_jq="$del_jq | "
+            fi
+            del_jq="${del_jq}del(.$f)"
+        done
+        echo "$del_jq"
+    else
+        echo "."
+    fi
+}
 
-# Load a file into an associative array
-# Args: $1 = file path (or - for stdin), $2 = array name reference
-load_file() {
-    local file="$1"
-    local -n arr=$2
-    local line pmid normalized
+jq_filter=$(build_jq_filter)
+
+# =============================================================================
+# Preprocess files: normalize JSON, extract PMID, sort
+# Output format: JSON with pmid, full, compare fields
+# =============================================================================
+preprocess_file() {
+    local input="$1"
+    local output="$2"
+    local filter="$3"
 
     local input_source
-    if [[ "$file" == "-" ]]; then
+    if [[ "$input" == "-" ]]; then
         input_source="/dev/stdin"
     else
-        input_source="$file"
+        input_source="$input"
     fi
 
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        # Skip empty lines
-        [[ -z "$line" ]] && continue
-
-        # Extract PMID (handle jq parse errors gracefully)
-        pmid=$(echo "$line" | jq -r '.pmid // empty' 2>/dev/null) || true
-        if [[ -z "$pmid" ]]; then
-            echo "Warning: Skipping line without valid PMID" >&2
-            continue
-        fi
-
-        # Normalize JSON (sorted keys, compact)
-        normalized=$(echo "$line" | jq -cS '.' 2>/dev/null) || true
-        if [[ -z "$normalized" ]]; then
-            echo "Warning: Skipping invalid JSON line" >&2
-            continue
-        fi
-
-        # Check for duplicates
-        if [[ -n "${arr[$pmid]:-}" ]]; then
-            echo "Warning: Duplicate PMID $pmid, using last occurrence" >&2
-        fi
-
-        arr["$pmid"]="$normalized"
-    done < "$input_source"
+    # Process all lines with single jq invocation using -R (raw input) mode
+    # Each line is read as string, parsed with try-fromjson, invalid lines skipped
+    # This is much faster than spawning jq per line
+    jq -Rc '
+        # Try to parse JSON, skip if invalid
+        try (fromjson) // empty |
+        # Skip if no pmid
+        select(.pmid != null) |
+        # Build output object
+        . as $full |
+        {
+            pmid: .pmid,
+            full: ($full | tojson),
+            compare: (($full | '"$filter"') | tojson)
+        }
+    ' < "$input_source" 2>/dev/null | sort -t$'\t' -k1,1 -s > "$output"
 }
 
-# Load both files
-load_file "$old_file" old_articles
-load_file "$new_file" new_articles
-
 # =============================================================================
-# Compare articles
+# Process with awk: merge sorted files, output JSONL differences
 # =============================================================================
+process_diff() {
+    local old_sorted="$1"
+    local new_sorted="$2"
 
-# Build jq filter for field selection/exclusion
-build_compare_json() {
-    local json="$1"
+    # Use awk to merge the two sorted streams
+    # Use FILENAME to distinguish files (NR==FNR fails with empty first file)
+    awk -v old_file="$old_sorted" -v new_file="$new_sorted" '
+    BEGIN {
+        has_diff = 0
+    }
 
-    if [[ -n "$fields_filter" ]]; then
-        # Include only specified fields
-        # Convert "pmid,title" to "{pmid: .pmid, title: .title}"
-        local fields_jq
-        fields_jq=$(echo "$fields_filter" | tr ',' '\n' | while read -r f; do echo "$f: .$f"; done | paste -sd ',' -)
-        echo "$json" | jq -cS "{$fields_jq}" 2>/dev/null || echo "$json"
-    elif [[ -n "$ignore_fields" ]]; then
-        # Exclude specified fields
-        local del_paths
-        del_paths=$(echo "$ignore_fields" | tr ',' '\n' | while read -r f; do echo "del(.$f)"; done | paste -sd ' | ' -)
-        echo "$json" | jq -cS "$del_paths" 2>/dev/null || echo "$json"
-    else
-        # Compare all fields
-        echo "$json"
-    fi
+    # Extract pmid from JSON line
+    function get_pmid(line) {
+        if (match(line, /"pmid":"([^"]+)"/, arr)) {
+            return arr[1]
+        }
+        return ""
+    }
+
+    # Load old file into associative arrays
+    FILENAME == old_file {
+        pmid = get_pmid($0)
+        if (pmid != "") {
+            old_full[pmid] = $0
+            old_compare[pmid] = $0
+            old_order[++old_count] = pmid
+        }
+        next
+    }
+
+    # Process new file
+    FILENAME == new_file {
+        pmid = get_pmid($0)
+        if (pmid != "") {
+            new_full[pmid] = $0
+            new_compare[pmid] = $0
+            new_order[++new_count] = pmid
+            seen_in_new[pmid] = 1
+        }
+    }
+
+    END {
+        # Process all PMIDs from old file (removed or changed)
+        for (i = 1; i <= old_count; i++) {
+            pmid = old_order[i]
+            if (!(pmid in seen_in_new)) {
+                # Removed
+                has_diff = 1
+                # Extract the full JSON from old
+                json = old_full[pmid]
+                if (match(json, /"full":"(.*)",[ ]*"compare":/, arr)) {
+                    full_escaped = arr[1]
+                } else if (match(json, /"full":(.*),"compare":/, arr)) {
+                    full_escaped = arr[1]
+                }
+                # Unescape the JSON string
+                gsub(/\\\\/, "\\", full_escaped)
+                gsub(/\\"/, "\"", full_escaped)
+                print "{\"pmid\":\"" pmid "\",\"status\":\"removed\",\"article\":" full_escaped "}"
+            } else {
+                # Check if changed by comparing the compare JSONs
+                old_cmp = old_compare[pmid]
+                new_cmp = new_compare[pmid]
+
+                # Extract compare values
+                if (match(old_cmp, /"compare":"(.*)"$/, arr)) {
+                    old_cmp_val = arr[1]
+                } else if (match(old_cmp, /"compare":(.*)$/, arr)) {
+                    old_cmp_val = arr[1]
+                }
+                if (match(new_cmp, /"compare":"(.*)"$/, arr)) {
+                    new_cmp_val = arr[1]
+                } else if (match(new_cmp, /"compare":(.*)$/, arr)) {
+                    new_cmp_val = arr[1]
+                }
+
+                if (old_cmp_val != new_cmp_val) {
+                    # Changed
+                    has_diff = 1
+                    # Extract full JSONs
+                    if (match(old_full[pmid], /"full":"(.*)",[ ]*"compare":/, arr)) {
+                        old_full_val = arr[1]
+                    }
+                    if (match(new_full[pmid], /"full":"(.*)",[ ]*"compare":/, arr)) {
+                        new_full_val = arr[1]
+                    }
+                    gsub(/\\\\/, "\\", old_full_val)
+                    gsub(/\\"/, "\"", old_full_val)
+                    gsub(/\\\\/, "\\", new_full_val)
+                    gsub(/\\"/, "\"", new_full_val)
+                    print "{\"pmid\":\"" pmid "\",\"status\":\"changed\",\"old\":" old_full_val ",\"new\":" new_full_val "}"
+                }
+            }
+        }
+
+        # Process PMIDs only in new file (added)
+        for (i = 1; i <= new_count; i++) {
+            pmid = new_order[i]
+            if (!(pmid in old_full)) {
+                # Added
+                has_diff = 1
+                json = new_full[pmid]
+                if (match(json, /"full":"(.*)",[ ]*"compare":/, arr)) {
+                    full_escaped = arr[1]
+                } else if (match(json, /"full":(.*),"compare":/, arr)) {
+                    full_escaped = arr[1]
+                }
+                gsub(/\\\\/, "\\", full_escaped)
+                gsub(/\\"/, "\"", full_escaped)
+                print "{\"pmid\":\"" pmid "\",\"status\":\"added\",\"article\":" full_escaped "}"
+            }
+        }
+
+        exit (has_diff ? 1 : 0)
+    }
+    ' "$old_sorted" "$new_sorted"
 }
 
-# Get list of fields that differ between two JSON objects
-# Args: $1 = old JSON, $2 = new JSON
-# Output: newline-separated list of changed field names
-get_changed_fields() {
-    local old_json="$1"
-    local new_json="$2"
-
-    # Get all keys from both objects
-    local all_keys
-    all_keys=$(echo "$old_json" "$new_json" | jq -rs '.[0] * .[1] | keys[]' 2>/dev/null | sort -u)
-
-    for key in $all_keys; do
-        local old_val new_val
-        old_val=$(echo "$old_json" | jq -c ".$key // null")
-        new_val=$(echo "$new_json" | jq -c ".$key // null")
-        if [[ "$old_val" != "$new_val" ]]; then
-            echo "$key"
-        fi
-    done
-}
-
-declare -a added_pmids=()
-declare -a removed_pmids=()
-declare -a changed_pmids=()
-declare -a unchanged_pmids=()
-
-# Find removed and changed (iterate old)
-for pmid in ${old_articles[@]+"${!old_articles[@]}"}; do
-    if [[ -z "${new_articles[$pmid]:-}" ]]; then
-        removed_pmids+=("$pmid")
-    else
-        # Compare with field filtering
-        old_compare=$(build_compare_json "${old_articles[$pmid]}")
-        new_compare=$(build_compare_json "${new_articles[$pmid]}")
-        if [[ "$old_compare" != "$new_compare" ]]; then
-            changed_pmids+=("$pmid")
-        else
-            unchanged_pmids+=("$pmid")
-        fi
-    fi
-done
-
-# Find added (iterate new, check if not in old)
-for pmid in ${new_articles[@]+"${!new_articles[@]}"}; do
-    if [[ -z "${old_articles[$pmid]:-}" ]]; then
-        added_pmids+=("$pmid")
-    fi
-done
-
-# Sort arrays numerically (handle empty arrays)
-if [[ ${#added_pmids[@]} -gt 0 ]]; then
-    mapfile -t added_pmids < <(printf '%s\n' "${added_pmids[@]}" | sort -n)
-fi
-if [[ ${#removed_pmids[@]} -gt 0 ]]; then
-    mapfile -t removed_pmids < <(printf '%s\n' "${removed_pmids[@]}" | sort -n)
-fi
-if [[ ${#changed_pmids[@]} -gt 0 ]]; then
-    mapfile -t changed_pmids < <(printf '%s\n' "${changed_pmids[@]}" | sort -n)
-fi
-
-# Counts
-added_count=${#added_pmids[@]}
-removed_count=${#removed_pmids[@]}
-changed_count=${#changed_pmids[@]}
-unchanged_count=${#unchanged_pmids[@]}
-
-# Determine exit code
-has_differences=false
-if [[ $added_count -gt 0 ]] || [[ $removed_count -gt 0 ]] || [[ $changed_count -gt 0 ]]; then
-    has_differences=true
-fi
-
 # =============================================================================
-# Output
+# Main execution
 # =============================================================================
 
-# Quiet mode - just set exit code
+# Preprocess both files
+preprocess_file "$old_file" "$tmpdir/old_sorted.jsonl" "$jq_filter"
+preprocess_file "$new_file" "$tmpdir/new_sorted.jsonl" "$jq_filter"
+
+# Run the diff
 if [[ "$quiet" == true ]]; then
-    if [[ "$has_differences" == true ]]; then
-        exit 1
-    else
-        exit 0
-    fi
-fi
-
-# Output based on format
-case "$output_format" in
-    summary)
-        old_count=${#old_articles[@]}
-        new_count=${#new_articles[@]}
-
-        echo "OLD: $old_file ($old_count articles)"
-        echo "NEW: $new_file ($new_count articles)"
-        echo ""
-        echo "  Added:     $added_count"
-        echo "  Removed:   $removed_count"
-        echo "  Changed:   $changed_count"
-        echo "  Unchanged: $unchanged_count"
-        echo ""
-        total=$((old_count + added_count))
-        echo "Total: $total unique PMIDs"
-        ;;
-    added)
-        printf '%s\n' "${added_pmids[@]}"
-        ;;
-    removed)
-        printf '%s\n' "${removed_pmids[@]}"
-        ;;
-    changed)
-        printf '%s\n' "${changed_pmids[@]}"
-        ;;
-    all)
-        # All different PMIDs (added + removed + changed)
-        all_different=("${added_pmids[@]}" "${removed_pmids[@]}" "${changed_pmids[@]}")
-        if [[ ${#all_different[@]} -gt 0 ]]; then
-            mapfile -t all_different < <(printf '%s\n' "${all_different[@]}" | sort -n)
-            printf '%s\n' "${all_different[@]}"
-        fi
-        ;;
-    detailed)
-        # Added articles
-        if [[ $added_count -gt 0 ]]; then
-            echo "=== ADDED ($added_count) ==="
-            for pmid in "${added_pmids[@]}"; do
-                title=$(echo "${new_articles[$pmid]}" | jq -r '.title // "No title"')
-                echo "+ $pmid: $title"
-            done
-            echo ""
-        fi
-
-        # Removed articles
-        if [[ $removed_count -gt 0 ]]; then
-            echo "=== REMOVED ($removed_count) ==="
-            for pmid in "${removed_pmids[@]}"; do
-                title=$(echo "${old_articles[$pmid]}" | jq -r '.title // "No title"')
-                echo "- $pmid: $title"
-            done
-            echo ""
-        fi
-
-        # Changed articles
-        if [[ $changed_count -gt 0 ]]; then
-            echo "=== CHANGED ($changed_count) ==="
-            for pmid in "${changed_pmids[@]}"; do
-                title=$(echo "${new_articles[$pmid]}" | jq -r '.title // "No title"')
-                echo "~ $pmid: $title"
-
-                # Find which fields changed
-                old_json="${old_articles[$pmid]}"
-                new_json="${new_articles[$pmid]}"
-                changed_fields=$(get_changed_fields "$old_json" "$new_json")
-
-                for key in $changed_fields; do
-                    old_val=$(echo "$old_json" | jq -r ".$key // null")
-                    new_val=$(echo "$new_json" | jq -r ".$key // null")
-                    # Truncate long values for display
-                    if [[ ${#old_val} -gt 50 ]]; then
-                        old_val="${old_val:0:47}..."
-                    fi
-                    if [[ ${#new_val} -gt 50 ]]; then
-                        new_val="${new_val:0:47}..."
-                    fi
-                    echo "    $key: \"$old_val\" -> \"$new_val\""
-                done
-            done
-            echo ""
-        fi
-        ;;
-    jsonl)
-        # Added articles
-        for pmid in "${added_pmids[@]}"; do
-            jq -c --arg pmid "$pmid" --argjson new "${new_articles[$pmid]}" \
-                -n '{pmid: $pmid, status: "added", new: $new}'
-        done
-
-        # Removed articles
-        for pmid in "${removed_pmids[@]}"; do
-            jq -c --arg pmid "$pmid" --argjson old "${old_articles[$pmid]}" \
-                -n '{pmid: $pmid, status: "removed", old: $old}'
-        done
-
-        # Changed articles
-        for pmid in "${changed_pmids[@]}"; do
-            old_json="${old_articles[$pmid]}"
-            new_json="${new_articles[$pmid]}"
-
-            # Find which fields changed and build diff array as JSON
-            diff_json=$(get_changed_fields "$old_json" "$new_json" | jq -R . | jq -s .)
-
-            jq -c --arg pmid "$pmid" --argjson old "$old_json" --argjson new "$new_json" --argjson diff "$diff_json" \
-                -n '{pmid: $pmid, status: "changed", old: $old, new: $new, diff: $diff}'
-        done
-        ;;
-    *)
-        echo "Error: Unknown format: $output_format" >&2
-        exit 2
-        ;;
-esac
-
-# Exit with appropriate code
-if [[ "$has_differences" == true ]]; then
-    exit 1
+    # Just check for differences, no output
+    process_diff "$tmpdir/old_sorted.jsonl" "$tmpdir/new_sorted.jsonl" > /dev/null
+    exit_code=$?
 else
-    exit 0
+    process_diff "$tmpdir/old_sorted.jsonl" "$tmpdir/new_sorted.jsonl"
+    exit_code=$?
 fi
+
+exit $exit_code

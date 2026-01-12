@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# test/pm-diff.bats - Tests for pm-diff command
+# test/pm-diff.bats - Tests for pm-diff command (JSONL-only streaming version)
 
 load test_helper
 
@@ -7,7 +7,7 @@ load test_helper
 PM_DIFF="${BIN_DIR}/pm-diff"
 
 # =============================================================================
-# Phase 1: Skeleton Tests (1-4)
+# Phase 1: Skeleton Tests
 # =============================================================================
 
 @test "pm-diff exists and is executable" {
@@ -53,10 +53,10 @@ PM_DIFF="${BIN_DIR}/pm-diff"
 }
 
 # =============================================================================
-# Phase 2: Loading and Identical Check (5-6)
+# Phase 2: Identical Files (no output)
 # =============================================================================
 
-@test "identical files produce no differences" {
+@test "identical files produce no output" {
     # Given: two identical JSONL files
     local tmpdir
     tmpdir=$(mktemp -d)
@@ -74,11 +74,9 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 0 (no differences), summary shows 0 changes
+    # Then: exit 0 (no differences), no output
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Added:"*"0"* ]] || [[ "$output" == *"added"*"0"* ]]
-    [[ "$output" == *"Removed:"*"0"* ]] || [[ "$output" == *"removed"*"0"* ]]
-    [[ "$output" == *"Changed:"*"0"* ]] || [[ "$output" == *"changed"*"0"* ]]
+    [ -z "$output" ]
 }
 
 @test "identical files with --quiet produces no output" {
@@ -104,10 +102,10 @@ EOF
 }
 
 # =============================================================================
-# Phase 3: Added Detection (7-8)
+# Phase 3: Added Detection (JSONL output)
 # =============================================================================
 
-@test "detects added articles" {
+@test "detects added articles as JSONL" {
     # Given: OLD has 3 articles, NEW has 5 (2 added)
     local tmpdir
     tmpdir=$(mktemp -d)
@@ -132,49 +130,22 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 1 (differences found), shows 2 added
+    # Then: exit 1 (differences found), output is valid JSONL with added status
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Added:"*"2"* ]]
-}
-
-@test "--format added lists added PMIDs" {
-    # Given: OLD has 3 articles, NEW has 5 (2 added)
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    cat > "$tmpdir/old.jsonl" <<'EOF'
-{"pmid":"1","title":"Article One"}
-{"pmid":"2","title":"Article Two"}
-{"pmid":"3","title":"Article Three"}
-EOF
-
-    cat > "$tmpdir/new.jsonl" <<'EOF'
-{"pmid":"1","title":"Article One"}
-{"pmid":"2","title":"Article Two"}
-{"pmid":"3","title":"Article Three"}
-{"pmid":"4","title":"Article Four"}
-{"pmid":"5","title":"Article Five"}
-EOF
-
-    # When: we get added PMIDs
-    run "$PM_DIFF" --format added "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
-
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    # Then: exit 1, output contains PMIDs 4 and 5
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"4"* ]]
-    [[ "$output" == *"5"* ]]
-    # Should have exactly 2 lines
+    # Should have 2 lines (2 added articles)
     [ "$(echo "$output" | wc -l)" -eq 2 ]
+    # Each line should have status="added"
+    echo "$output" | jq -e 'select(.status == "added")' > /dev/null
+    # Should contain PMIDs 4 and 5
+    [[ "$output" == *'"pmid":"4"'* ]]
+    [[ "$output" == *'"pmid":"5"'* ]]
 }
 
 # =============================================================================
-# Phase 4: Removed Detection (9-10)
+# Phase 4: Removed Detection (JSONL output)
 # =============================================================================
 
-@test "detects removed articles" {
+@test "detects removed articles as JSONL" {
     # Given: OLD has 5 articles, NEW has 3 (2 removed)
     local tmpdir
     tmpdir=$(mktemp -d)
@@ -199,46 +170,19 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 1 (differences found), shows 2 removed
+    # Then: exit 1 (differences found), output is valid JSONL with removed status
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Removed:"*"2"* ]]
-}
-
-@test "--format removed lists removed PMIDs" {
-    # Given: OLD has 5 articles, NEW has 3 (2 removed)
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    cat > "$tmpdir/old.jsonl" <<'EOF'
-{"pmid":"1","title":"Article One"}
-{"pmid":"2","title":"Article Two"}
-{"pmid":"3","title":"Article Three"}
-{"pmid":"4","title":"Article Four"}
-{"pmid":"5","title":"Article Five"}
-EOF
-
-    cat > "$tmpdir/new.jsonl" <<'EOF'
-{"pmid":"1","title":"Article One"}
-{"pmid":"2","title":"Article Two"}
-{"pmid":"3","title":"Article Three"}
-EOF
-
-    # When: we get removed PMIDs
-    run "$PM_DIFF" --format removed "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
-
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    # Then: exit 1, output contains PMIDs 4 and 5
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"4"* ]]
-    [[ "$output" == *"5"* ]]
-    # Should have exactly 2 lines
+    # Should have 2 lines (2 removed articles)
     [ "$(echo "$output" | wc -l)" -eq 2 ]
+    # Each line should have status="removed"
+    echo "$output" | jq -e 'select(.status == "removed")' > /dev/null
+    # Should contain PMIDs 4 and 5
+    [[ "$output" == *'"pmid":"4"'* ]]
+    [[ "$output" == *'"pmid":"5"'* ]]
 }
 
 # =============================================================================
-# Phase 5: Changed Detection (11-15)
+# Phase 5: Changed Detection (JSONL output)
 # =============================================================================
 
 @test "detects changed articles - title change" {
@@ -260,9 +204,11 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 1 (differences found), shows 1 changed
+    # Then: exit 1 (differences found), output is JSONL with changed status
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Changed:"*"1"* ]]
+    [ "$(echo "$output" | wc -l)" -eq 1 ]
+    echo "$output" | jq -e '.status == "changed"'
+    echo "$output" | jq -e '.pmid == "1"'
 }
 
 @test "detects changed articles - author change" {
@@ -284,9 +230,9 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 1 (differences found), shows 1 changed
+    # Then: exit 1, output is JSONL with changed status
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Changed:"*"1"* ]]
+    echo "$output" | jq -e '.status == "changed"'
 }
 
 @test "detects changed articles - field added" {
@@ -308,9 +254,9 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 1 (differences found), shows 1 changed
+    # Then: exit 1, output is JSONL with changed status
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Changed:"*"1"* ]]
+    echo "$output" | jq -e '.status == "changed"'
 }
 
 @test "detects changed articles - field removed" {
@@ -332,43 +278,18 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 1 (differences found), shows 1 changed
+    # Then: exit 1, output is JSONL with changed status
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Changed:"*"1"* ]]
-}
-
-@test "--format changed lists changed PMIDs" {
-    # Given: two articles, one changed
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    cat > "$tmpdir/old.jsonl" <<'EOF'
-{"pmid":"1","title":"Unchanged"}
-{"pmid":"2","title":"Original"}
-EOF
-
-    cat > "$tmpdir/new.jsonl" <<'EOF'
-{"pmid":"1","title":"Unchanged"}
-{"pmid":"2","title":"Updated"}
-EOF
-
-    # When: we get changed PMIDs
-    run "$PM_DIFF" --format changed "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
-
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    # Then: exit 1, output contains only PMID 2
-    [ "$status" -eq 1 ]
-    [[ "$output" == "2" ]]
+    echo "$output" | jq -e '.status == "changed"'
 }
 
 # =============================================================================
-# Phase 6: Summary and Combined (16-18)
+# Phase 6: Mixed Changes (JSONL output)
 # =============================================================================
 
 @test "detects all types of changes together" {
     # Given: OLD has 1,2,3,4 - NEW has 2,3,4,5 (with 3 changed)
+    # 1 = removed, 3 = changed, 5 = added
     local tmpdir
     tmpdir=$(mktemp -d)
 
@@ -392,209 +313,21 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 1, shows 1 added, 1 removed, 1 changed, 2 unchanged
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"Added:"*"1"* ]]
-    [[ "$output" == *"Removed:"*"1"* ]]
-    [[ "$output" == *"Changed:"*"1"* ]]
-    [[ "$output" == *"Unchanged:"*"2"* ]]
-}
-
-@test "summary format shows correct counts" {
-    # Given: OLD has 4 articles, NEW has 4 (1 removed, 1 added, 1 changed)
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    cat > "$tmpdir/old.jsonl" <<'EOF'
-{"pmid":"1","title":"Article One"}
-{"pmid":"2","title":"Article Two"}
-{"pmid":"3","title":"Original Three"}
-{"pmid":"4","title":"Article Four"}
-EOF
-
-    cat > "$tmpdir/new.jsonl" <<'EOF'
-{"pmid":"2","title":"Article Two"}
-{"pmid":"3","title":"Updated Three"}
-{"pmid":"4","title":"Article Four"}
-{"pmid":"5","title":"Article Five"}
-EOF
-
-    # When: we compare them with summary format
-    run "$PM_DIFF" --format summary "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
-
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    # Then: exit 1, summary shows correct counts
-    [ "$status" -eq 1 ]
-    # Check file info
-    [[ "$output" == *"OLD:"* ]]
-    [[ "$output" == *"NEW:"* ]]
-    [[ "$output" == *"4 articles"* ]]
-    # Check counts
-    [[ "$output" == *"Added:"*"1"* ]]
-    [[ "$output" == *"Removed:"*"1"* ]]
-    [[ "$output" == *"Changed:"*"1"* ]]
-    [[ "$output" == *"Unchanged:"*"2"* ]]
-}
-
-@test "--format all lists all different PMIDs" {
-    # Given: OLD has 1,2,3,4 - NEW has 2,3,4,5 (with 3 changed)
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    cat > "$tmpdir/old.jsonl" <<'EOF'
-{"pmid":"1","title":"Article One"}
-{"pmid":"2","title":"Article Two"}
-{"pmid":"3","title":"Original Three"}
-{"pmid":"4","title":"Article Four"}
-EOF
-
-    cat > "$tmpdir/new.jsonl" <<'EOF'
-{"pmid":"2","title":"Article Two"}
-{"pmid":"3","title":"Updated Three"}
-{"pmid":"4","title":"Article Four"}
-{"pmid":"5","title":"Article Five"}
-EOF
-
-    # When: we get all different PMIDs
-    run "$PM_DIFF" --format all "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
-
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    # Then: exit 1, output contains PMIDs 1, 3, 5 (sorted)
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"1"* ]]
-    [[ "$output" == *"3"* ]]
-    [[ "$output" == *"5"* ]]
-    # Should NOT contain unchanged PMIDs
-    [[ "$output" != *$'\n2\n'* ]]
-    [[ "$output" != *$'\n4\n'* ]]
-    # Should have exactly 3 lines
-    [ "$(echo "$output" | wc -l)" -eq 3 ]
-}
-
-# =============================================================================
-# Phase 7: Detailed Output (19-21)
-# =============================================================================
-
-@test "detailed format shows field-level diffs" {
-    # Given: same PMID with different title and year
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    cat > "$tmpdir/old.jsonl" <<'EOF'
-{"pmid":"1","title":"Original Title","year":"2023"}
-EOF
-
-    cat > "$tmpdir/new.jsonl" <<'EOF'
-{"pmid":"1","title":"Updated Title","year":"2024"}
-EOF
-
-    # When: we compare with detailed format
-    run "$PM_DIFF" --format detailed "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
-
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    # Then: exit 1, shows field-level changes
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"CHANGED"* ]]
-    [[ "$output" == *"1"* ]]
-    [[ "$output" == *"title"* ]]
-    [[ "$output" == *"year"* ]]
-}
-
-@test "detailed format shows added article info" {
-    # Given: NEW has an additional article
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    cat > "$tmpdir/old.jsonl" <<'EOF'
-{"pmid":"1","title":"Article One"}
-EOF
-
-    cat > "$tmpdir/new.jsonl" <<'EOF'
-{"pmid":"1","title":"Article One"}
-{"pmid":"5","title":"New Article Five"}
-EOF
-
-    # When: we compare with detailed format
-    run "$PM_DIFF" --format detailed "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
-
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    # Then: exit 1, shows added article with "+"
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"ADDED"* ]]
-    [[ "$output" == *"5"* ]]
-    [[ "$output" == *"New Article Five"* ]] || [[ "$output" == *"+"* ]]
-}
-
-@test "detailed format shows removed article info" {
-    # Given: NEW is missing an article
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    cat > "$tmpdir/old.jsonl" <<'EOF'
-{"pmid":"1","title":"Article One"}
-{"pmid":"5","title":"Old Article Five"}
-EOF
-
-    cat > "$tmpdir/new.jsonl" <<'EOF'
-{"pmid":"1","title":"Article One"}
-EOF
-
-    # When: we compare with detailed format
-    run "$PM_DIFF" --format detailed "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
-
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    # Then: exit 1, shows removed article with "-"
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"REMOVED"* ]]
-    [[ "$output" == *"5"* ]]
-    [[ "$output" == *"Old Article Five"* ]] || [[ "$output" == *"-"* ]]
-}
-
-# =============================================================================
-# Phase 8: JSONL Output (22-24)
-# =============================================================================
-
-@test "jsonl format outputs valid JSONL" {
-    # Given: files with 1 added, 1 removed, 1 changed
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    cat > "$tmpdir/old.jsonl" <<'EOF'
-{"pmid":"1","title":"Removed Article"}
-{"pmid":"2","title":"Original Title"}
-EOF
-
-    cat > "$tmpdir/new.jsonl" <<'EOF'
-{"pmid":"2","title":"Updated Title"}
-{"pmid":"3","title":"Added Article"}
-EOF
-
-    # When: we compare with jsonl format
-    run "$PM_DIFF" --format jsonl "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
-
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    # Then: exit 1, output is valid JSONL (3 lines, each valid JSON)
+    # Then: exit 1, 3 lines total (1 added, 1 removed, 1 changed)
     [ "$status" -eq 1 ]
     [ "$(echo "$output" | wc -l)" -eq 3 ]
-    # Each line should be valid JSON
-    echo "$output" | while IFS= read -r line; do
-        echo "$line" | jq . > /dev/null 2>&1
-    done
+
+    # Verify we have one of each status
+    [ "$(echo "$output" | jq -r 'select(.status == "added") | .pmid' | wc -l)" -eq 1 ]
+    [ "$(echo "$output" | jq -r 'select(.status == "removed") | .pmid' | wc -l)" -eq 1 ]
+    [ "$(echo "$output" | jq -r 'select(.status == "changed") | .pmid' | wc -l)" -eq 1 ]
 }
 
-@test "jsonl format includes full article data" {
+# =============================================================================
+# Phase 7: JSONL Output Format
+# =============================================================================
+
+@test "JSONL output includes full article data for added" {
     # Given: NEW has an additional article
     local tmpdir
     tmpdir=$(mktemp -d)
@@ -608,20 +341,47 @@ EOF
 {"pmid":"5","title":"New Article","year":"2024"}
 EOF
 
-    # When: we compare with jsonl format
-    run "$PM_DIFF" --format jsonl "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
 
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 1, added entry includes full article data
+    # Then: exit 1, added entry includes full article data under "article" key
     [ "$status" -eq 1 ]
-    # Check it has pmid, status, and new fields
     echo "$output" | jq -e 'select(.pmid == "5") | .status == "added"'
-    echo "$output" | jq -e 'select(.pmid == "5") | .new.title == "New Article"'
+    echo "$output" | jq -e 'select(.pmid == "5") | .article.title == "New Article"'
+    echo "$output" | jq -e 'select(.pmid == "5") | .article.year == "2024"'
 }
 
-@test "jsonl format includes diff list for changes" {
+@test "JSONL output includes full article data for removed" {
+    # Given: NEW is missing an article
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"5","title":"Old Article","year":"2023"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+EOF
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, removed entry includes full article data under "article" key
+    [ "$status" -eq 1 ]
+    echo "$output" | jq -e 'select(.pmid == "5") | .status == "removed"'
+    echo "$output" | jq -e 'select(.pmid == "5") | .article.title == "Old Article"'
+    echo "$output" | jq -e 'select(.pmid == "5") | .article.year == "2023"'
+}
+
+@test "JSONL output includes old and new for changed" {
     # Given: same PMID with different title and year
     local tmpdir
     tmpdir=$(mktemp -d)
@@ -634,47 +394,24 @@ EOF
 {"pmid":"1","title":"Updated Title","year":"2024"}
 EOF
 
-    # When: we compare with jsonl format
-    run "$PM_DIFF" --format jsonl "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
 
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 1, changed entry includes diff list
+    # Then: exit 1, changed entry includes both old and new
     [ "$status" -eq 1 ]
-    # Check it has diff array with title and year
     echo "$output" | jq -e '.status == "changed"'
-    echo "$output" | jq -e '.diff | contains(["title"])'
-    echo "$output" | jq -e '.diff | contains(["year"])'
+    echo "$output" | jq -e '.old.title == "Original Title"'
+    echo "$output" | jq -e '.new.title == "Updated Title"'
+    echo "$output" | jq -e '.old.year == "2023"'
+    echo "$output" | jq -e '.new.year == "2024"'
 }
 
 # =============================================================================
-# Phase 9: Field Filtering (25-27)
+# Phase 8: Field Filtering
 # =============================================================================
-
-@test "--fields limits comparison to specified fields" {
-    # Given: articles with same title but different abstracts
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    cat > "$tmpdir/old.jsonl" <<'EOF'
-{"pmid":"1","title":"Same Title","abstract":"Different abstract 1"}
-EOF
-
-    cat > "$tmpdir/new.jsonl" <<'EOF'
-{"pmid":"1","title":"Same Title","abstract":"Different abstract 2"}
-EOF
-
-    # When: we compare with --fields pmid,title (ignoring abstract)
-    run "$PM_DIFF" --fields pmid,title "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
-
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    # Then: exit 0 (no differences in compared fields)
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"Changed:"*"0"* ]]
-}
 
 @test "--ignore excludes specified fields" {
     # Given: articles with same title but different abstracts
@@ -695,36 +432,13 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 0 (no differences after ignoring abstract)
+    # Then: exit 0 (no differences after ignoring abstract), no output
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Changed:"*"0"* ]]
-}
-
-@test "--fields with invalid field warns but continues" {
-    # Given: two identical files
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    cat > "$tmpdir/old.jsonl" <<'EOF'
-{"pmid":"1","title":"Test"}
-EOF
-
-    cat > "$tmpdir/new.jsonl" <<'EOF'
-{"pmid":"1","title":"Test"}
-EOF
-
-    # When: we compare with --fields that includes nonexistent field
-    run "$PM_DIFF" --fields pmid,nonexistent "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
-
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    # Then: should still work (warn on stderr, but succeed)
-    [ "$status" -eq 0 ]
+    [ -z "$output" ]
 }
 
 # =============================================================================
-# Phase 10: Stdin and Edge Cases (28-37)
+# Phase 9: Stdin Support
 # =============================================================================
 
 @test "accepts - for OLD file (stdin)" {
@@ -751,7 +465,8 @@ EOF
 
     # Then: should work, detect 1 added
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Added:"*"1"* ]]
+    echo "$output" | jq -e '.status == "added"'
+    echo "$output" | jq -e '.pmid == "3"'
 }
 
 @test "accepts - for NEW file (stdin)" {
@@ -778,7 +493,8 @@ EOF
 
     # Then: should work, detect 1 added
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Added:"*"1"* ]]
+    echo "$output" | jq -e '.status == "added"'
+    echo "$output" | jq -e '.pmid == "3"'
 }
 
 @test "rejects - for both files" {
@@ -789,6 +505,10 @@ EOF
     [ "$status" -eq 2 ]
     [[ "$output" == *"Cannot use stdin"* ]] || [[ "$output" == *"both"* ]]
 }
+
+# =============================================================================
+# Phase 10: Edge Cases
+# =============================================================================
 
 @test "empty OLD file - all articles added" {
     # Given: empty OLD, 3 articles in NEW
@@ -808,9 +528,10 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 1, 3 added
+    # Then: exit 1, 3 added lines
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Added:"*"3"* ]]
+    [ "$(echo "$output" | wc -l)" -eq 3 ]
+    [ "$(echo "$output" | jq -r 'select(.status == "added")' | jq -s 'length')" -eq 3 ]
 }
 
 @test "empty NEW file - all articles removed" {
@@ -831,9 +552,10 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 1, 3 removed
+    # Then: exit 1, 3 removed lines
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Removed:"*"3"* ]]
+    [ "$(echo "$output" | wc -l)" -eq 3 ]
+    [ "$(echo "$output" | jq -r 'select(.status == "removed")' | jq -s 'length')" -eq 3 ]
 }
 
 @test "both files empty - no differences" {
@@ -850,8 +572,9 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: exit 0, no differences
+    # Then: exit 0, no output
     [ "$status" -eq 0 ]
+    [ -z "$output" ]
 }
 
 @test "malformed JSON line skipped with warning" {
@@ -876,7 +599,7 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: should still work, skipping invalid line
+    # Then: should still work, skipping invalid line (no differences in valid lines)
     [ "$status" -eq 0 ]
 }
 
@@ -927,7 +650,7 @@ EOF
 }
 
 # =============================================================================
-# Phase 11: Exit Codes and Integration (38-43)
+# Phase 11: Exit Codes
 # =============================================================================
 
 @test "exit 0 when no differences" {
@@ -1000,31 +723,7 @@ EOF
 
     # Then: should detect changes
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Changed:"*"1"* ]]
-}
-
-@test "--format added outputs PMIDs for piping" {
-    # Given: files with some new PMIDs
-    local tmpdir
-    tmpdir=$(mktemp -d)
-
-    cat > "$tmpdir/old.jsonl" <<'EOF'
-{"pmid":"12345","title":"Old Article"}
-EOF
-    cat > "$tmpdir/new.jsonl" <<'EOF'
-{"pmid":"12345","title":"Old Article"}
-{"pmid":"67890","title":"New Article"}
-EOF
-
-    # When: we get added PMIDs
-    run "$PM_DIFF" --format added "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
-
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    # Then: output should be just the PMID, suitable for piping
-    [ "$status" -eq 1 ]
-    [ "$output" = "67890" ]
+    echo "$output" | jq -e '.status == "changed"'
 }
 
 @test "baseline diff with self shows no differences" {
@@ -1044,7 +743,7 @@ EOF
     # Cleanup
     rm -rf "$tmpdir"
 
-    # Then: no differences
+    # Then: no differences, no output
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Unchanged:"*"3"* ]]
+    [ -z "$output" ]
 }
