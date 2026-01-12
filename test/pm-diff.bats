@@ -647,3 +647,78 @@ EOF
     echo "$output" | jq -e '.diff | contains(["title"])'
     echo "$output" | jq -e '.diff | contains(["year"])'
 }
+
+# =============================================================================
+# Phase 9: Field Filtering (25-27)
+# =============================================================================
+
+@test "--fields limits comparison to specified fields" {
+    # Given: articles with same title but different abstracts
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Same Title","abstract":"Different abstract 1"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Same Title","abstract":"Different abstract 2"}
+EOF
+
+    # When: we compare with --fields pmid,title (ignoring abstract)
+    run "$PM_DIFF" --fields pmid,title "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 0 (no differences in compared fields)
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Changed:"*"0"* ]]
+}
+
+@test "--ignore excludes specified fields" {
+    # Given: articles with same title but different abstracts
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Same Title","abstract":"Different abstract 1"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Same Title","abstract":"Different abstract 2"}
+EOF
+
+    # When: we compare with --ignore abstract
+    run "$PM_DIFF" --ignore abstract "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 0 (no differences after ignoring abstract)
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Changed:"*"0"* ]]
+}
+
+@test "--fields with invalid field warns but continues" {
+    # Given: two identical files
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Test"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Test"}
+EOF
+
+    # When: we compare with --fields that includes nonexistent field
+    run "$PM_DIFF" --fields pmid,nonexistent "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: should still work (warn on stderr, but succeed)
+    [ "$status" -eq 0 ]
+}

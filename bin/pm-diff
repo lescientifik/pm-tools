@@ -231,6 +231,27 @@ load_file "$new_file" new_articles
 # Compare articles
 # =============================================================================
 
+# Build jq filter for field selection/exclusion
+build_compare_json() {
+    local json="$1"
+
+    if [[ -n "$fields_filter" ]]; then
+        # Include only specified fields
+        # Convert "pmid,title" to "{pmid: .pmid, title: .title}"
+        local fields_jq
+        fields_jq=$(echo "$fields_filter" | tr ',' '\n' | while read -r f; do echo "$f: .$f"; done | paste -sd ',' -)
+        echo "$json" | jq -cS "{$fields_jq}" 2>/dev/null || echo "$json"
+    elif [[ -n "$ignore_fields" ]]; then
+        # Exclude specified fields
+        local del_paths
+        del_paths=$(echo "$ignore_fields" | tr ',' '\n' | while read -r f; do echo "del(.$f)"; done | paste -sd ' | ' -)
+        echo "$json" | jq -cS "$del_paths" 2>/dev/null || echo "$json"
+    else
+        # Compare all fields
+        echo "$json"
+    fi
+}
+
 declare -a added_pmids=()
 declare -a removed_pmids=()
 declare -a changed_pmids=()
@@ -240,10 +261,15 @@ declare -a unchanged_pmids=()
 for pmid in "${!old_articles[@]}"; do
     if [[ -z "${new_articles[$pmid]:-}" ]]; then
         removed_pmids+=("$pmid")
-    elif [[ "${old_articles[$pmid]}" != "${new_articles[$pmid]}" ]]; then
-        changed_pmids+=("$pmid")
     else
-        unchanged_pmids+=("$pmid")
+        # Compare with field filtering
+        old_compare=$(build_compare_json "${old_articles[$pmid]}")
+        new_compare=$(build_compare_json "${new_articles[$pmid]}")
+        if [[ "$old_compare" != "$new_compare" ]]; then
+            changed_pmids+=("$pmid")
+        else
+            unchanged_pmids+=("$pmid")
+        fi
     fi
 done
 
