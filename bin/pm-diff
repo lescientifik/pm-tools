@@ -324,6 +324,59 @@ case "$output_format" in
             printf '%s\n' "${all_different[@]}"
         fi
         ;;
+    detailed)
+        # Added articles
+        if [[ $added_count -gt 0 ]]; then
+            echo "=== ADDED ($added_count) ==="
+            for pmid in "${added_pmids[@]}"; do
+                title=$(echo "${new_articles[$pmid]}" | jq -r '.title // "No title"')
+                echo "+ $pmid: $title"
+            done
+            echo ""
+        fi
+
+        # Removed articles
+        if [[ $removed_count -gt 0 ]]; then
+            echo "=== REMOVED ($removed_count) ==="
+            for pmid in "${removed_pmids[@]}"; do
+                title=$(echo "${old_articles[$pmid]}" | jq -r '.title // "No title"')
+                echo "- $pmid: $title"
+            done
+            echo ""
+        fi
+
+        # Changed articles
+        if [[ $changed_count -gt 0 ]]; then
+            echo "=== CHANGED ($changed_count) ==="
+            for pmid in "${changed_pmids[@]}"; do
+                title=$(echo "${new_articles[$pmid]}" | jq -r '.title // "No title"')
+                echo "~ $pmid: $title"
+
+                # Find which fields changed
+                old_json="${old_articles[$pmid]}"
+                new_json="${new_articles[$pmid]}"
+
+                # Get all keys from both
+                all_keys=$(echo "$old_json" "$new_json" | jq -rs '.[0] * .[1] | keys[]' 2>/dev/null | sort -u)
+
+                for key in $all_keys; do
+                    old_val=$(echo "$old_json" | jq -r ".$key // null")
+                    new_val=$(echo "$new_json" | jq -r ".$key // null")
+                    if [[ "$old_val" != "$new_val" ]]; then
+                        # Truncate long values for display
+                        if [[ ${#old_val} -gt 50 ]]; then
+                            old_val="${old_val:0:47}..."
+                        fi
+                        if [[ ${#new_val} -gt 50 ]]; then
+                            new_val="${new_val:0:47}..."
+                        fi
+                        echo "    $key: \"$old_val\" -> \"$new_val\""
+                    fi
+                done
+            done
+            echo ""
+        fi
+        ;;
     *)
         echo "Error: Unknown format: $output_format" >&2
         exit 2

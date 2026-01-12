@@ -474,3 +474,88 @@ EOF
     # Should have exactly 3 lines
     [ "$(echo "$output" | wc -l)" -eq 3 ]
 }
+
+# =============================================================================
+# Phase 7: Detailed Output (19-21)
+# =============================================================================
+
+@test "detailed format shows field-level diffs" {
+    # Given: same PMID with different title and year
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Original Title","year":"2023"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Updated Title","year":"2024"}
+EOF
+
+    # When: we compare with detailed format
+    run "$PM_DIFF" --format detailed "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, shows field-level changes
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"CHANGED"* ]]
+    [[ "$output" == *"1"* ]]
+    [[ "$output" == *"title"* ]]
+    [[ "$output" == *"year"* ]]
+}
+
+@test "detailed format shows added article info" {
+    # Given: NEW has an additional article
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"5","title":"New Article Five"}
+EOF
+
+    # When: we compare with detailed format
+    run "$PM_DIFF" --format detailed "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, shows added article with "+"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ADDED"* ]]
+    [[ "$output" == *"5"* ]]
+    [[ "$output" == *"New Article Five"* ]] || [[ "$output" == *"+"* ]]
+}
+
+@test "detailed format shows removed article info" {
+    # Given: NEW is missing an article
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"5","title":"Old Article Five"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+EOF
+
+    # When: we compare with detailed format
+    run "$PM_DIFF" --format detailed "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, shows removed article with "-"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"REMOVED"* ]]
+    [[ "$output" == *"5"* ]]
+    [[ "$output" == *"Old Article Five"* ]] || [[ "$output" == *"-"* ]]
+}
