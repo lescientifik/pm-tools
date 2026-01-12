@@ -13,13 +13,39 @@ pm-search "CRISPR review" --max 5 | pm-fetch | pm-parse | pm-download --output-d
 ## Installation
 
 ```bash
-# Clone and install
+# One-line install (requires curl, xml2, jq)
+curl -fsSL https://raw.githubusercontent.com/youruser/pubmed_parser/main/install-remote.sh | bash
+```
+
+Or install from source:
+
+```bash
 git clone https://github.com/youruser/pubmed_parser.git
 cd pubmed_parser
 ./install.sh
+```
 
-# Dependencies (Debian/Ubuntu)
+### Dependencies
+
+```bash
+# Debian/Ubuntu
 sudo apt install xml2 curl jq
+
+# macOS
+brew install xml2 jq
+
+# Check your setup
+curl -fsSL .../install-remote.sh | bash -s -- --check-deps
+```
+
+### Uninstall
+
+```bash
+# If installed via curl
+curl -fsSL https://raw.githubusercontent.com/youruser/pubmed_parser/main/uninstall.sh | bash
+
+# Or run locally
+./uninstall.sh
 ```
 
 ## Commands
