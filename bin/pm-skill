@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# pm-skill - Install the pm-tools skill for Claude Code
+# Usage: pm-skill [OPTIONS]
+
+set -euo pipefail
+
+show_help() {
+    cat << 'EOF'
+pm-skill - Install the pm-tools skill for Claude Code
+
+Usage: pm-skill [OPTIONS]
+
+Options:
+  --global    Install to ~/.claude/skills/ (user-wide)
+  --force     Overwrite existing skill
+  -h, --help  Show this help
+
+By default, installs to .claude/skills/ in the current directory.
+
+Examples:
+  pm-skill              # Install in current project
+  pm-skill --global     # Install for all projects
+  pm-skill --force      # Overwrite if exists
+EOF
+    exit 0
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
