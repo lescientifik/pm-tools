@@ -169,3 +169,70 @@ EOF
     # Should have exactly 2 lines
     [ "$(echo "$output" | wc -l)" -eq 2 ]
 }
+
+# =============================================================================
+# Phase 4: Removed Detection (9-10)
+# =============================================================================
+
+@test "detects removed articles" {
+    # Given: OLD has 5 articles, NEW has 3 (2 removed)
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Article Three"}
+{"pmid":"4","title":"Article Four"}
+{"pmid":"5","title":"Article Five"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Article Three"}
+EOF
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1 (differences found), shows 2 removed
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Removed:"*"2"* ]]
+}
+
+@test "--format removed lists removed PMIDs" {
+    # Given: OLD has 5 articles, NEW has 3 (2 removed)
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Article Three"}
+{"pmid":"4","title":"Article Four"}
+{"pmid":"5","title":"Article Five"}
+EOF
+
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Article Three"}
+EOF
+
+    # When: we get removed PMIDs
+    run "$PM_DIFF" --format removed "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1, output contains PMIDs 4 and 5
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"4"* ]]
+    [[ "$output" == *"5"* ]]
+    # Should have exactly 2 lines
+    [ "$(echo "$output" | wc -l)" -eq 2 ]
+}
