@@ -29,7 +29,7 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "Usage: $0 [--prefix /path]"
             echo ""
-            echo "Install pm-search, pm-fetch, pm-parse to your system."
+            echo "Install pm-* tools to your system."
             echo ""
             echo "Options:"
             echo "  --prefix PATH  Installation prefix (default: ~/.local)"
@@ -38,6 +38,11 @@ while [[ $# -gt 0 ]]; do
             echo "  \${PREFIX}/bin/pm-search"
             echo "  \${PREFIX}/bin/pm-fetch"
             echo "  \${PREFIX}/bin/pm-parse"
+            echo "  \${PREFIX}/bin/pm-filter"
+            echo "  \${PREFIX}/bin/pm-show"
+            echo "  \${PREFIX}/bin/pm-download"
+            echo "  \${PREFIX}/bin/pm-diff"
+            echo "  \${PREFIX}/bin/pm-skill"
             echo "  \${PREFIX}/lib/pm-tools/pm-common.sh"
             exit 0
             ;;
@@ -61,13 +66,18 @@ cp "${SOURCE_DIR}/lib/pm-common.sh" "${LIB_DIR}/"
 echo "  Installed: ${LIB_DIR}/pm-common.sh"
 
 # Install binaries with updated library path
-for cmd in pm-search pm-fetch pm-parse pm-show; do
+for cmd in pm-search pm-fetch pm-parse pm-filter pm-show pm-download pm-diff; do
     # Update the source path in the script
     sed "s|source \"\${SCRIPT_DIR}/../lib/pm-common.sh\"|source \"${LIB_DIR}/pm-common.sh\"|" \
         "${SOURCE_DIR}/bin/${cmd}" > "${BIN_DIR}/${cmd}"
     chmod +x "${BIN_DIR}/${cmd}"
     echo "  Installed: ${BIN_DIR}/${cmd}"
 done
+
+# Install pm-skill (doesn't use pm-common.sh)
+cp "${SOURCE_DIR}/bin/pm-skill" "${BIN_DIR}/pm-skill"
+chmod +x "${BIN_DIR}/pm-skill"
+echo "  Installed: ${BIN_DIR}/pm-skill"
 
 echo ""
 echo "Installation complete!"
