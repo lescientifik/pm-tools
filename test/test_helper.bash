@@ -11,6 +11,7 @@ export PM_SEARCH="${BIN_DIR}/pm-search"
 export PM_FETCH="${BIN_DIR}/pm-fetch"
 export PM_PARSE="${BIN_DIR}/pm-parse"
 export PM_FILTER="${BIN_DIR}/pm-filter"
+export PM_DIFF="${BIN_DIR}/pm-diff"
 
 # Path to common library
 export PM_COMMON="${LIB_DIR}/pm-common.sh"

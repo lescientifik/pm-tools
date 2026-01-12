@@ -925,3 +925,126 @@ EOF
     # Then: exit 0, no false positives from unicode handling
     [ "$status" -eq 0 ]
 }
+
+# =============================================================================
+# Phase 11: Exit Codes and Integration (38-43)
+# =============================================================================
+
+@test "exit 0 when no differences" {
+    # Given: identical files
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/file.jsonl" <<'EOF'
+{"pmid":"1","title":"Test"}
+EOF
+    cp "$tmpdir/file.jsonl" "$tmpdir/file2.jsonl"
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/file.jsonl" "$tmpdir/file2.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 0
+    [ "$status" -eq 0 ]
+}
+
+@test "exit 1 when differences found" {
+    # Given: different files
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"1","title":"Test"}
+EOF
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"1","title":"Changed"}
+EOF
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: exit 1
+    [ "$status" -eq 1 ]
+}
+
+@test "exit 2 on error" {
+    # When: we provide invalid arguments
+    run "$PM_DIFF" --invalid-option
+
+    # Then: exit 2
+    [ "$status" -eq 2 ]
+}
+
+@test "works with pm-parse output format" {
+    # Given: JSONL files in pm-parse format
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"12345","title":"Cancer research study","authors":["Smith A","Jones B"],"journal":"Nature","year":"2023","doi":"10.1234/example","abstract":"Study abstract here"}
+EOF
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"12345","title":"Cancer research study - Updated","authors":["Smith A","Jones B","Brown C"],"journal":"Nature","year":"2024","doi":"10.1234/example","abstract":"Updated abstract"}
+EOF
+
+    # When: we compare them
+    run "$PM_DIFF" "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: should detect changes
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Changed:"*"1"* ]]
+}
+
+@test "--format added outputs PMIDs for piping" {
+    # Given: files with some new PMIDs
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/old.jsonl" <<'EOF'
+{"pmid":"12345","title":"Old Article"}
+EOF
+    cat > "$tmpdir/new.jsonl" <<'EOF'
+{"pmid":"12345","title":"Old Article"}
+{"pmid":"67890","title":"New Article"}
+EOF
+
+    # When: we get added PMIDs
+    run "$PM_DIFF" --format added "$tmpdir/old.jsonl" "$tmpdir/new.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: output should be just the PMID, suitable for piping
+    [ "$status" -eq 1 ]
+    [ "$output" = "67890" ]
+}
+
+@test "baseline diff with self shows no differences" {
+    # Given: a valid JSONL file
+    local tmpdir
+    tmpdir=$(mktemp -d)
+
+    cat > "$tmpdir/baseline.jsonl" <<'EOF'
+{"pmid":"1","title":"Article One"}
+{"pmid":"2","title":"Article Two"}
+{"pmid":"3","title":"Article Three"}
+EOF
+
+    # When: we compare the file with itself
+    run "$PM_DIFF" "$tmpdir/baseline.jsonl" "$tmpdir/baseline.jsonl"
+
+    # Cleanup
+    rm -rf "$tmpdir"
+
+    # Then: no differences
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Unchanged:"*"3"* ]]
+}
