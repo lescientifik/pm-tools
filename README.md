@@ -29,10 +29,10 @@ cd pm-tools
 
 ```bash
 # Debian/Ubuntu
-sudo apt install xml2 curl jq
+sudo apt install curl xml2 jq mawk
 
 # macOS
-brew install xml2 jq
+brew install xml2 jq mawk
 
 # Check your setup
 curl -fsSL .../install-remote.sh | bash -s -- --check-deps
