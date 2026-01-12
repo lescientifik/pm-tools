@@ -264,6 +264,27 @@ build_compare_json() {
     fi
 }
 
+# Get list of fields that differ between two JSON objects
+# Args: $1 = old JSON, $2 = new JSON
+# Output: newline-separated list of changed field names
+get_changed_fields() {
+    local old_json="$1"
+    local new_json="$2"
+
+    # Get all keys from both objects
+    local all_keys
+    all_keys=$(echo "$old_json" "$new_json" | jq -rs '.[0] * .[1] | keys[]' 2>/dev/null | sort -u)
+
+    for key in $all_keys; do
+        local old_val new_val
+        old_val=$(echo "$old_json" | jq -c ".$key // null")
+        new_val=$(echo "$new_json" | jq -c ".$key // null")
+        if [[ "$old_val" != "$new_val" ]]; then
+            echo "$key"
+        fi
+    done
+}
+
 declare -a added_pmids=()
 declare -a removed_pmids=()
 declare -a changed_pmids=()
@@ -393,23 +414,19 @@ case "$output_format" in
                 # Find which fields changed
                 old_json="${old_articles[$pmid]}"
                 new_json="${new_articles[$pmid]}"
+                changed_fields=$(get_changed_fields "$old_json" "$new_json")
 
-                # Get all keys from both
-                all_keys=$(echo "$old_json" "$new_json" | jq -rs '.[0] * .[1] | keys[]' 2>/dev/null | sort -u)
-
-                for key in $all_keys; do
+                for key in $changed_fields; do
                     old_val=$(echo "$old_json" | jq -r ".$key // null")
                     new_val=$(echo "$new_json" | jq -r ".$key // null")
-                    if [[ "$old_val" != "$new_val" ]]; then
-                        # Truncate long values for display
-                        if [[ ${#old_val} -gt 50 ]]; then
-                            old_val="${old_val:0:47}..."
-                        fi
-                        if [[ ${#new_val} -gt 50 ]]; then
-                            new_val="${new_val:0:47}..."
-                        fi
-                        echo "    $key: \"$old_val\" -> \"$new_val\""
+                    # Truncate long values for display
+                    if [[ ${#old_val} -gt 50 ]]; then
+                        old_val="${old_val:0:47}..."
                     fi
+                    if [[ ${#new_val} -gt 50 ]]; then
+                        new_val="${new_val:0:47}..."
+                    fi
+                    echo "    $key: \"$old_val\" -> \"$new_val\""
                 done
             done
             echo ""
@@ -433,20 +450,8 @@ case "$output_format" in
             old_json="${old_articles[$pmid]}"
             new_json="${new_articles[$pmid]}"
 
-            # Find which fields changed
-            diff_fields=()
-            all_keys=$(echo "$old_json" "$new_json" | jq -rs '.[0] * .[1] | keys[]' 2>/dev/null | sort -u)
-
-            for key in $all_keys; do
-                old_val=$(echo "$old_json" | jq -c ".$key // null")
-                new_val=$(echo "$new_json" | jq -c ".$key // null")
-                if [[ "$old_val" != "$new_val" ]]; then
-                    diff_fields+=("$key")
-                fi
-            done
-
-            # Build diff array as JSON
-            diff_json=$(printf '%s\n' "${diff_fields[@]}" | jq -R . | jq -s .)
+            # Find which fields changed and build diff array as JSON
+            diff_json=$(get_changed_fields "$old_json" "$new_json" | jq -R . | jq -s .)
 
             jq -c --arg pmid "$pmid" --argjson old "$old_json" --argjson new "$new_json" --argjson diff "$diff_json" \
                 -n '{pmid: $pmid, status: "changed", old: $old, new: $new, diff: $diff}'

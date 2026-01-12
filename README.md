@@ -29,6 +29,9 @@ sudo apt install xml2 curl jq
 | `pm-search` | Query string | PMIDs | Search PubMed |
 | `pm-fetch` | PMIDs (stdin) | XML | Download article data |
 | `pm-parse` | XML (stdin) | JSONL | Extract structured data |
+| `pm-filter` | JSONL (stdin) | JSONL | Filter by year/journal/author |
+| `pm-diff` | Two JSONL files | Report | Compare article collections |
+| `pm-show` | JSONL (stdin) | Text | Pretty-print articles |
 | `pm-download` | JSONL/PMIDs | PDFs | Download Open Access PDFs |
 
 ## Quick Examples
@@ -37,13 +40,44 @@ sudo apt install xml2 curl jq
 # Search and get titles
 pm-search "machine learning diagnosis" --max 10 | pm-fetch | pm-parse | jq -r '.title'
 
-# Get recent Nature papers on a topic
+# Filter to recent Nature papers with abstracts
 pm-search "quantum computing" --max 50 | pm-fetch | pm-parse | \
-  jq -r 'select(.journal | test("Nature")) | "\(.pmid): \(.title)"'
+  pm-filter --year 2024- --journal nature --has-abstract
+
+# Pretty-print results in the terminal
+pm-search "CRISPR" --max 5 | pm-fetch | pm-parse | pm-show
 
 # Export to CSV
 pm-search "alzheimer biomarkers" --max 100 | pm-fetch | pm-parse | \
   jq -r '[.pmid, .year, .journal, .title] | @csv' > papers.csv
+```
+
+## Filtering Results
+
+`pm-filter` lets you filter parsed articles without writing jq queries:
+
+```bash
+# Filter by year (exact, range, or open-ended)
+pm-filter --year 2024           # Exact year
+pm-filter --year 2020-2024      # Range
+pm-filter --year 2020-          # 2020 and later
+
+# Filter by journal (case-insensitive substring)
+pm-filter --journal nature
+pm-filter --journal "cell reports"
+
+# Filter by author (case-insensitive, matches any author)
+pm-filter --author zhang
+
+# Boolean filters
+pm-filter --has-abstract        # Must have abstract
+pm-filter --has-doi             # Must have DOI
+
+# Combine filters (AND logic)
+pm-filter --year 2023- --journal nature --has-abstract
+
+# Verbose mode shows filter stats
+pm-filter --year 2024 -v        # Output: "15/50 articles passed filters"
 ```
 
 ## Daily Research Workflows
@@ -85,7 +119,7 @@ Monitor specific journals for topics you care about:
 ```bash
 # Recent Cell papers on organoids
 pm-search "organoids AND Cell[journal]" --max 20 | pm-fetch | pm-parse | \
-  jq -r 'select(.year == "2024" or .year == "2025") | .title'
+  pm-filter --year 2024- | jq -r '.title'
 
 # Compare publication counts across journals
 pm-search "immunotherapy" --max 200 | pm-fetch | pm-parse | \
@@ -150,8 +184,11 @@ cat pmids.txt | pm-download --output-dir ./pdfs/
 # Fetch your entire research area (be patient, respects rate limits)
 pm-search "your niche topic" --max 1000 | pm-fetch | pm-parse > my-field.jsonl
 
-# Then query locally with jq (instant!)
-jq 'select(.year >= "2020")' my-field.jsonl
+# Then query locally (instant!)
+pm-filter --year 2020- < my-field.jsonl
+pm-filter --author smith --has-abstract < my-field.jsonl
+
+# Or use jq for complex queries
 jq 'select(.abstract | test("novel"; "i"))' my-field.jsonl
 ```
 
@@ -199,6 +236,38 @@ zcat pubmed25n0001.xml.gz | pm-parse > baseline.jsonl
 # Find all papers from a specific institution
 jq 'select(.authors[]? | test("Harvard"))' baseline.jsonl
 ```
+
+### Comparing Article Collections
+
+Use `pm-diff` to compare two JSONL files and find added, removed, or changed articles:
+
+```bash
+# Summary of changes between two snapshots
+pm-diff baseline_v1.jsonl baseline_v2.jsonl
+
+# Get list of new PMIDs (for fetching updates)
+pm-diff old.jsonl new.jsonl --format added | pm-fetch | pm-parse > new_articles.jsonl
+
+# Detailed field-level diff
+pm-diff old.jsonl new.jsonl --format detailed
+
+# Machine-readable output
+pm-diff old.jsonl new.jsonl --format jsonl | jq 'select(.status == "changed")'
+
+# Compare only metadata (ignore abstract changes)
+pm-diff old.jsonl new.jsonl --ignore abstract
+
+# Quick check if files differ (for scripts)
+if pm-diff file1.jsonl file2.jsonl --quiet; then
+    echo "Files are identical"
+else
+    echo "Files differ"
+fi
+```
+
+**Output formats**: `summary` (default), `detailed`, `jsonl`, `added`, `removed`, `changed`, `all`
+
+**Exit codes**: 0 = identical, 1 = differences found, 2 = error
 
 ## Output Format
 
