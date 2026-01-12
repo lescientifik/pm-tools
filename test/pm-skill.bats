@@ -201,3 +201,46 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Overwritten:"* ]]
 }
+
+# =============================================================================
+# Phase 5: Edge Cases
+# =============================================================================
+
+@test "pm-skill rejects unknown options" {
+    # Given
+    cd "$TEST_DIR"
+
+    # When
+    run "$BIN_DIR/pm-skill" --unknown
+
+    # Then
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Unknown option"* ]] || [[ "$output" == *"unknown"* ]]
+}
+
+@test "pm-skill works when .claude/ exists but skills/ doesn't" {
+    # Given
+    cd "$TEST_DIR"
+    mkdir -p ".claude"
+
+    # When
+    run "$BIN_DIR/pm-skill"
+
+    # Then
+    [ "$status" -eq 0 ]
+    [ -f ".claude/skills/using-pm-tools/SKILL.md" ]
+}
+
+@test "pm-skill works in any directory (creates .claude/)" {
+    # Given
+    cd "$TEST_DIR"
+    # TEST_DIR is a fresh temp directory with no .claude/
+
+    # When
+    run "$BIN_DIR/pm-skill"
+
+    # Then
+    [ "$status" -eq 0 ]
+    [ -d ".claude" ]
+    [ -f ".claude/skills/using-pm-tools/SKILL.md" ]
+}
