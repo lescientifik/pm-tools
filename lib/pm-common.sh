@@ -29,3 +29,41 @@ require_commands() {
         die "Missing required commands: ${missing[*]}. Install with: apt install ${missing[*]}"
     fi
 }
+
+# Read PMIDs from stdin into array variable
+# Usage: read_pmids_to_array array_name
+# Empty lines are skipped
+read_pmids_to_array() {
+    local -n _arr=$1
+    _arr=()
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -z "$line" ]] && continue
+        _arr+=("$line")
+    done
+}
+
+# Process items in batches with rate limiting
+# Usage: process_batches callback batch_size delay item1 item2 ...
+# callback receives comma-separated list of items for each batch
+process_batches() {
+    local callback=$1 batch_size=$2 delay=$3
+    shift 3
+    local items=("$@")
+
+    [[ ${#items[@]} -eq 0 ]] && return 0
+
+    local batch_num=0
+    for ((i = 0; i < ${#items[@]}; i += batch_size)); do
+        ((batch_num > 0 && delay > 0)) && sleep "$delay"
+        ((batch_num++))
+
+        # Build comma-separated list
+        local batch_ids=""
+        for ((j = i; j < i + batch_size && j < ${#items[@]}; j++)); do
+            [[ -n "$batch_ids" ]] && batch_ids+=","
+            batch_ids+="${items[j]}"
+        done
+
+        "$callback" "$batch_ids"
+    done
+}
