@@ -61,3 +61,38 @@ setup() {
     # Output should be valid JSON with the PMID
     echo "$output" | jq -e '.PMID == "28012456"'
 }
+
+# =============================================================================
+# Phase 3: Error Handling
+# =============================================================================
+
+@test "pm-cite skips invalid PMIDs silently" {
+    # 9999999999 doesn't exist - API silently ignores it
+    run bash -c 'echo -e "28012456\n9999999999" | pm-cite'
+    [ "$status" -eq 0 ]
+    # Only valid PMID returned (1 line)
+    [ "$(echo "$output" | wc -l)" -eq 1 ]
+    # Verify it's the valid PMID
+    echo "$output" | jq -e '.PMID == "28012456"'
+}
+
+@test "pm-cite with all invalid PMIDs returns empty" {
+    run bash -c 'echo "9999999999" | pm-cite'
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]  # Output is empty
+}
+
+# =============================================================================
+# Phase 4: Integration
+# =============================================================================
+
+@test "pm-search | pm-cite pipeline produces valid JSONL" {
+    run bash -c 'pm-search "CRISPR" --max 3 | pm-cite'
+    [ "$status" -eq 0 ]
+    # At least 1 result (some PMIDs might not have citations)
+    [ "$(echo "$output" | wc -l)" -ge 1 ]
+    # All lines are valid JSON
+    echo "$output" | while read -r line; do
+        echo "$line" | jq -e . >/dev/null
+    done
+}
