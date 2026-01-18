@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# pm-cite - Fetch CSL-JSON citations from NCBI Citation Exporter API
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib/pm-common.sh"
+
+require_commands curl jq
+
+# Configuration (same as pm-fetch)
+API_URL="https://pmc.ncbi.nlm.nih.gov/api/ctxp/v1/pubmed/"
+BATCH_SIZE=200
+RATE_LIMIT_DELAY=0.34
+
+show_help() {
+    cat << 'EOF'
+pm-cite - Fetch CSL-JSON citations from NCBI Citation Exporter API
+
+Usage: echo "12345" | pm-cite > citations.jsonl
+       pm-cite 12345 67890 > citations.jsonl
+
+Options:
+  -v, --verbose  Show progress on stderr
+  -h, --help     Show this help message
+
+Output:
+  JSONL format (one CSL-JSON object per line)
+EOF
+    exit 0
+}
+
+# Parse options
+VERBOSE=0
+PMIDS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -v|--verbose) VERBOSE=1; shift ;;
+        -h|--help) show_help ;;
+        -*) die "Unknown option: $1" ;;
+        *) PMIDS+=("$1"); shift ;;
+    esac
+done
+
+# Read PMIDs from stdin if none provided as arguments
+if [[ ${#PMIDS[@]} -eq 0 ]]; then
+    read_pmids_to_array PMIDS
+fi
+
+# Exit cleanly if no PMIDs
+[[ ${#PMIDS[@]} -eq 0 ]] && exit 0
+
+# Callback for process_batches
+cite_batch() {
+    local ids=$1
+    log_verbose "Fetching batch: ${ids:0:50}..."
+
+    # Fetch and normalize to JSONL (handle both object and array responses)
+    curl -sL "${API_URL}?format=csl&id=${ids}" | jq -c 'if type == "array" then .[] else . end'
+}
+
+# Fetch in batches (reuse from pm-common.sh)
+process_batches cite_batch "$BATCH_SIZE" "$RATE_LIMIT_DELAY" "${PMIDS[@]}"
