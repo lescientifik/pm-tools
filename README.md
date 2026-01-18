@@ -59,6 +59,7 @@ curl -fsSL https://raw.githubusercontent.com/lescientifik/pm-tools/main/uninstal
 | `pm-diff` | Two JSONL files | JSONL | Compare article collections |
 | `pm-show` | JSONL (stdin) | Text | Pretty-print articles |
 | `pm-download` | JSONL/PMIDs | PDFs | Download Open Access PDFs |
+| `pm-cite` | PMIDs (stdin) | CSL-JSON | Generate bibliography citations |
 | `pm-quick` | Query string | Text | One-command search to pretty output |
 | `pm-skill` | - | File | Install Claude Code skill |
 
@@ -186,6 +187,9 @@ cat pmids.txt | pm-fetch | pm-parse > articles.jsonl
 # Get DOI for citation
 pm-search "Yamanaka induced pluripotent" --max 1 | pm-fetch | pm-parse | \
   jq -r '"DOI: \(.doi)\nTitle: \(.title)"'
+
+# Get full citation in CSL-JSON format
+echo "12345678" | pm-cite | jq '.'
 ```
 
 ### Download Open Access PDFs
@@ -208,6 +212,48 @@ cat pmids.txt | pm-download --output-dir ./pdfs/
 ```
 
 **Sources**: `pm-download` tries PMC Open Access first, then falls back to Unpaywall (if `--email` provided). Not all articles have free PDFs available.
+
+### Generate Bibliography Citations
+
+```bash
+# Get CSL-JSON citations for specific PMIDs
+pm-cite 28012456 29886577 > citations.jsonl
+
+# Pipeline: search -> cite
+pm-search "CRISPR review" --max 10 | pm-cite > citations.jsonl
+
+# Convert to Pandoc-compatible bibliography
+jq -s '.' citations.jsonl > bibliography.json
+
+# Use with Pandoc
+pandoc paper.md --citeproc --bibliography=bibliography.json -o paper.pdf
+```
+
+**Output format (CSL-JSON):**
+```json
+{
+  "id": "pmid:28012456",
+  "type": "article-journal",
+  "title": "Article title...",
+  "author": [{"family": "Smith", "given": "John"}],
+  "container-title": "Nature",
+  "issued": {"date-parts": [[2024, 3, 15]]},
+  "volume": "627",
+  "page": "123-130",
+  "PMID": "28012456",
+  "DOI": "10.1038/xxxxx"
+}
+```
+
+**pm-cite vs pm-parse:**
+| Feature | pm-parse | pm-cite |
+|---------|----------|---------|
+| Abstract | Yes | No |
+| Page numbers | No | Yes |
+| Volume/Issue | No | Yes |
+| Citation tools | Needs conversion | Direct (Zotero, Pandoc) |
+
+Use `pm-cite` for generating bibliographies; `pm-parse` for content analysis.
 
 ## Advanced Patterns
 
