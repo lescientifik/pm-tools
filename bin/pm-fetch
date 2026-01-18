@@ -63,38 +63,20 @@ EFETCH_URL="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 BATCH_SIZE=200
 RATE_LIMIT_DELAY=0.34  # ~3 requests per second
 
-# Read all PMIDs into array
+# Read all PMIDs into array using shared function
 pmid_list=()
-while IFS= read -r line || [[ -n "$line" ]]; do
-    # Skip empty lines
-    [[ -z "$line" ]] && continue
-    pmid_list+=("$line")
-done
+read_pmids_to_array pmid_list
 
 # If no PMIDs, exit cleanly
 if [[ ${#pmid_list[@]} -eq 0 ]]; then
     exit 0
 fi
 
-# Fetch in batches
-batch_num=0
-for ((i = 0; i < ${#pmid_list[@]}; i += BATCH_SIZE)); do
-    # Rate limiting: wait between requests (except first)
-    if ((batch_num > 0)); then
-        sleep "$RATE_LIMIT_DELAY"
-    fi
-    batch_num=$((batch_num + 1))
-
-    # Build comma-separated list for this batch
-    batch_pmids=""
-    for ((j = i; j < i + BATCH_SIZE && j < ${#pmid_list[@]}; j++)); do
-        if [[ -z "$batch_pmids" ]]; then
-            batch_pmids="${pmid_list[j]}"
-        else
-            batch_pmids="${batch_pmids},${pmid_list[j]}"
-        fi
-    done
-
-    # Fetch this batch
+# Callback for process_batches: fetch a batch of PMIDs
+fetch_batch() {
+    local batch_pmids=$1
     curl -s "${EFETCH_URL}?db=pubmed&id=${batch_pmids}&rettype=abstract&retmode=xml"
-done
+}
+
+# Fetch in batches using shared function
+process_batches fetch_batch "$BATCH_SIZE" "$RATE_LIMIT_DELAY" "${pmid_list[@]}"

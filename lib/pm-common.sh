@@ -54,8 +54,8 @@ process_batches() {
 
     local batch_num=0
     for ((i = 0; i < ${#items[@]}; i += batch_size)); do
-        ((batch_num > 0 && delay > 0)) && sleep "$delay"
-        ((batch_num++))
+        if ((batch_num > 0)) && [[ "$delay" != "0" ]]; then sleep "$delay"; fi
+        ((++batch_num))
 
         # Build comma-separated list
         local batch_ids=""
