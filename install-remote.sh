@@ -26,7 +26,7 @@ DEFAULT_PREFIX="$HOME/.local"
 DEFAULT_BASE_URL="https://raw.githubusercontent.com/lescientifik/pm-tools/main"
 
 # Files to install
-COMMANDS=(pm-search pm-fetch pm-parse pm-filter pm-show pm-download pm-diff pm-quick pm-skill)
+COMMANDS=(pm-search pm-fetch pm-parse pm-filter pm-show pm-download pm-diff pm-quick pm-skill pm-cite)
 # Library path (relative to source)
 # shellcheck disable=SC2034
 LIBRARY="lib/pm-common.sh"
