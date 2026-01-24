@@ -111,6 +111,70 @@ teardown() {
     [ "$status" -eq 1 ]
 }
 
+@test "pm-search: encodes square brackets in query" {
+    # Given: a query with PubMed field tags using square brackets
+    # When: searching
+    run "$PM_SEARCH" "asthma[MeSH Terms]"
+
+    # Then: square brackets are percent-encoded in the curl call
+    [ "$status" -eq 0 ]
+    local curl_call
+    curl_call=$(cat "$CURL_CALLS_FILE")
+    [[ "$curl_call" == *"asthma%5BMeSH%20Terms%5D"* ]]
+}
+
+@test "pm-search: encodes multiple field tags with brackets" {
+    # Given: a complex query with multiple field tags
+    # When: searching
+    run "$PM_SEARCH" "cancer[ti] AND 2024[dp]"
+
+    # Then: all square brackets are percent-encoded
+    [ "$status" -eq 0 ]
+    local curl_call
+    curl_call=$(cat "$CURL_CALLS_FILE")
+    [[ "$curl_call" == *"%5Bti%5D"* ]]
+    [[ "$curl_call" == *"%5Bdp%5D"* ]]
+}
+
+@test "pm-search: encodes parentheses in boolean queries" {
+    # Given: a query with boolean grouping
+    # When: searching
+    run "$PM_SEARCH" "(cancer OR tumor) AND treatment"
+
+    # Then: parentheses are percent-encoded
+    [ "$status" -eq 0 ]
+    local curl_call
+    curl_call=$(cat "$CURL_CALLS_FILE")
+    [[ "$curl_call" == *"%28"* ]]
+    [[ "$curl_call" == *"%29"* ]]
+}
+
+@test "pm-search: encodes colon and brackets in date ranges" {
+    # Given: a query with date range and field tag
+    # When: searching
+    run "$PM_SEARCH" "2020:2024[dp]"
+
+    # Then: colon and brackets are percent-encoded
+    [ "$status" -eq 0 ]
+    local curl_call
+    curl_call=$(cat "$CURL_CALLS_FILE")
+    [[ "$curl_call" == *"%3A"* ]]
+    [[ "$curl_call" == *"%5B"* ]]
+    [[ "$curl_call" == *"%5D"* ]]
+}
+
+@test "pm-search: encodes slash in date queries" {
+    # Given: a query with date format using slashes
+    # When: searching
+    run "$PM_SEARCH" "2024/01/15[edat]"
+
+    # Then: slashes are percent-encoded
+    [ "$status" -eq 0 ]
+    local curl_call
+    curl_call=$(cat "$CURL_CALLS_FILE")
+    [[ "$curl_call" == *"%2F"* ]]
+}
+
 @test "pm-search: no results returns empty output" {
     # Given: mock that returns 0 results
     cat > "${MOCK_DIR}/curl" << 'MOCK_CURL'

@@ -84,8 +84,23 @@ if [[ -z "$query" ]]; then
     die "Usage: pm-search [--max N] \"search query\""
 fi
 
-# URL-encode the query (basic encoding for common characters)
-encoded_query=$(echo -n "$query" | sed 's/ /%20/g; s/"/%22/g; s/#/%23/g; s/&/%26/g; s/+/%2B/g')
+# URL-encode the query (RFC 3986 percent-encoding)
+# Encodes all characters except unreserved: A-Z a-z 0-9 - _ . ~
+urlencode() {
+    local string="$1"
+    local length=${#string}
+    local encoded=""
+    local c
+    for ((i = 0; i < length; i++)); do
+        c="${string:i:1}"
+        case "$c" in
+            [a-zA-Z0-9.~_-]) encoded+="$c" ;;
+            *) encoded+=$(printf '%%%02X' "'$c") ;;
+        esac
+    done
+    echo "$encoded"
+}
+encoded_query=$(urlencode "$query")
 
 # Call esearch API
 response=$(curl -s "${ESEARCH_URL}?db=pubmed&term=${encoded_query}&retmax=${max_results}&retmode=xml")
