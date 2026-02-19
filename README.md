@@ -1,6 +1,6 @@
 # PubMed CLI Tools
 
-Unix-style command-line tools for searching and parsing PubMed articles. Designed for researchers who want quick access to publication data without leaving the terminal.
+Unix-style command-line tools for searching and parsing PubMed articles. Designed for researchers and AI agents who want quick access to publication data without leaving the terminal.
 
 ```bash
 # Search, parse, and filter
@@ -10,25 +10,52 @@ pm search "CRISPR cancer therapy" | pm fetch | pm parse | jq '.title'
 pm search "CRISPR review" --max 5 | pm fetch | pm parse | pm download --output-dir ./pdfs/
 ```
 
+## Prerequisites
+
+- **[uv](https://docs.astral.sh/uv/)** (Python package manager)
+- **Python >= 3.12** (installed automatically by uv if needed)
+- **Optional**: `jq` for advanced JSON filtering (`sudo apt install jq` or `brew install jq`)
+
 ## Installation
 
-```bash
-# Install with uv (recommended)
-uv tool install pm-tools
+Install directly from GitHub (no PyPI release):
 
-# Or install from source
+```bash
+uv tool install git+https://github.com/lescientifik/pm-tools.git
+```
+
+This installs the `pm` command globally. You can then run `pm` from anywhere.
+
+### Development install (for contributors)
+
+```bash
 git clone https://github.com/lescientifik/pm-tools.git
 cd pm-tools
 uv sync
 ```
 
-### Dependencies
+With a development install, prefix all commands with `uv run` (e.g., `uv run pm search ...`).
+
+## Getting Started
+
+After installation, **the first thing to do is run `--help`** to discover available commands and options:
 
 ```bash
-# Runtime: only Python ≥ 3.12 + httpx (installed automatically)
-# Optional for filtering results:
-sudo apt install jq   # or: brew install jq
+# Show all available commands and general usage
+pm --help
+
+# Show detailed help for a specific command (options, input/output format, examples)
+pm search --help
+pm fetch --help
+pm parse --help
+pm filter --help
+pm download --help
+pm cite --help
+pm diff --help
+pm quick --help
 ```
+
+**Every command supports `-h` / `--help`.** This is the best way to learn what each command does, what options it accepts, and how to use it. **When in doubt, always run `--help` first.**
 
 ## Commands
 
@@ -45,7 +72,7 @@ All commands are subcommands of `pm`:
 | `pm cite` | PMIDs (stdin) | CSL-JSON | Generate bibliography citations |
 | `pm quick` | Query string | JSONL | One-command search pipeline |
 
-Use `pm <command> --help` for command-specific help.
+Run `pm <command> --help` for detailed options, input/output formats, and examples for each command.
 
 ## Quick Examples
 
