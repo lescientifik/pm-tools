@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
+
+from pm_tools.cache import audit_log
 
 
 def _parse_year_filter(year_str: str) -> tuple[str | None, str | None]:
@@ -160,6 +163,87 @@ def count_matching(
     return sum(1 for _ in filter_articles(articles, **kwargs))
 
 
+def filter_articles_audited(
+    articles: Iterator[dict[str, Any]],
+    *,
+    pm_dir: Path | None = None,
+    year: str | None = None,
+    journal: str | None = None,
+    journal_exact: str | None = None,
+    author: str | None = None,
+    title: str | None = None,
+    pmid: str | None = None,
+    min_authors: int | None = None,
+    has_abstract: bool = False,
+    has_doi: bool = False,
+) -> list[dict[str, Any]]:
+    """Filter articles and log PRISMA screening stats to audit trail.
+
+    Consumes the iterator and returns a list (needed to count totals).
+
+    Args:
+        articles: Iterator of article dicts.
+        pm_dir: Path to .pm/ directory for audit logging, or None.
+        **kwargs: Same filter criteria as filter_articles().
+
+    Returns:
+        List of articles matching all filters.
+    """
+    input_list = list(articles)
+    input_count = len(input_list)
+
+    result = list(
+        filter_articles(
+            iter(input_list),
+            year=year,
+            journal=journal,
+            journal_exact=journal_exact,
+            author=author,
+            title=title,
+            pmid=pmid,
+            min_authors=min_authors,
+            has_abstract=has_abstract,
+            has_doi=has_doi,
+        )
+    )
+    output_count = len(result)
+
+    if pm_dir is not None:
+        # Build criteria dict for PRISMA traceability
+        criteria: dict[str, Any] = {}
+        if year is not None:
+            criteria["year"] = year
+        if journal is not None:
+            criteria["journal"] = journal
+        if journal_exact is not None:
+            criteria["journal_exact"] = journal_exact
+        if author is not None:
+            criteria["author"] = author
+        if title is not None:
+            criteria["title"] = title
+        if pmid is not None:
+            criteria["pmid"] = pmid
+        if min_authors is not None:
+            criteria["min_authors"] = min_authors
+        if has_abstract:
+            criteria["has_abstract"] = True
+        if has_doi:
+            criteria["has_doi"] = True
+
+        audit_log(
+            pm_dir,
+            {
+                "op": "filter",
+                "input": input_count,
+                "output": output_count,
+                "excluded": input_count - output_count,
+                "criteria": criteria,
+            },
+        )
+
+    return result
+
+
 def parse_jsonl_stream(input_stream) -> Iterator[dict[str, Any]]:
     """Parse JSONL lines from a stream, skipping malformed lines."""
     for line in input_stream:
@@ -275,40 +359,37 @@ def main(args: list[str] | None = None) -> int:
             print(f"Error: {e}. Use: 2024, 2020-2024, 2020-, or -2024", file=sys.stderr)
             return 1
 
+    # Detect .pm/ for audit
+    from pm_tools.cache import find_pm_dir
+
+    detected_pm_dir = find_pm_dir()
+
     # Process stdin
     articles = parse_jsonl_stream(sys.stdin)
 
-    if verbose:
-        # Count input/output
-        input_count = 0
-        output_count = 0
-        input_list = list(articles)
-        input_count = len(input_list)
+    filter_kwargs: dict[str, Any] = {
+        "year": year_filter,
+        "journal": journal_filter,
+        "journal_exact": journal_exact_filter,
+        "author": author_filter,
+        "has_abstract": want_abstract,
+        "has_doi": want_doi,
+    }
 
-        filtered = filter_articles(
-            iter(input_list),
-            year=year_filter,
-            journal=journal_filter,
-            journal_exact=journal_exact_filter,
-            author=author_filter,
-            has_abstract=want_abstract,
-            has_doi=want_doi,
+    if verbose or detected_pm_dir is not None:
+        # Use audited version (consumes iterator into list)
+        result = filter_articles_audited(
+            articles, pm_dir=detected_pm_dir, **filter_kwargs
         )
-        for article in filtered:
+        for article in result:
             print(json.dumps(article, ensure_ascii=False))
-            output_count += 1
-
-        print(f"{output_count}/{input_count} articles passed filters", file=sys.stderr)
+        if verbose:
+            print(
+                f"{len(result)} articles passed filters",
+                file=sys.stderr,
+            )
     else:
-        filtered = filter_articles(
-            articles,
-            year=year_filter,
-            journal=journal_filter,
-            journal_exact=journal_exact_filter,
-            author=author_filter,
-            has_abstract=want_abstract,
-            has_doi=want_doi,
-        )
+        filtered = filter_articles(articles, **filter_kwargs)
         for article in filtered:
             print(json.dumps(article, ensure_ascii=False))
 

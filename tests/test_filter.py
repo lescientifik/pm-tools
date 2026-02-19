@@ -7,11 +7,13 @@ Tests for core filtering are comprehensive. Tests for unimplemented features
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import pytest
 
-from pm_tools.filter import filter_articles
+from pm_tools.filter import filter_articles, filter_articles_audited
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -387,3 +389,68 @@ class TestMinAuthorsFilter:
         result = _filter(articles, min_authors=2, year="2024")
         assert len(result) == 1
         assert result[0]["pmid"] == "2"
+
+
+# ---------------------------------------------------------------------------
+# Audit trail (PRISMA screening)
+# ---------------------------------------------------------------------------
+
+
+def _make_pm_dir(tmp_path: Path) -> Path:
+    pm = tmp_path / ".pm"
+    pm.mkdir()
+    for sub in ("search", "fetch", "cite", "download"):
+        (pm / "cache" / sub).mkdir(parents=True)
+    (pm / "audit.jsonl").write_text("")
+    return pm
+
+
+class TestFilterAudit:
+    """filter_articles_audited() logs screening stats for PRISMA."""
+
+    def test_logs_filter_event(self, tmp_path: Path) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+        articles = [
+            _article(pmid="1", year="2024"),
+            _article(pmid="2", year="2020"),
+            _article(pmid="3", year="2024"),
+        ]
+
+        result = filter_articles_audited(
+            iter(articles), pm_dir=pm_dir, year="2024"
+        )
+        assert len(result) == 2
+
+        lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
+        assert len(lines) == 1
+        event = json.loads(lines[0])
+        assert event["op"] == "filter"
+        assert event["input"] == 3
+        assert event["output"] == 2
+        assert event["excluded"] == 1
+
+    def test_logs_filter_criteria(self, tmp_path: Path) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+        articles = [_article(pmid="1", year="2024")]
+
+        filter_articles_audited(
+            iter(articles),
+            pm_dir=pm_dir,
+            year="2024",
+            has_abstract=True,
+        )
+
+        event = json.loads(
+            (pm_dir / "audit.jsonl").read_text().strip().splitlines()[0]
+        )
+        assert "year" in event["criteria"]
+        assert "has_abstract" in event["criteria"]
+
+    def test_returns_list_not_generator(self, tmp_path: Path) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+        articles = [_article(pmid="1")]
+
+        result = filter_articles_audited(
+            iter(articles), pm_dir=pm_dir
+        )
+        assert isinstance(result, list)
