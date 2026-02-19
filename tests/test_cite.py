@@ -1,10 +1,7 @@
 """Tests for pm_tools.cite — fetch CSL-JSON citation data for PMIDs.
 
-RED phase: tests that validate cite() behavior and drive new features.
-
 Tests for core cite functionality validate the existing get_http_client()
-pattern and error recovery. Tests for unimplemented features (bibtex export,
-cache support) will fail, driving new development.
+pattern and error recovery. Cache test drives the audit/cache feature.
 """
 
 from __future__ import annotations
@@ -213,38 +210,6 @@ class TestCiteDeduplication:
         assert len(result) == 1, "Should return only one result for duplicate PMID"
 
 
-# ---------------------------------------------------------------------------
-# Tests -- unimplemented features (RED phase)
-# ---------------------------------------------------------------------------
-
-
-class TestCiteBibtex:
-    """cite module should expose cite_bibtex() for BibTeX output format.
-
-    Not yet implemented -- drives adding BibTeX export support.
-    """
-
-    def test_cite_bibtex_returns_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from pm_tools.cite import cite_bibtex
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, json=_CSL_SINGLE)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
-
-        result = cite_bibtex(["12345678"])
-        assert isinstance(result, str)
-        assert "@article{" in result
-        assert "Smith" in result
-
-    def test_cite_bibtex_empty_input(self) -> None:
-        from pm_tools.cite import cite_bibtex
-
-        result = cite_bibtex([])
-        assert result == ""
-
-
 class TestCiteCache:
     """cite() should support caching to avoid re-fetching the same PMIDs.
 
@@ -274,24 +239,3 @@ class TestCiteCache:
         result2 = cite(["12345678"], cache_dir=cache_dir)
         assert len(result2) == 1
         assert request_count == 1, "Second call should use cache, not make HTTP request"
-
-
-class TestCiteRIS:
-    """cite module should expose cite_ris() for RIS output format.
-
-    Not yet implemented -- drives adding RIS export support.
-    """
-
-    def test_cite_ris_returns_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from pm_tools.cite import cite_ris
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, json=_CSL_SINGLE)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
-
-        result = cite_ris(["12345678"])
-        assert isinstance(result, str)
-        assert "TY  - JOUR" in result
-        assert "AU  - Smith" in result

@@ -19,6 +19,7 @@ réseau à l'API NCBI. Aucun résultat n'est conservé localement. Conséquences
 | 2 | Audit trail PRISMA-compatible | Un fichier lisible suffit pour écrire la section méthodologie |
 | 3 | Transparent pour l'agent | Aucun flag supplémentaire nécessaire après `pm init` |
 | 4 | `--refresh` pour forcer un re-fetch | Sans casser l'audit trail (append-only) |
+| 5 | Crash-safe | Pas de corruption de données si le process est interrompu |
 
 ## Architecture
 
@@ -79,7 +80,11 @@ sans versionner le cache (potentiellement volumineux).
 
 ### 1. Search cache
 
-**Clé** : SHA-256 de `f"{query_normalisée}|{max_results}"`
+**Clé** : SHA-256 de `json.dumps({"query": q, "max": n}, sort_keys=True)`
+
+Le format JSON structuré (plutôt que concaténation de strings) rend la clé
+extensible : si on ajoute `--sort` ou `--date-range` plus tard, il suffit
+d'ajouter un champ au dict sans risque de collision.
 
 **Normalisation** : strip + collapse whitespace (pas de lowercase — PubMed
 a ses propres règles de case-sensitivity selon les champs)
@@ -96,9 +101,15 @@ a ses propres règles de case-sensitivity selon les champs)
 ```
 
 **Comportement** :
-- Cache hit → retourne les PMIDs stockés, log audit `"cached": true`
+- Cache hit → retourne les PMIDs stockés, **affiche un avertissement sur
+  stderr** avec la date du cache, log audit `"cached": true`
 - Cache miss → appel API, stocke résultat, log audit `"cached": false`
 - `--refresh` → ignore le cache, refait l'appel, met à jour le fichier
+
+**Avertissement stderr lors d'un cache hit** :
+```
+pm: using cached search from 2026-02-12 (7 days ago). Use --refresh to update.
+```
 
 **Note PRISMA** : la date du cache est la date de la recherche originale.
 Avec `--refresh`, c'est la nouvelle date. L'audit trail conserve les deux.
@@ -107,13 +118,16 @@ Avec `--refresh`, c'est la nouvelle date. L'audit trail conserve les deux.
 
 **Clé** : PMID (un fichier XML par article)
 
-**Valeur** : fragment XML `<PubmedArticle>...</PubmedArticle>`
+**Valeur** : fragment XML `<PubmedArticle>...</PubmedArticle>` ou
+`<PubmedBookArticle>...</PubmedBookArticle>` (les deux types existent
+dans `PubmedArticleSet`)
 
 **Comportement smart-batch** :
 1. Reçoit la liste de PMIDs à fetcher
 2. Vérifie lesquels sont déjà dans `.pm/cache/fetch/`
 3. N'appelle l'API que pour les PMIDs manquants
-4. Parse la réponse XML pour extraire chaque `<PubmedArticle>`
+4. Parse la réponse XML pour extraire chaque élément enfant de
+   `<PubmedArticleSet>` (article ou book article)
 5. Cache chaque article individuellement
 6. Reassemble tous les articles (cachés + frais) dans un `<PubmedArticleSet>`
 
@@ -131,8 +145,19 @@ Avec `--refresh`, c'est la nouvelle date. L'audit trail conserve les deux.
 peuvent retourner des PMIDs en commun. Le cache par PMID évite de re-fetcher
 ces articles partagés.
 
-**Stabilité** : une fois publié, le XML d'un article PubMed ne change
-quasiment jamais (sauf errata). Le cache est donc fiable sans TTL.
+**Stabilité des articles** : une fois publié, le XML d'un article PubMed
+change rarement. Cependant, des changements arrivent :
+
+| Type de changement | Fréquence | Impact |
+|-------------------|-----------|--------|
+| Rétractions | ~4000/an | Critique — article rétracté traité comme valide |
+| Errata/Corrections | ~30-50k/an | Modéré — section CommentsCorrections ajoutée |
+| Indexation MeSH | Chaque article | Faible — les champs extraits par pm parse ne changent pas |
+| Corrections d'auteurs | Fréquent | Faible — nom, affiliation |
+
+Pour une revue systématique finale, un `pm fetch --refresh` est recommandé
+avant la soumission pour détecter les rétractions. Le cache permanent sans TTL
+reste le bon défaut (reproductibilité > fraîcheur).
 
 ### 3. Cite cache
 
@@ -173,18 +198,26 @@ Mais elles sont logguées dans l'audit trail pour la traçabilité PRISMA.
 
 Fichier `.pm/audit.jsonl` — append-only, un événement JSON par ligne.
 
+### Ordre d'écriture
+
+**L'audit est écrit AVANT le cache.** Si le process crash entre les deux,
+l'audit reflète l'opération tentée (correct) et le cache est absent (le
+prochain run re-fetche — correct aussi). L'inverse (cache écrit, audit absent)
+serait pire : des données sans trace.
+
 ### Événements
 
 ```jsonl
 {"ts":"2026-02-19T14:30:00Z","op":"init","version":"0.2.0"}
-{"ts":"2026-02-19T14:30:05Z","op":"search","query":"CRISPR cancer","max":10000,"count":1523,"cached":false}
+{"ts":"2026-02-19T14:30:05Z","op":"search","db":"pubmed","query":"CRISPR cancer","max":10000,"count":1523,"cached":false}
 {"ts":"2026-02-19T14:30:10Z","op":"fetch","requested":1523,"cached":0,"fetched":1523}
-{"ts":"2026-02-19T14:31:00Z","op":"search","query":"gene therapy","max":10000,"count":2000,"cached":false}
+{"ts":"2026-02-19T14:31:00Z","op":"search","db":"pubmed","query":"gene therapy","max":10000,"count":2000,"cached":false}
 {"ts":"2026-02-19T14:31:05Z","op":"fetch","requested":2000,"cached":150,"fetched":1850}
-{"ts":"2026-02-19T14:32:00Z","op":"filter","input":3373,"output":1200,"criteria":{"year":"2024","has_abstract":true}}
+{"ts":"2026-02-19T14:32:00Z","op":"filter","input":3373,"output":1200,"criteria":{"year":"2024","has_abstract":true},"excluded":{"year":1500,"has_abstract":673}}
 {"ts":"2026-02-19T14:33:00Z","op":"cite","requested":1200,"cached":0,"fetched":1200}
 {"ts":"2026-02-19T14:34:00Z","op":"download","requested":1200,"downloaded":800,"skipped":0,"failed":400}
-{"ts":"2026-02-20T10:00:00Z","op":"search","query":"CRISPR cancer","max":10000,"count":1530,"cached":false,"refreshed":true}
+{"ts":"2026-02-20T10:00:00Z","op":"search","db":"pubmed","query":"CRISPR cancer","max":10000,"count":1530,"cached":false,"refreshed":true}
+{"ts":"2026-02-21T09:00:00Z","op":"search","db":"pubmed","query":"CRISPR cancer","max":10000,"count":1530,"cached":true,"original_ts":"2026-02-20T10:00:00Z"}
 ```
 
 ### Champs communs
@@ -195,44 +228,32 @@ Fichier `.pm/audit.jsonl` — append-only, un événement JSON par ligne.
 | `op` | string | Opération (init, search, fetch, filter, cite, download) |
 | `cached` | bool | Si les données viennent du cache |
 | `refreshed` | bool | Si l'opération a été forcée avec --refresh |
+| `original_ts` | ISO 8601 | Quand les données cachées ont été obtenues (cache hits seulement) |
 
 ### Champs par opération
 
 | Op | Champs spécifiques |
 |----|-------------------|
-| search | query, max, count, pmids (optionnel, peut être gros) |
+| search | db, query, max, count |
 | fetch | requested, cached, fetched |
-| filter | input, output, criteria |
+| filter | input, output, criteria, excluded |
 | cite | requested, cached, fetched |
 | download | requested, downloaded, skipped, failed |
 
-### PRISMA : reconstitution de la méthodologie
+Le champ `db` dans search est systématiquement `"pubmed"` aujourd'hui mais
+permet l'extension future à d'autres bases (Embase, Cochrane, etc.) — requis
+par PRISMA qui exige de lister toutes les bases interrogées.
 
-L'audit trail permet de reconstituer le flow PRISMA avec `jq` :
+Le champ `excluded` dans filter détaille les exclusions par critère. Chaque
+article est compté dans le premier critère qui l'exclut (évaluation séquentielle).
+Ceci est requis par PRISMA pour le diagramme de flux.
 
-```bash
-# Date et résultats de chaque recherche
-jq 'select(.op=="search")' .pm/audit.jsonl
+### PMIDs dans l'audit
 
-# Nombre total d'articles identifiés (toutes recherches)
-jq -s '[.[] | select(.op=="search")] | map(.count) | add' .pm/audit.jsonl
-
-# Résultats après filtrage
-jq 'select(.op=="filter") | {input, output, criteria}' .pm/audit.jsonl
-
-# Taux de téléchargement
-jq 'select(.op=="download")' .pm/audit.jsonl
-```
-
-### Question ouverte : stocker les PMIDs dans l'audit ?
-
-Pour PRISMA, on pourrait vouloir la liste exacte de PMIDs retournés par chaque
-recherche (pour calculer la déduplication entre recherches). Mais ça alourdit
-le fichier.
-
-**Proposition** : stocker les PMIDs dans le fichier cache search (qui les a
-déjà), et dans l'audit ne garder que le count + un hash de la liste. Un
-utilitaire `pm audit --detail` pourrait croiser les deux pour le rapport final.
+Les PMIDs sont stockés dans les fichiers **cache search** (qui les ont déjà).
+L'audit ne garde que le `count` + la clé du cache (`cache_key`). L'utilitaire
+`pm audit` croise les deux pour reconstituer les listes complètes quand c'est
+nécessaire (déduplication, rapport PRISMA).
 
 ## `--refresh` et audit trail
 
@@ -246,7 +267,7 @@ Le `--refresh` et l'audit trail ne se contredisent pas :
 Exemple :
 ```
 14:30  search "CRISPR" → 1523 résultats (cache miss, stocké)
-14:35  search "CRISPR" → 1523 résultats (cache hit)
+14:35  search "CRISPR" → 1523 résultats (cache hit, original_ts=14:30)
 ...3 mois plus tard...
 14:30  search "CRISPR" --refresh → 1580 résultats (cache mis à jour)
 ```
@@ -271,10 +292,12 @@ Error: .pm/ already exists in /home/user/my-review/
 
 ### Ce qu'il fait
 
-1. Crée `.pm/` et ses sous-répertoires
-2. Crée `.pm/.gitignore` (ignore `cache/`)
-3. Crée `.pm/audit.jsonl` vide
-4. Log l'événement `init` dans l'audit trail
+1. Crée `.pm/` via `os.mkdir()` (atomique — échoue si le dossier existe déjà,
+   ce qui évite les race conditions entre deux agents)
+2. Crée les sous-répertoires `cache/{search,fetch,cite,download}/`
+3. Crée `.pm/.gitignore` (ignore `cache/`)
+4. Crée `.pm/audit.jsonl` vide
+5. Log l'événement `init` dans l'audit trail
 
 ### Help
 
@@ -290,18 +313,217 @@ Creates a .pm/ directory with:
 Use 'pm audit' to view the audit trail.
 ```
 
-## `pm audit` (optionnel, phase tardive)
+## `pm audit` — Rapport PRISMA
 
-Un utilitaire pour consulter l'audit trail sans `jq` :
+### Commande
 
 ```bash
 pm audit                    # Résumé des opérations
 pm audit --searches         # Liste des recherches avec dates et counts
-pm audit --prisma           # Rapport PRISMA-style
+pm audit --prisma           # Rapport PRISMA-style (identification → inclusion)
 pm audit --dedup            # Analyse de déduplication entre recherches
 ```
 
-Peut être implémenté en dernier ou pas du tout (jq suffit).
+### Sortie de `pm audit --prisma`
+
+```
+PRISMA 2020 Flow Summary
+========================
+
+IDENTIFICATION
+  Database searches:
+    PubMed "CRISPR cancer therapy" (2026-02-19)     n = 1,523
+    PubMed "gene therapy oncology" (2026-02-19)     n = 2,000
+  Records from databases                            n = 3,523
+  Duplicates removed                                n =   150
+  Records after deduplication                       n = 3,373
+
+SCREENING
+  Records screened                                  n = 3,373
+  Records excluded:
+    Year filter (2024)                              n = 1,500
+    No abstract                                     n =   673
+  Records after screening                           n = 1,200
+
+RETRIEVAL
+  Full-text articles sought                         n = 1,200
+  Full-text articles obtained                       n =   800
+  Not available                                     n =   400
+
+INCLUDED
+  Studies included in review                        n =   800
+```
+
+Cette sortie est calculée à partir de l'audit trail uniquement. Les nombres
+sont extraits des événements search/filter/download.
+
+### Déduplication
+
+La déduplication est calculée en croisant les listes de PMIDs des différentes
+recherches (stockées dans les fichiers cache search). `pm audit --dedup`
+affiche le détail :
+
+```
+Deduplication analysis
+======================
+Search 1: "CRISPR cancer therapy"       1,523 PMIDs
+Search 2: "gene therapy oncology"        2,000 PMIDs
+                                        ------
+Total (all searches)                     3,523
+Unique PMIDs                             3,373
+Duplicates removed                         150
+
+Overlap matrix:
+              Search 1  Search 2
+Search 1          -        150
+Search 2        150          -
+```
+
+## Concurrence et crash-safety
+
+### Stratégie : pas de locks, primitives atomiques
+
+Deux agents (ou deux terminaux) peuvent utiliser `pm` en parallèle dans le
+même dossier. Plutôt qu'un mécanisme de lock (complexe, risque de deadlock,
+stale locks), on s'appuie sur deux primitives POSIX atomiques :
+
+### 1. Écritures cache : write-to-temp + `os.replace()`
+
+```python
+import os
+import tempfile
+
+def cache_write_atomic(path: Path, data: str) -> None:
+    """Écriture atomique : le fichier est soit complet, soit absent."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        os.write(fd, data.encode())
+        os.close(fd)
+        os.replace(tmp, path)  # atomique sur POSIX (même filesystem)
+    except BaseException:
+        os.close(fd)
+        os.unlink(tmp)
+        raise
+```
+
+**Garantie** : un `cache_read()` concurrent voit soit l'ancien fichier complet,
+soit le nouveau fichier complet. Jamais un fichier tronqué.
+
+**Si deux agents écrivent le même fichier** : le dernier `os.replace()` gagne.
+Les deux écrivent les mêmes données (même PMID → même XML), donc le résultat
+est correct. Au pire, un appel API est dupliqué — acceptable.
+
+### 2. Append audit : `O_APPEND` + `os.write()` unique
+
+```python
+import os
+import json
+
+def audit_log(pm_dir: Path, event: dict) -> None:
+    """Append atomique : une ligne JSON complète ou rien."""
+    if pm_dir is None:
+        return
+    event["ts"] = datetime.utcnow().isoformat() + "Z"
+    line = json.dumps(event, ensure_ascii=False) + "\n"
+    data = line.encode()
+    # os.write() avec O_APPEND est atomique sur POSIX pour < PIPE_BUF (4096)
+    fd = os.open(pm_dir / "audit.jsonl", os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    try:
+        os.write(fd, data)
+    finally:
+        os.close(fd)
+```
+
+**Garantie POSIX** : `write()` avec `O_APPEND` est atomique si la taille
+est ≤ `PIPE_BUF` (4096 bytes sur Linux). Nos événements font ~200-500 bytes.
+Deux agents qui loggent simultanément produisent deux lignes complètes et
+non-entrelacées.
+
+### 3. Gestion des fichiers corrompus
+
+Malgré les écritures atomiques, un crash dur (kill -9, coupure courant) peut
+laisser un fichier corrompu. Politique : **cache miss gracieux**.
+
+```python
+def cache_read(pm_dir: Path, category: str, key: str) -> str | None:
+    """Lecture tolérante : fichier corrompu = cache miss."""
+    path = pm_dir / "cache" / category / key
+    if not path.exists():
+        return None
+    try:
+        data = path.read_text()
+        # Validation minimale selon le type
+        if category == "search":
+            json.loads(data)  # doit être du JSON valide
+        elif category == "fetch":
+            ET.fromstring(data)  # doit être du XML valide
+        return data
+    except (json.JSONDecodeError, ET.ParseError, OSError):
+        # Fichier corrompu → traiter comme cache miss, log warning
+        return None
+```
+
+Pour l'audit trail, les lignes tronquées (crash mid-write) sont ignorées
+silencieusement par le lecteur. Le fichier reste valide sauf la dernière ligne.
+
+### 4. Scénarios concurrents
+
+| Scénario | Comportement | Conséquence |
+|----------|-------------|-------------|
+| 2 agents font la même recherche | Les deux appellent l'API, le dernier écrit gagne | Résultat correct, un appel API dupliqué |
+| 2 agents fetchent les mêmes PMIDs | Smart-batch indépendant, certains XMLs écrits 2x | Correct, quelques doublons réseau |
+| 2 agents appendant l'audit | `O_APPEND` garantit pas d'entrelacement | Deux lignes correctes |
+| 1 agent lit, 1 agent écrit le cache | `os.replace()` est atomique : ancien ou nouveau complet | Correct |
+| `pm init` concurrent | `os.mkdir()` est atomique : un seul réussit | Le perdant voit l'erreur "already exists" |
+
+**Philosophie** : on accepte des appels API dupliqués (rares, bénins) plutôt
+que d'introduire un système de locks (complexe, fragile, stale locks).
+
+## Bug pré-existant : fetch multi-batch
+
+**Découvert lors de la review.** La fonction `fetch()` actuelle join les
+réponses de batches multiples avec `"\n".join(results)` (fetch.py:60). Chaque
+réponse est un document XML complet avec `<?xml ...>` et `<PubmedArticleSet>`.
+Le résultat concaténé n'est **pas du XML valide** (plusieurs éléments racine).
+
+`ET.fromstring()` échoue avec "junk after document element" sur les résultats
+multi-batch. Cela signifie que pour toute recherche retournant >200 PMIDs,
+le pipeline `pm search | pm fetch | pm parse` **perd silencieusement les
+données** au-delà du premier batch.
+
+**Ce bug doit être corrigé indépendamment du cache**, probablement en phase 0
+ou au début de la phase 3. Le cache le corrige naturellement (reassemblage en
+un seul `<PubmedArticleSet>`), mais le fix doit aussi marcher sans `.pm/`.
+
+## XML splitting : points d'attention
+
+### PubmedBookArticle
+
+`PubmedArticleSet` peut contenir deux types d'éléments :
+- `<PubmedArticle>` (articles de journaux — 99%+ des cas)
+- `<PubmedBookArticle>` (GeneReviews, NCBI Bookshelf — rare mais réel)
+
+Le splitter doit itérer sur **tous les enfants** de `<PubmedArticleSet>`,
+pas seulement chercher `PubmedArticle`. L'extraction du PMID fonctionne
+identiquement pour les deux types (`MedlineCitation/PMID`).
+
+### Sérialisation des fragments
+
+- `ET.tostring(element, encoding='unicode')` produit un fragment XML valide
+- Effacer `element.tail = None` avant sérialisation (évite l'accumulation
+  de whitespace inter-éléments)
+- Les namespaces (`xlink:` etc.) sont rares dans PubMed XML mais seront
+  propagés correctement par ElementTree (renommés en `ns0:` — sémantiquement
+  équivalent)
+
+### Round-trip test obligatoire
+
+Test d'intégrité critique : pour chaque fixture XML existante :
+```
+original XML → parse → résultat A
+original XML → split → cache → reassemble → parse → résultat B
+assert A == B
+```
 
 ## Impact sur les tests existants qui fail
 
@@ -324,12 +546,14 @@ automatiquement si `.pm/` existe.
 
 ## Plan d'implémentation TDD
 
-### Phase 0 : Nettoyage
+### Phase 0 : Nettoyage et fix pré-requis
 
 - [ ] Supprimer les tests `TestCiteBibtex` et `TestCiteRIS` de test_cite.py
 - [ ] Supprimer `docs/pm-skill-plan.md`
-- [ ] Vérifier que les 163 tests restants passent (3 download tests restent en
-  échec — features indépendantes)
+- [ ] Fix du bug multi-batch dans `fetch()` : assembler les réponses en un
+  seul `<PubmedArticleSet>` valide (TDD : écrire le test d'abord)
+- [ ] Vérifier que les tests passent (3 download tests restent en échec —
+  features indépendantes, 1 cite cache test — sera implémenté phase 4)
 
 ### Phase 1 : Infrastructure cache + audit
 
@@ -340,6 +564,7 @@ automatiquement si `.pm/` existe.
 - `pm init` dans un dossier avec `.pm/` existant → erreur
 - `pm init` crée `.pm/.gitignore` avec `cache/`
 - `pm init` log un événement `init` dans audit.jsonl
+- `pm init` concurrent → un seul réussit (test avec `os.mkdir` atomique)
 
 **Implémentation** :
 - Nouveau fichier `src/pm_tools/init.py`
@@ -348,16 +573,16 @@ automatiquement si `.pm/` existe.
 #### 1.2 — Module cache store
 
 **Tests** :
-- `cache_read(category, key)` → None si pas de cache
-- `cache_write(category, key, data)` → écrit le fichier
-- `cache_read(category, key)` après write → retourne les données
+- `cache_read(pm_dir, category, key)` → None si pas de cache
+- `cache_write_atomic(pm_dir, category, key, data)` → écrit le fichier
+- `cache_read` après write → retourne les données
+- `cache_read` sur fichier JSON corrompu → None (cache miss gracieux)
+- `cache_read` sur fichier XML corrompu → None
 - Catégories : "search", "fetch", "cite", "download"
-- Les données sont du texte brut (XML, JSON)
 
 **Implémentation** :
 - Nouveau fichier `src/pm_tools/cache.py`
-- API simple : `cache_read(pm_dir, category, key) → str | None`
-- API simple : `cache_write(pm_dir, category, key, data: str) → Path`
+- Écritures atomiques via write-to-temp + `os.replace()`
 
 #### 1.3 — Module audit logger
 
@@ -366,10 +591,10 @@ automatiquement si `.pm/` existe.
 - L'événement a automatiquement un champ `ts` (timestamp UTC)
 - Fichier reste valide après plusieurs appels (une ligne JSON par append)
 - `audit_log` est un no-op si `pm_dir` est None
+- Append atomique : `O_APPEND` + `os.write()` single-call
 
 **Implémentation** :
 - Fonction dans `src/pm_tools/cache.py` (même module)
-- Append atomique (open + write + flush)
 
 #### 1.4 — Détection `.pm/` dans le CLI
 
@@ -390,6 +615,7 @@ automatiquement si `.pm/` existe.
 - Deuxième appel identique → retourne le cache, 0 appels réseau
 - Requêtes différentes → fichiers cache différents
 - `--refresh` → bypass le cache, met à jour le fichier
+- Cache hit → avertissement stderr avec date du cache
 
 **Implémentation** :
 - Ajouter `cache_dir: Path | None = None, refresh: bool = False` à `search()`
@@ -400,11 +626,13 @@ automatiquement si `.pm/` existe.
 
 **Tests** :
 - `search()` avec `pm_dir` → log dans audit.jsonl
-- Événement contient : op, query, max, count, cached
+- Événement contient : op, db, query, max, count, cached
+- Cache hit → événement contient `original_ts` (date des données cachées)
 - Avec `--refresh` → événement contient `refreshed: true`
 
 **Implémentation** :
-- Appeler `audit_log()` depuis `search()` après l'opération
+- Écrire l'audit AVANT le cache (ordre important pour crash-safety)
+- Appeler `audit_log()` depuis `search()` après l'opération API/cache
 
 #### 2.3 — CLI search integration
 
@@ -424,11 +652,14 @@ automatiquement si `.pm/` existe.
 **Tests** :
 - `split_xml_articles(xml_string)` → dict[pmid, xml_fragment]
 - Chaque fragment est un `<PubmedArticle>` complet et valide
+- Gère `<PubmedBookArticle>` en plus de `<PubmedArticle>`
 - Gère les cas : un seul article, plusieurs articles, XML vide
+- `element.tail` est effacé avant sérialisation
 
 **Implémentation** :
-- Fonction dans `fetch.py` ou `cache.py`
-- Parse avec ElementTree, sérialise chaque élément
+- Fonction dans `cache.py`
+- Parse avec ElementTree, sérialise chaque élément enfant de PubmedArticleSet
+- Itère sur TOUS les enfants (pas seulement PubmedArticle)
 
 #### 3.2 — Smart batching
 
@@ -447,10 +678,11 @@ automatiquement si `.pm/` existe.
 - Articles cachés + articles frais → XML valide combiné
 - L'ordre des articles dans le XML correspond à l'ordre des PMIDs demandés
 - Le XML résultant est parseable par `pm parse`
+- **Round-trip test** : pour chaque fixture XML existante,
+  `split → cache → reassemble → parse == parse original`
 
 **Implémentation** :
 - Wrapper `<PubmedArticleSet>` autour des fragments concaténés
-- Round-trip test : split → cache → reassemble → parse = mêmes données
 
 #### 3.4 — Audit fetch
 
@@ -501,10 +733,12 @@ automatiquement si `.pm/` existe.
 
 **Tests** :
 - `pm filter` avec `.pm/` → log input count, output count, critères
-- Événement : `{"op":"filter","input":1523,"output":800,"criteria":{...}}`
+- Événement contient `excluded` : dict des compteurs par critère d'exclusion
+- Évaluation séquentielle : chaque article compté dans le premier critère
+  qui l'exclut
 
 **Implémentation** :
-- `filter.main()` compte les lignes in/out et log l'événement
+- `filter.main()` compte les lignes in/out par critère et log l'événement
 - Pas de cache (opération locale)
 
 ### Phase 7 : Quick integration
@@ -518,46 +752,57 @@ automatiquement si `.pm/` existe.
 **Implémentation** :
 - `quick_main()` passe `cache_dir` aux fonctions sous-jacentes
 
-### Phase 8 (optionnelle) : `pm audit`
+### Phase 8 : `pm audit`
 
 #### 8.1 — Commande pm audit
 
 **Tests** :
 - `pm audit` → résumé lisible des opérations
-- `pm audit --searches` → liste des recherches
-- `pm audit --prisma` → rapport type PRISMA (identification → screening)
+- `pm audit --searches` → liste des recherches avec dates et counts
+- `pm audit --dedup` → analyse de déduplication entre recherches
+- `pm audit --prisma` → rapport PRISMA 2020 complet (voir format ci-dessus)
+- Lignes audit corrompues (crash) → ignorées silencieusement
 
 **Implémentation** :
 - Nouveau fichier `src/pm_tools/audit.py`
 - Parse `.pm/audit.jsonl` et formate le rapport
+- Croise avec les fichiers cache search pour la déduplication
 
 ## Risques et mitigations
 
 | Risque | Impact | Mitigation |
 |--------|--------|------------|
-| Cache fetch : XML splitting complexe | Peut introduire des bugs de parsing | Tests round-trip exhaustifs (split → reassemble → parse = original) |
-| Cache search : même query, résultats différents | Confond la reproductibilité | Le cache freeze le résultat. --refresh pour mettre à jour |
-| .pm/ dans un repo git | Pollution du repo | .gitignore dans .pm/ (cache ignoré, audit versionné) |
-| Gros volume de fichiers cache | Lenteur filesystem | Acceptable pour <100k fichiers. Si besoin, ajouter des sous-dossiers |
-| Audit trail trop verbeux | Fichier illisible | Garder les événements concis, détails dans le cache |
+| Concurrence : 2 agents en parallèle | Appels API dupliqués | Atomicité POSIX (`os.replace`, `O_APPEND`) — pas de corruption |
+| Concurrence : stale lock file | Blocage permanent | Pas de locks → pas de stale locks |
+| Cache fetch : XML splitting complexe | Bugs de parsing | Tests round-trip exhaustifs sur toutes les fixtures |
+| Cache fetch : PubmedBookArticle | Perte silencieuse de données | Itérer sur tous les enfants de PubmedArticleSet |
+| Cache search : résultats obsolètes | Mauvaise méthodologie | Avertissement stderr + `original_ts` dans audit |
+| Crash mid-write | Fichier corrompu | Écritures atomiques (temp+replace), lecture tolérante |
+| Crash entre audit et cache | Inconsistance | Audit écrit AVANT le cache (audit = source de vérité) |
+| Articles rétractés dans le cache | Revue systématique compromise | `--refresh` avant soumission, documentation du risque |
+| .pm/ dans un repo git | Pollution du repo | `.gitignore` dans `.pm/` (cache ignoré, audit versionné) |
+| Gros volume de fichiers cache | Lenteur filesystem | Acceptable pour <100k fichiers |
+| Audit trail avec lignes corrompues | Crash de jq | Lecteur tolérant, skip lignes invalides |
+| Bug multi-batch fetch (pré-existant) | Perte de données >200 PMIDs | Fix en phase 0 (priorité haute) |
 
 ## Fichiers à créer/modifier
 
 | Fichier | Action | Phase |
 |---------|--------|-------|
-| `src/pm_tools/cache.py` | Créer — store + audit logger | 1 |
+| `src/pm_tools/cache.py` | Créer — store + audit logger + split XML | 1, 3 |
 | `src/pm_tools/init.py` | Créer — pm init | 1 |
-| `src/pm_tools/cli.py` | Modifier — ajouter init (et audit) | 1, 8 |
+| `src/pm_tools/audit.py` | Créer — pm audit | 8 |
+| `src/pm_tools/cli.py` | Modifier — ajouter init et audit | 1, 8 |
 | `src/pm_tools/search.py` | Modifier — cache_dir + audit | 2 |
-| `src/pm_tools/fetch.py` | Modifier — cache + smart batch + audit | 3 |
+| `src/pm_tools/fetch.py` | Modifier — fix multi-batch + cache + smart batch + audit | 0, 3 |
 | `src/pm_tools/cite.py` | Modifier — cache + audit | 4 |
 | `src/pm_tools/download.py` | Modifier — audit | 5 |
-| `src/pm_tools/filter.py` | Modifier — audit | 6 |
-| `src/pm_tools/audit.py` | Créer — pm audit (optionnel) | 8 |
-| `tests/test_cache.py` | Créer — tests cache store + audit | 1 |
+| `src/pm_tools/filter.py` | Modifier — audit + excluded counts | 6 |
+| `tests/test_cache.py` | Créer — tests cache store + audit + split XML | 1, 3 |
 | `tests/test_init.py` | Créer — tests pm init | 1 |
+| `tests/test_audit.py` | Créer — tests pm audit | 8 |
 | `tests/test_search.py` | Modifier — tests cache search | 2 |
-| `tests/test_fetch.py` | Modifier — tests smart batch | 3 |
+| `tests/test_fetch.py` | Modifier — tests fix multi-batch + smart batch | 0, 3 |
 | `tests/test_cite.py` | Modifier — tests cache cite | 4 |
 | `tests/test_download.py` | Modifier — tests audit download | 5 |
-| `tests/test_filter.py` | Modifier — tests audit filter | 6 |
+| `tests/test_filter.py` | Modifier — tests audit filter + excluded | 6 |
