@@ -6,7 +6,6 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Any
 
 import httpx
 
@@ -152,94 +151,6 @@ def cite(
 
     return results
 
-
-def format_citation(csl_json: dict[str, Any], style: str = "apa") -> str:
-    """Format a CSL-JSON citation dict into a human-readable string.
-
-    Args:
-        csl_json: CSL-JSON citation dict.
-        style: Citation style ("apa" or "vancouver").
-
-    Returns:
-        Formatted citation string.
-    """
-    authors = csl_json.get("author", [])
-    title = csl_json.get("title", "")
-    container = csl_json.get("container-title", "")
-
-    # Extract year from issued
-    year = ""
-    issued = csl_json.get("issued")
-    if issued:
-        date_parts = issued.get("date-parts", [[]])
-        if date_parts and date_parts[0]:
-            year = str(date_parts[0][0])
-
-    volume = csl_json.get("volume", "")
-    issue = csl_json.get("issue", "")
-    pages = csl_json.get("page", "")
-
-    if style == "vancouver":
-        # Vancouver: Author1 Init, Author2 Init. Title. Journal. Year;Vol(Issue):Pages.
-        author_strs = []
-        for a in authors:
-            family = a.get("family", "")
-            given = a.get("given", "")
-            initials = "".join(w[0] for w in given.split() if w) if given else ""
-            author_strs.append(f"{family} {initials}")
-        authors_str = ", ".join(author_strs)
-
-        parts = [authors_str + ".", title + "."]
-        if container:
-            journal_part = container + "."
-            if year:
-                journal_part = f"{container}. {year}"
-            if volume:
-                journal_part += f";{volume}"
-            if issue:
-                journal_part += f"({issue})"
-            if pages:
-                journal_part += f":{pages}"
-            journal_part += "."
-            parts.append(journal_part)
-        return " ".join(parts)
-
-    # APA (default): Author, A. B., & Author, C. D. (Year). Title. Journal, Vol(Issue), Pages.
-    author_strs = []
-    for a in authors:
-        family = a.get("family", "")
-        given = a.get("given", "")
-        initials = ". ".join(w[0] for w in given.split() if w) + "." if given else ""
-        author_strs.append(f"{family}, {initials}" if initials else family)
-
-    if len(author_strs) > 1:
-        authors_str = ", ".join(author_strs[:-1]) + ", & " + author_strs[-1]
-    elif author_strs:
-        authors_str = author_strs[0]
-    else:
-        authors_str = ""
-
-    parts = []
-    if authors_str:
-        parts.append(authors_str)
-    if year:
-        parts.append(f"({year}).")
-    else:
-        parts.append("(n.d.).")
-    if title:
-        parts.append(title + ".")
-    if container:
-        journal_ref = f"*{container}*"
-        if volume:
-            journal_ref += f", *{volume}*"
-        if issue:
-            journal_ref += f"({issue})"
-        if pages:
-            journal_ref += f", {pages}"
-        journal_ref += "."
-        parts.append(journal_ref)
-
-    return " ".join(parts)
 
 
 HELP_TEXT = """\

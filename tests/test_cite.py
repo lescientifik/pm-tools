@@ -175,27 +175,6 @@ class TestCiteErrorRecovery:
         assert len(result) == 2, "Should recover from first batch failure and return second batch"
 
 
-class TestCiteFormatCitation:
-    def test_format_citation_apa(self) -> None:
-        """cite module should expose format_citation(csl_json, style='apa').
-
-        Not yet implemented -- drives adding a citation formatter.
-        """
-        from pm_tools.cite import format_citation
-
-        formatted = format_citation(_CSL_SINGLE, style="apa")
-        assert isinstance(formatted, str)
-        assert "Smith" in formatted
-        assert "2024" in formatted
-        assert "Nature" in formatted
-
-    def test_format_citation_vancouver(self) -> None:
-        from pm_tools.cite import format_citation
-
-        formatted = format_citation(_CSL_SINGLE, style="vancouver")
-        assert isinstance(formatted, str)
-        assert "Smith J" in formatted
-
 
 class TestCiteDeduplication:
     def test_duplicate_pmids_deduplicated(self, monkeypatch: pytest.MonkeyPatch) -> None:
