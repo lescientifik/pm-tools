@@ -1,8 +1,8 @@
-# pm-cite Implementation Plan
+# pm cite Implementation Plan
 
 ## Overview
 
-`pm-cite` is a CLI tool to retrieve CSL-JSON citations from PubMed via the NCBI Citation Exporter API.
+`pm cite` is a CLI tool to retrieve CSL-JSON citations from PubMed via the NCBI Citation Exporter API.
 
 **Goal:** PMIDs in, CSL-JSON out. Simple, composable, follows pm-tools Unix philosophy.
 
@@ -70,11 +70,11 @@ curl -sL "https://pmc.ncbi.nlm.nih.gov/api/ctxp/v1/pubmed/?format=csl&id=2801245
 
 ```bash
 # From stdin (pipe-friendly)
-echo "28012456" | pm-cite > citation.json
-pm-search "CRISPR" | head -5 | pm-cite > citations.jsonl
+echo "28012456" | pm cite > citation.json
+pm search "CRISPR" | head -5 | pm cite > citations.jsonl
 
 # From arguments
-pm-cite 28012456 29886577 > citations.jsonl
+pm cite 28012456 29886577 > citations.jsonl
 ```
 
 ### Input
@@ -86,7 +86,7 @@ pm-cite 28012456 29886577 > citations.jsonl
 ### Output
 
 - **JSONL:** One CSL-JSON object per line (streaming, jq-compatible)
-- Consistent with pm-parse output format
+- Consistent with pm parse output format
 
 ### Options
 
@@ -115,13 +115,13 @@ pm-cite 28012456 29886577 > citations.jsonl
 ### 2. Empty Input
 
 **Our handling:**
-- Exit 0 with no output (like pm-fetch)
+- Exit 0 with no output (like pm fetch)
 - Don't call API at all
 
 ### 3. Large Batches
 
 **Our handling:**
-- Batch 200 PMIDs per request (same as pm-fetch)
+- Batch 200 PMIDs per request (same as pm fetch)
 - Rate limit between batches (0.34s = ~3 req/sec)
 - Reuse batching logic from pm-common.sh
 
@@ -138,15 +138,15 @@ pm-cite 28012456 29886577 > citations.jsonl
 **Our handling:**
 - Exit 1 immediately on network error
 - Print error message to stderr
-- Fail-fast (like pm-fetch)
+- Fail-fast (like pm fetch)
 
 ## Implementation Phases (TDD)
 
 ### Phase 0: Refactor pm-common.sh (Code Reuse)
 
-**Goal:** Extract batching logic from pm-fetch to avoid duplication in pm-cite.
+**Goal:** Extract batching logic from pm fetch to avoid duplication in pm cite.
 
-**Principle:** TDD - write tests first, then implement, then refactor pm-fetch, verify no regression.
+**Principle:** TDD - write tests first, then implement, then refactor pm fetch, verify no regression.
 
 #### 0.1 Add `read_pmids_to_array()` to pm-common.sh
 
@@ -269,14 +269,14 @@ process_batches() {
 }
 ```
 
-#### 0.3 Refactor pm-fetch to use new functions
+#### 0.3 Refactor pm fetch to use new functions
 
-**Before refactoring:** Run all pm-fetch tests, save results.
+**Before refactoring:** Run all pm fetch tests, save results.
 ```bash
-bats test/pm-fetch.bats > /tmp/pm-fetch-before.txt
+bats test/pm fetch.bats > /tmp/pm fetch-before.txt
 ```
 
-**Refactor pm-fetch:**
+**Refactor pm fetch:**
 ```bash
 # OLD (lines 66-100):
 pmid_list=()
@@ -296,33 +296,33 @@ fetch_batch() {
 process_batches fetch_batch "$BATCH_SIZE" "$RATE_LIMIT_DELAY" "${pmid_list[@]}"
 ```
 
-**After refactoring:** Run all pm-fetch tests again, verify identical results.
+**After refactoring:** Run all pm fetch tests again, verify identical results.
 ```bash
-bats test/pm-fetch.bats > /tmp/pm-fetch-after.txt
-diff /tmp/pm-fetch-before.txt /tmp/pm-fetch-after.txt  # Must be empty
+bats test/pm fetch.bats > /tmp/pm fetch-after.txt
+diff /tmp/pm fetch-before.txt /tmp/pm fetch-after.txt  # Must be empty
 ```
 
 **Regression tests (explicit checklist):**
-- [ ] `pm-fetch --help` works
-- [ ] `pm-fetch` with empty input exits 0
-- [ ] `pm-fetch` with single PMID returns XML
-- [ ] `pm-fetch` with multiple PMIDs returns XML
-- [ ] `pm-fetch` batching still works (200 PMIDs per request)
-- [ ] All existing pm-fetch.bats tests pass
+- [ ] `pm fetch --help` works
+- [ ] `pm fetch` with empty input exits 0
+- [ ] `pm fetch` with single PMID returns XML
+- [ ] `pm fetch` with multiple PMIDs returns XML
+- [ ] `pm fetch` batching still works (200 PMIDs per request)
+- [ ] All existing pm fetch.bats tests pass
 
 ### Phase 1: Basic Functionality
 
 #### 1.1 Test: Help and Empty Input
 
 ```bash
-@test "pm-cite --help shows usage" {
-    run bin/pm-cite --help
+@test "pm cite --help shows usage" {
+    run bin/pm cite --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage"* ]]
 }
 
-@test "pm-cite with no input exits cleanly" {
-    run bin/pm-cite < /dev/null
+@test "pm cite with no input exits cleanly" {
+    run bin/pm cite < /dev/null
     [ "$status" -eq 0 ]
     [ -z "$output" ]
 }
@@ -331,14 +331,14 @@ diff /tmp/pm-fetch-before.txt /tmp/pm-fetch-after.txt  # Must be empty
 #### 1.2 Test: Single PMID
 
 ```bash
-@test "pm-cite single PMID returns valid CSL-JSON" {
-    echo "28012456" | bin/pm-cite > "$BATS_TMPDIR/out.json"
+@test "pm cite single PMID returns valid CSL-JSON" {
+    echo "28012456" | bin/pm cite > "$BATS_TMPDIR/out.json"
     run jq -e '.PMID == "28012456"' "$BATS_TMPDIR/out.json"
     [ "$status" -eq 0 ]
 }
 
-@test "pm-cite output has expected CSL-JSON fields" {
-    echo "28012456" | bin/pm-cite > "$BATS_TMPDIR/out.json"
+@test "pm cite output has expected CSL-JSON fields" {
+    echo "28012456" | bin/pm cite > "$BATS_TMPDIR/out.json"
     # Required fields
     run jq -e '.title and .author and .type' "$BATS_TMPDIR/out.json"
     [ "$status" -eq 0 ]
@@ -348,8 +348,8 @@ diff /tmp/pm-fetch-before.txt /tmp/pm-fetch-after.txt  # Must be empty
 #### 1.3 Test: Multiple PMIDs (JSONL)
 
 ```bash
-@test "pm-cite multiple PMIDs returns JSONL" {
-    echo -e "28012456\n29886577" | bin/pm-cite > "$BATS_TMPDIR/out.jsonl"
+@test "pm cite multiple PMIDs returns JSONL" {
+    echo -e "28012456\n29886577" | bin/pm cite > "$BATS_TMPDIR/out.jsonl"
     [ "$(wc -l < "$BATS_TMPDIR/out.jsonl")" -eq 2 ]
     # Each line is valid JSON
     run jq -c '.' "$BATS_TMPDIR/out.jsonl"
@@ -359,14 +359,14 @@ diff /tmp/pm-fetch-before.txt /tmp/pm-fetch-after.txt  # Must be empty
 
 ### Phase 2: Batching and Rate Limiting
 
-**Note:** Reuse the batching pattern from pm-fetch. Only the URL construction differs.
+**Note:** Reuse the batching pattern from pm fetch. Only the URL construction differs.
 
 #### 2.1 Test: Batching with verbose output
 
 ```bash
-@test "pm-cite --verbose shows batch progress" {
+@test "pm cite --verbose shows batch progress" {
     # Generate 250 PMIDs (will need 2 batches at 200 each)
-    pm-search "cancer" --max 250 | bin/pm-cite --verbose 2>&1 >/dev/null | grep -c "Fetching batch"
+    pm search "cancer" --max 250 | bin/pm cite --verbose 2>&1 >/dev/null | grep -c "Fetching batch"
     # Should see 2 batch messages
     [ "$output" -ge 2 ]
 }
@@ -375,10 +375,10 @@ diff /tmp/pm-fetch-before.txt /tmp/pm-fetch-after.txt  # Must be empty
 #### 2.2 Test: Rate limiting (timing)
 
 ```bash
-@test "pm-cite respects rate limit between batches" {
+@test "pm cite respects rate limit between batches" {
     # This test verifies rate limiting exists, not exact timing
     # (timing tests are flaky in CI)
-    pm-search "cancer" --max 250 | bin/pm-cite --verbose 2>&1 | grep -q "batch"
+    pm search "cancer" --max 250 | bin/pm cite --verbose 2>&1 | grep -q "batch"
 }
 ```
 
@@ -387,9 +387,9 @@ diff /tmp/pm-fetch-before.txt /tmp/pm-fetch-after.txt  # Must be empty
 #### 3.1 Test: Invalid PMID (silent skip)
 
 ```bash
-@test "pm-cite skips invalid PMIDs silently" {
+@test "pm cite skips invalid PMIDs silently" {
     # 9999999999 doesn't exist
-    echo -e "28012456\n9999999999" | bin/pm-cite > "$BATS_TMPDIR/out.jsonl"
+    echo -e "28012456\n9999999999" | bin/pm cite > "$BATS_TMPDIR/out.jsonl"
     [ "$status" -eq 0 ]
     # Only valid PMID returned
     [ "$(wc -l < "$BATS_TMPDIR/out.jsonl")" -eq 1 ]
@@ -401,8 +401,8 @@ diff /tmp/pm-fetch-before.txt /tmp/pm-fetch-after.txt  # Must be empty
 #### 3.2 Test: All invalid PMIDs
 
 ```bash
-@test "pm-cite with all invalid PMIDs returns empty" {
-    echo "9999999999" | bin/pm-cite > "$BATS_TMPDIR/out.jsonl"
+@test "pm cite with all invalid PMIDs returns empty" {
+    echo "9999999999" | bin/pm cite > "$BATS_TMPDIR/out.jsonl"
     [ "$status" -eq 0 ]
     [ ! -s "$BATS_TMPDIR/out.jsonl" ]  # File is empty
 }
@@ -410,11 +410,11 @@ diff /tmp/pm-fetch-before.txt /tmp/pm-fetch-after.txt  # Must be empty
 
 ### Phase 4: Integration
 
-#### 4.1 Test: Pipeline with pm-search
+#### 4.1 Test: Pipeline with pm search
 
 ```bash
-@test "pm-search | pm-cite pipeline produces valid JSONL" {
-    bin/pm-search "CRISPR" --max 3 | bin/pm-cite > "$BATS_TMPDIR/out.jsonl"
+@test "pm search | pm cite pipeline produces valid JSONL" {
+    bin/pm search "CRISPR" --max 3 | bin/pm cite > "$BATS_TMPDIR/out.jsonl"
     [ "$status" -eq 0 ]
     # At least 1 result (some PMIDs might not have citations)
     [ "$(wc -l < "$BATS_TMPDIR/out.jsonl")" -ge 1 ]
@@ -427,11 +427,11 @@ diff /tmp/pm-fetch-before.txt /tmp/pm-fetch-after.txt  # Must be empty
 
 ## Implementation Details
 
-### Script Structure (bin/pm-cite)
+### Script Structure (bin/pm cite)
 
 ```bash
 #!/usr/bin/env bash
-# pm-cite - Fetch CSL-JSON citations from NCBI Citation Exporter API
+# pm cite - Fetch CSL-JSON citations from NCBI Citation Exporter API
 
 set -euo pipefail
 
@@ -440,17 +440,17 @@ source "${SCRIPT_DIR}/../lib/pm-common.sh"
 
 require_commands curl jq
 
-# Configuration (same as pm-fetch)
+# Configuration (same as pm fetch)
 API_URL="https://pmc.ncbi.nlm.nih.gov/api/ctxp/v1/pubmed/"
 BATCH_SIZE=200
 RATE_LIMIT_DELAY=0.34
 
 show_help() {
     cat << 'EOF'
-pm-cite - Fetch CSL-JSON citations from NCBI Citation Exporter API
+pm cite - Fetch CSL-JSON citations from NCBI Citation Exporter API
 
-Usage: echo "12345" | pm-cite > citations.jsonl
-       pm-cite 12345 67890 > citations.jsonl
+Usage: echo "12345" | pm cite > citations.jsonl
+       pm cite 12345 67890 > citations.jsonl
 
 Options:
   -v, --verbose  Show progress on stderr
@@ -491,10 +491,10 @@ process_batches cite_batch "$BATCH_SIZE" "$RATE_LIMIT_DELAY" "${pmid_list[@]}"
 
 ### Key Points
 
-1. **Reuses `read_pmids_to_array()`** - Same as pm-fetch, no duplication
+1. **Reuses `read_pmids_to_array()`** - Same as pm fetch, no duplication
 2. **Reuses `process_batches()`** - Same batching/rate-limiting logic
 3. **Only cite_batch() is specific** - The callback with API URL and jq normalization
-4. **Same constants as pm-fetch** - BATCH_SIZE=200, RATE_LIMIT_DELAY=0.34
+4. **Same constants as pm fetch** - BATCH_SIZE=200, RATE_LIMIT_DELAY=0.34
 
 ## Files to Create/Modify
 
@@ -502,13 +502,13 @@ process_batches cite_batch "$BATCH_SIZE" "$RATE_LIMIT_DELAY" "${pmid_list[@]}"
 |------|--------|---------|
 | `lib/pm-common.sh` | Modify | Add `read_pmids_to_array()` |
 | `test/pm-common.bats` | Modify | Add tests for new function |
-| `bin/pm-fetch` | Modify | Refactor to use `read_pmids_to_array()` |
-| `bin/pm-cite` | Create | Main script |
-| `test/pm-cite.bats` | Create | Unit tests |
+| `bin/pm fetch` | Modify | Refactor to use `read_pmids_to_array()` |
+| `bin/pm cite` | Create | Main script |
+| `test/pm cite.bats` | Create | Unit tests |
 
-## Comparison with pm-fetch + pm-parse
+## Comparison with pm fetch + pm parse
 
-| Feature | pm-fetch + pm-parse | pm-cite |
+| Feature | pm fetch + pm parse | pm cite |
 |---------|---------------------|---------|
 | Format | Custom JSONL | Standard CSL-JSON |
 | Abstract | Yes | No |
@@ -517,13 +517,13 @@ process_batches cite_batch "$BATCH_SIZE" "$RATE_LIMIT_DELAY" "${pmid_list[@]}"
 | Citation tools | Needs conversion | Direct (Zotero, Pandoc) |
 | API | E-utilities | Citation Exporter |
 
-**Use case:** pm-cite is for generating bibliographies; pm-parse is for content analysis.
+**Use case:** pm cite is for generating bibliographies; pm parse is for content analysis.
 
 ## Success Criteria
 
-1. All tests pass (including refactored pm-fetch tests)
+1. All tests pass (including refactored pm fetch tests)
 2. Output is valid CSL-JSON (validates with `jq`)
-3. No code duplication with pm-fetch
+3. No code duplication with pm fetch
 4. Rate limiting respects 3 req/sec
 5. Integrates seamlessly in pm-tools pipeline
 

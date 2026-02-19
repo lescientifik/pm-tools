@@ -1,8 +1,8 @@
-# pm-diff Optimization Plan: Fast Streaming JSONL-Only Output
+# pm diff Optimization Plan: Fast Streaming JSONL-Only Output
 
 ## Problem Statement
 
-The current `pm-diff` implementation has performance bottlenecks that make it unsuitable for large-scale PubMed comparisons:
+The current `pm diff` implementation has performance bottlenecks that make it unsuitable for large-scale PubMed comparisons:
 
 ### Current Architecture Analysis
 
@@ -66,7 +66,7 @@ The current `pm-diff` implementation has performance bottlenecks that make it un
 - Single-pass streaming: O(n) time
 - No subprocess spawning per line
 - Memory: O(k) where k = unique PMIDs in smaller file (for lookup)
-- Goal: Match pm-parse performance (~6,000 articles/sec)
+- Goal: Match pm parse performance (~6,000 articles/sec)
 
 ## Design Decision: JSONL-Only Output
 
@@ -87,10 +87,10 @@ The current implementation supports 7 output formats:
 
 ```bash
 # Current (slow internal implementation)
-pm-diff --format summary old.jsonl new.jsonl
+pm diff --format summary old.jsonl new.jsonl
 
 # New (streaming JSONL + jq transformation)
-pm-diff old.jsonl new.jsonl | jq -s 'group_by(.status) | ...'
+pm diff old.jsonl new.jsonl | jq -s 'group_by(.status) | ...'
 ```
 
 ### New Output Format
@@ -112,7 +112,7 @@ Each output line is valid JSONL with one of three statuses:
 
 ```bash
 # Summary (counts)
-pm-diff old.jsonl new.jsonl | jq -s '
+pm diff old.jsonl new.jsonl | jq -s '
   {
     added: map(select(.status=="added")) | length,
     removed: map(select(.status=="removed")) | length,
@@ -121,13 +121,13 @@ pm-diff old.jsonl new.jsonl | jq -s '
 '
 
 # Just added PMIDs
-pm-diff old.jsonl new.jsonl | jq -r 'select(.status=="added") | .pmid'
+pm diff old.jsonl new.jsonl | jq -r 'select(.status=="added") | .pmid'
 
 # Just removed PMIDs
-pm-diff old.jsonl new.jsonl | jq -r 'select(.status=="removed") | .pmid'
+pm diff old.jsonl new.jsonl | jq -r 'select(.status=="removed") | .pmid'
 
 # Detailed with titles
-pm-diff old.jsonl new.jsonl | jq -r '
+pm diff old.jsonl new.jsonl | jq -r '
   if .status=="added" then "+ \(.pmid): \(.article.title)"
   elif .status=="removed" then "- \(.pmid): \(.article.title)"
   else "~ \(.pmid): \(.old.title) -> \(.new.title)"
@@ -161,7 +161,7 @@ Merge walk:
 
 #### Phase 1: Core Streaming awk (RED)
 
-Create `bin/pm-diff-fast` with:
+Create `bin/pm diff-fast` with:
 
 1. **Preprocessing:** Sort both inputs by PMID
    ```bash
@@ -212,8 +212,8 @@ jq '.diff = ([.old, .new] | map(keys) | add | unique | map(select(. as $k | $old
 Support `--fields` and `--ignore` options:
 
 ```bash
-pm-diff --fields pmid,title old.jsonl new.jsonl
-pm-diff --ignore abstract old.jsonl new.jsonl
+pm diff --fields pmid,title old.jsonl new.jsonl
+pm diff --ignore abstract old.jsonl new.jsonl
 ```
 
 **Implementation:**
@@ -225,7 +225,7 @@ pm-diff --ignore abstract old.jsonl new.jsonl
 Handle `-` for one input:
 
 ```bash
-cat new.jsonl | pm-diff old.jsonl -
+cat new.jsonl | pm diff old.jsonl -
 ```
 
 **Implementation:**
@@ -237,11 +237,11 @@ cat new.jsonl | pm-diff old.jsonl -
 Provide wrapper for old formats:
 
 ```bash
-# In pm-diff (wrapper)
+# In pm diff (wrapper)
 case "$format" in
-  jsonl) pm-diff-fast "$@" ;;
-  summary) pm-diff-fast "$@" | jq -s '...' ;;
-  added) pm-diff-fast "$@" | jq -r 'select(.status=="added") | .pmid' ;;
+  jsonl) pm diff-fast "$@" ;;
+  summary) pm diff-fast "$@" | jq -s '...' ;;
+  added) pm diff-fast "$@" | jq -r 'select(.status=="added") | .pmid' ;;
   # etc
 esac
 ```
@@ -276,9 +276,9 @@ esac
 
 | Test | Pipeline |
 |------|----------|
-| With pm-parse | `zcat file.gz \| pm-parse \| pm-diff - baseline.jsonl` |
-| With jq summary | `pm-diff a.jsonl b.jsonl \| jq -s 'group_by(.status)'` |
-| Pipe to pm-fetch | `pm-diff a.jsonl b.jsonl \| jq -r '.pmid' \| pm-fetch` |
+| With pm parse | `zcat file.gz \| pm parse \| pm diff - baseline.jsonl` |
+| With jq summary | `pm diff a.jsonl b.jsonl \| jq -s 'group_by(.status)'` |
+| Pipe to pm fetch | `pm diff a.jsonl b.jsonl \| jq -r '.pmid' \| pm fetch` |
 
 ## Implementation Details
 
@@ -365,15 +365,15 @@ This adds one jq call per file, not per line.
 
 ## Migration Path
 
-### Phase 1: Add pm-diff-stream (non-breaking)
+### Phase 1: Add pm diff-stream (non-breaking)
 
-- Create new `bin/pm-diff-stream` with optimized implementation
-- Keep existing `bin/pm-diff` unchanged
+- Create new `bin/pm diff-stream` with optimized implementation
+- Keep existing `bin/pm diff` unchanged
 - Document performance difference
 
-### Phase 2: Update pm-diff (breaking)
+### Phase 2: Update pm diff (breaking)
 
-- Replace `bin/pm-diff` with streaming version
+- Replace `bin/pm diff` with streaming version
 - Change default output to JSONL
 - Add `--format` wrapper for backwards compatibility
 - Update tests to reflect new default
@@ -420,24 +420,24 @@ This adds one jq call per file, not per line.
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `bin/pm-diff` | Rewrite | New streaming implementation |
-| `test/pm-diff.bats` | Update | Add performance tests, update for JSONL default |
-| `docs/pm-diff-plan.md` | Update | Document new architecture |
+| `bin/pm diff` | Rewrite | New streaming implementation |
+| `test/pm diff.bats` | Update | Add performance tests, update for JSONL default |
+| `docs/pm diff-plan.md` | Update | Document new architecture |
 | `spec.md` | Update | Document JSONL output format |
 
 ## Example Session After Implementation
 
 ```bash
 # Fast streaming comparison
-$ time pm-diff baseline_v1.jsonl baseline_v2.jsonl | wc -l
+$ time pm diff baseline_v1.jsonl baseline_v2.jsonl | wc -l
 1250
 real    0m3.456s  # vs current 30+ minutes
 
 # Get just added PMIDs (for fetching updates)
-$ pm-diff old.jsonl new.jsonl | jq -r 'select(.status=="added") | .pmid' | pm-fetch
+$ pm diff old.jsonl new.jsonl | jq -r 'select(.status=="added") | .pmid' | pm fetch
 
 # Summary counts
-$ pm-diff old.jsonl new.jsonl | jq -s '{
+$ pm diff old.jsonl new.jsonl | jq -s '{
     added: map(select(.status=="added")) | length,
     removed: map(select(.status=="removed")) | length,
     changed: map(select(.status=="changed")) | length
@@ -449,6 +449,6 @@ $ pm-diff old.jsonl new.jsonl | jq -s '{
 }
 
 # Check if files are identical (no output = identical)
-$ pm-diff file1.jsonl file2.jsonl | head -1 || echo "Files are identical"
+$ pm diff file1.jsonl file2.jsonl | head -1 || echo "Files are identical"
 Files are identical
 ```

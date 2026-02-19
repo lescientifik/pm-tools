@@ -1,10 +1,10 @@
-# pm-filter Implementation Plan
+# pm filter Implementation Plan
 
 ## Overview
 
-`pm-filter` is a Unix-style CLI tool for filtering JSONL articles by field patterns.
+`pm filter` is a Unix-style CLI tool for filtering JSONL articles by field patterns.
 
-**Purpose**: Provide fast, native filtering for pm-parse output without requiring jq knowledge for common use cases.
+**Purpose**: Provide fast, native filtering for pm parse output without requiring jq knowledge for common use cases.
 
 **Design Philosophy**:
 - Streams input/output (no memory buffering)
@@ -16,7 +16,7 @@
 
 ### Available Fields in JSONL
 
-From `pm-parse` output, articles have these fields:
+From `pm parse` output, articles have these fields:
 
 | Field | Type | Always Present | Example |
 |-------|------|----------------|---------|
@@ -65,7 +65,7 @@ From 500 articles sampled from pubmed25n0001.xml.gz:
 
 1. **Multiple filters = AND logic**:
    ```bash
-   pm-filter --year 2024 --journal nature --has-abstract
+   pm filter --year 2024 --journal nature --has-abstract
    # Passes only if: year=2024 AND journal contains "nature" AND has abstract
    ```
 
@@ -78,10 +78,10 @@ From 500 articles sampled from pubmed25n0001.xml.gz:
 ### Command Line Interface
 
 ```
-pm-filter - Filter JSONL articles by field patterns
+pm filter - Filter JSONL articles by field patterns
 
-Usage: pm-parse | pm-filter [OPTIONS]
-       cat articles.jsonl | pm-filter [OPTIONS]
+Usage: pm parse | pm filter [OPTIONS]
+       cat articles.jsonl | pm filter [OPTIONS]
 
 Filter Options:
   --year PATTERN      Year filter (exact, range, or open-ended)
@@ -98,31 +98,31 @@ General Options:
 
 Examples:
   # Recent Nature articles with abstracts
-  pm-filter --year 2020- --journal nature --has-abstract
+  pm filter --year 2020- --journal nature --has-abstract
 
   # Articles by author Smith
-  pm-filter --author smith
+  pm filter --author smith
 
   # Articles from 2020 without DOI (use shell inversion)
-  pm-filter --year 2020 | pm-filter --has-doi | # this gives with DOI
+  pm filter --year 2020 | pm filter --has-doi | # this gives with DOI
   # For negation, use jq: jq -c 'select(.doi | not)'
 ```
 
 ## Test Plan
 
-### Unit Tests (test/pm-filter.bats)
+### Unit Tests (test/pm filter.bats)
 
 #### Basic Functionality
 
-1. **pm-filter exists and is executable**
+1. **pm filter exists and is executable**
    - Input: Check file
    - Expected: Exit 0, file exists and executable
 
-2. **pm-filter with no filters passes all lines**
+2. **pm filter with no filters passes all lines**
    - Input: 3 JSONL lines
    - Expected: 3 JSONL lines output (passthrough)
 
-3. **pm-filter with empty input produces empty output**
+3. **pm filter with empty input produces empty output**
    - Input: Empty stdin
    - Expected: Empty stdout, exit 0
 
@@ -229,15 +229,15 @@ Examples:
     - Expected: 2 lines output, warning on stderr for line 2
 
 22. **--help shows usage**
-    - Input: `pm-filter --help`
+    - Input: `pm filter --help`
     - Expected: Exit 0, help text on stdout
 
 23. **Unknown option errors**
-    - Input: `pm-filter --unknown`
+    - Input: `pm filter --unknown`
     - Expected: Exit 1, error message
 
 24. **Invalid year format errors**
-    - Input: `pm-filter --year abc`
+    - Input: `pm filter --year abc`
     - Expected: Exit 1, error message about year format
 
 #### Verbose Mode
@@ -249,11 +249,11 @@ Examples:
 
 ### Integration Tests
 
-26. **Pipeline: pm-parse | pm-filter**
-    - Real XML through pm-parse, filter output
+26. **Pipeline: pm parse | pm filter**
+    - Real XML through pm parse, filter output
     - Verify end-to-end works
 
-27. **Pipeline: pm-filter | pm-show**
+27. **Pipeline: pm filter | pm show**
     - Filter output can be displayed
 
 28. **Large input performance**
@@ -264,8 +264,8 @@ Examples:
 
 ### Phase 1: Skeleton and Basic Tests (TDD Red)
 
-1. Create `test/pm-filter.bats` with tests 1-3, 22-23
-2. Create `bin/pm-filter` skeleton with --help only
+1. Create `test/pm filter.bats` with tests 1-3, 22-23
+2. Create `bin/pm filter` skeleton with --help only
 3. Tests should fail (except --help)
 
 ### Phase 2: Passthrough Mode (TDD Green)
@@ -356,7 +356,7 @@ awk -F'"' '/year.*2024/ { print }'
 - Stream with `while read` or jq streaming
 
 **Recommendation**: Use jq for implementation. It is:
-1. Already a dependency (used by pm-show, tests)
+1. Already a dependency (used by pm show, tests)
 2. Handles JSON edge cases correctly
 3. Fast enough for streaming (tested: >50k lines/sec)
 
@@ -392,7 +392,7 @@ jq -c "select(
 ## Success Criteria
 
 1. All 28 tests pass
-2. Shellcheck passes on bin/pm-filter
+2. Shellcheck passes on bin/pm filter
 3. Performance: >50,000 JSONL lines/sec
 4. Code review approved
 5. Documented in help text
@@ -401,26 +401,26 @@ jq -c "select(
 
 | File | Purpose |
 |------|---------|
-| `bin/pm-filter` | Main executable |
-| `test/pm-filter.bats` | All tests |
-| `plan.md` | Add pm-filter section |
-| `spec.md` | Add pm-filter specification |
+| `bin/pm filter` | Main executable |
+| `test/pm filter.bats` | All tests |
+| `plan.md` | Add pm filter section |
+| `spec.md` | Add pm filter specification |
 
 ## Example Usage After Implementation
 
 ```bash
 # Find recent COVID papers with abstracts
-pm-search "COVID-19" | pm-fetch | pm-parse | \
-    pm-filter --year 2020- --has-abstract > covid_papers.jsonl
+pm search "COVID-19" | pm fetch | pm parse | \
+    pm filter --year 2020- --has-abstract > covid_papers.jsonl
 
 # Filter local baseline for Nature family journals
-zcat pubmed25n0001.xml.gz | pm-parse | \
-    pm-filter --journal "nature" --has-doi | \
-    pm-show
+zcat pubmed25n0001.xml.gz | pm parse | \
+    pm filter --journal "nature" --has-doi | \
+    pm show
 
 # Count articles by specific author
-pm-filter --author "Fauci" < all_articles.jsonl | wc -l
+pm filter --author "Fauci" < all_articles.jsonl | wc -l
 
 # Complex filter: recent oncology papers with specific criteria
-pm-filter --year 2022-2024 --journal "cancer\|oncol" --has-abstract --has-doi
+pm filter --year 2022-2024 --journal "cancer\|oncol" --has-abstract --has-doi
 ```

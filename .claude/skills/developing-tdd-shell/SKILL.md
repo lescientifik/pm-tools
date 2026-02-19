@@ -1,6 +1,6 @@
 ---
 name: developing-tdd-shell
-description: Implements Shell/Bash tools using TDD with bats-core. Use when developing pm-search, pm-fetch, pm-parse or any shell script in this project. Enforces Red-Green-Refactor workflow.
+description: Implements Shell/Bash tools using TDD with bats-core. Use when developing pm search, pm fetch, pm parse or any shell script in this project. Enforces Red-Green-Refactor workflow.
 ---
 
 # TDD Shell Development
@@ -16,26 +16,26 @@ description: Implements Shell/Bash tools using TDD with bats-core. Use when deve
 ### 1. RED: Write failing test first
 
 ```bash
-# test/pm-parse.bats
-@test "pm-parse extracts PMID from minimal XML" {
+# test/pm parse.bats
+@test "pm parse extracts PMID from minimal XML" {
     # Given
     local xml='<PubmedArticle><MedlineCitation><PMID>12345</PMID></MedlineCitation></PubmedArticle>'
 
     # When
-    result=$(echo "$xml" | ./bin/pm-parse)
+    result=$(echo "$xml" | ./bin/pm parse)
 
     # Then
     [[ $(echo "$result" | jq -r '.pmid') == "12345" ]]
 }
 ```
 
-Run: `bats test/pm-parse.bats` → must FAIL
+Run: `bats test/pm parse.bats` → must FAIL
 
 ### 2. GREEN: Minimum code to pass
 
-Implement just enough in `bin/pm-parse` to make the test pass.
+Implement just enough in `bin/pm parse` to make the test pass.
 
-Run: `bats test/pm-parse.bats` → must PASS
+Run: `bats test/pm parse.bats` → must PASS
 
 ### 3. REFACTOR: Clean up
 
@@ -63,16 +63,16 @@ Improve code while keeping tests green.
 bats test/
 
 # Specific file
-bats test/pm-parse.bats
+bats test/pm parse.bats
 
 # Verbose
-bats --verbose-run test/pm-parse.bats
+bats --verbose-run test/pm parse.bats
 ```
 
 ## Project Structure
 
 ```
-bin/           # Executables (pm-search, pm-fetch, pm-parse)
+bin/           # Executables (pm search, pm fetch, pm parse)
 lib/           # Shared functions (pm-common.sh)
 test/          # Bats tests
 fixtures/      # Test data (XML samples, expected JSONL)
@@ -93,7 +93,7 @@ cat fixtures/sample.xml | xtract -pattern PubmedArticle ... | \
 ## Git Workflow
 
 - Commit after each GREEN phase
-- Message format: `test: add pm-parse PMID extraction test` or `feat: implement pm-parse PMID extraction`
+- Message format: `test: add pm parse PMID extraction test` or `feat: implement pm parse PMID extraction`
 - Never commit RED (failing) tests
 
 ## Dependencies

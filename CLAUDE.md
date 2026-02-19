@@ -2,15 +2,15 @@
 
 ## Overview
 
-Building Unix-style CLI tools for PubMed data:
-- `pm-search` : query → PMIDs
-- `pm-fetch` : PMIDs → XML
-- `pm-parse` : XML → JSONL
+Building Unix-style CLI tools for PubMed data via a single `pm` command:
+- `pm search` : query → PMIDs
+- `pm fetch` : PMIDs → XML
+- `pm parse` : XML → JSONL
 
 ## Quick Start
 
 If user says **"go"** or **"continue"**:
-1. Load skill: `/developing-tdd-shell`
+1. Load skill: `/python-tdd-workflow`
 2. Read `plan.md` to find current phase and pending tasks
 3. Start working on the next unchecked `- [ ]` task
 4. Follow TDD: write test first, then implement
@@ -25,7 +25,7 @@ Run a review before moving to the next sub-phase:
 
 ## Before Starting Any Work
 
-1. **Load the TDD skill**: `/developing-tdd-shell`
+1. **Load the TDD skill**: `/python-tdd-workflow`
 2. **Read the specs**: `spec.md`
 3. **Check the plan**: `plan.md` for current phase and tasks
 4. **Check git status**: `git status`
@@ -57,40 +57,17 @@ The `/planning-feature` skill:
 ### TDD Mandatory
 - Never write implementation before tests
 - Follow Red-Green-Refactor strictly
-- Use `bats-core` for shell testing
-
-### TDD Test Quality
-- **All tests MUST fail in RED phase** - if a test passes before implementation, it's a bad test
-- Beware of false positives: `[ "$status" -ne 0 ]` passes for both "script missing" (127) and "validation error" (1)
-- Fix: Check **exact** exit code + verify error message content
-- Example of bad test:
-  ```bash
-  @test "requires argument" {
-      run ./script.sh  # Passes with exit 127 if script missing!
-      [ "$status" -ne 0 ]
-  }
-  ```
-- Example of good test:
-  ```bash
-  @test "requires argument" {
-      run ./script.sh
-      [ "$status" -eq 1 ]  # Exit 1 (validation), not 127 (missing)
-      [[ "$output" == *"Usage"* ]]  # Verify error message
-  }
-  # RED: fails (127 ≠ 1, no "Usage")
-  # GREEN: passes (1 = 1, "Usage" present)
-  ```
+- Use `pytest` for Python testing
 
 ### Code Style
-- Shell scripts: POSIX-compatible when possible, bash when needed
-- Use `shellcheck` for linting
+- Python 3.12+, type hints everywhere
+- Use `ruff` for linting and formatting
 - Prefer streaming over loading in memory
 - Exit codes: 0 success, 1 error
 
 ### Documentation
 - Update `plan.md` checkboxes as tasks complete
 - Keep `spec.md` as source of truth for requirements
-- Don't create README until project is functional
 
 ## Key Files
 
@@ -98,38 +75,35 @@ The `/planning-feature` skill:
 |------|---------|
 | `spec.md` | Requirements and decisions |
 | `plan.md` | Implementation plan with phases |
-| `bin/` | Executable scripts |
-| `test/` | Bats test files |
+| `src/pm_tools/` | Python source code |
+| `tests/` | Pytest test files |
 | `fixtures/` | Test data |
 
 ## Dependencies
 
 ```bash
-# Required
-apt install bats jq xml2 curl
+# Development
+uv sync --dev
 
-# Optional (for golden file generation)
-# EDirect: sh -c "$(curl -fsSL https://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/install-edirect.sh)"
+# Runtime: Python ≥ 3.12 + httpx
 ```
 
 ## Quick Commands
 
 ```bash
 # Run all tests
-bats test/
+uv run pytest
 
-# Check shell scripts
-shellcheck bin/* scripts/*
-
-# Lint + test
-shellcheck bin/* scripts/* && bats test/
+# Lint + format
+uv run ruff check src/ tests/
+uv run ruff format src/ tests/
 ```
 
 ## Anti-Patterns to Avoid
 
 ### Never Take Shortcuts
 
-1. **Missing tools**: If a required tool (shellcheck, bats, etc.) is not installed, **install it immediately**. Never say "let's skip this" or "let's move on".
+1. **Missing tools**: If a required tool is not installed, **install it immediately**. Never say "let's skip this" or "let's move on".
 
 2. **Slow tests**: If tests are slow, **optimize the code**, not the tests. Never create simplified test fixtures to avoid the real workload.
 
@@ -137,10 +111,9 @@ shellcheck bin/* scripts/* && bats test/
 
 4. **Dependencies matter**: The project specifies dependencies for a reason. Ensure all are installed and working before proceeding.
 
-5. **Tool warnings are problems**: If a tool (shellcheck, bats, compiler) produces warnings:
+5. **Tool warnings are problems**: If a tool (ruff, pytest, pyright) produces warnings:
    - **Wrong**: Explain why the warning is harmless and continue
    - **Right**: Fix the configuration or code to eliminate the warning
-   - Example: SC1091 (source not followed) → Add `.shellcheckrc` with `external-sources=true`, not "this warning is informational"
 
 6. **Explaining is not fixing**: When you identify an issue:
    - **Wrong**: "The problem is X. It's harmless because Y."
@@ -150,7 +123,6 @@ shellcheck bin/* scripts/* && bats test/
 7. **Differences from oracle are bugs, not documentation**: When your implementation produces different output than the reference/oracle (golden files, xtract, etc.):
    - **Wrong**: Document the difference as "known behavior" and commit
    - **Right**: Treat it as a bug - either fix your code or fix the oracle
-   - Example of what NOT to do: "Note: pm-parse only extracts first AbstractText. This is a known difference."
    - The oracle defines correct behavior. Differences mean something is broken.
 
 8. **Test custom parsers extensively**: When writing custom format converters (TSV→JSONL, XML→JSON, etc.):
@@ -161,8 +133,8 @@ shellcheck bin/* scripts/* && bats test/
 ### Quality Gates
 
 Before any commit:
-- [ ] All tests pass (`bats test/`)
-- [ ] shellcheck passes on all scripts (`shellcheck bin/* scripts/*`)
+- [ ] All tests pass (`uv run pytest`)
+- [ ] ruff passes (`uv run ruff check src/ tests/`)
 - [ ] If golden files exist, verify output matches them
 - [ ] Code review completed (for sub-phase completion)
 
@@ -173,11 +145,10 @@ When making non-trivial decisions, **always explain clearly to the user**:
 1. **Modifying a test**: If changing test code rather than implementation, explain:
    - What was wrong with the original test
    - Why the change fixes it
-   - Example: "The test used `$status` without `run`, so `$status` was empty. Fixed by adding `run` before the assertion."
 
 2. **Ignoring warnings or non-zero exit codes**:
    - Never silently ignore exit code 1 or warnings
-   - Explain why it's safe to proceed (e.g., "SC1091 is informational - shellcheck can't follow sourced files, but the file exists")
+   - Explain why it's safe to proceed
    - If not safe, fix the issue before continuing
 
 3. **In your reasoning**: Before making such decisions, explicitly think through:

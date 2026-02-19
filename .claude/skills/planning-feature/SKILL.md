@@ -27,7 +27,7 @@ The skill takes free-form arguments describing:
 ## Example Usage
 
 ```
-/planning-feature Implement complete date parsing for pm-parse.
+/planning-feature Implement complete date parsing for pm parse.
 Difficulties: MedlineDate has free-text formats (ranges, seasons),
 months can be numeric or abbreviated. Search data/pubmed25n0001.xml.gz
 for all date format variations. Must keep existing "year" field for
