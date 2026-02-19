@@ -9,6 +9,7 @@ driving new development.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import httpx
@@ -338,6 +339,129 @@ class TestFindSourcesMixed:
 
 
 # ---------------------------------------------------------------------------
+# Audit trail
+# ---------------------------------------------------------------------------
+
+
+def _make_pm_dir(tmp_path: Path) -> Path:
+    pm = tmp_path / ".pm"
+    pm.mkdir()
+    for sub in ("search", "fetch", "cite", "download"):
+        (pm / "cache" / sub).mkdir(parents=True)
+    (pm / "audit.jsonl").write_text("")
+    return pm
+
+
+class TestDownloadAudit:
+    """download_pdfs() logs to audit.jsonl when pm_dir is provided."""
+
+    def test_logs_download_event(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                status_code=200, content=b"%PDF-1.4 content"
+            )
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr(
+            "pm_tools.download.get_http_client", lambda: client
+        )
+
+        sources = [
+            {
+                "pmid": "111",
+                "source": "pmc",
+                "url": "https://example.com/1.pdf",
+            },
+            {
+                "pmid": "222",
+                "source": "pmc",
+                "url": "https://example.com/2.pdf",
+            },
+        ]
+        download_pdfs(sources, output_dir, pm_dir=pm_dir)
+
+        lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
+        assert len(lines) == 1
+        event = json.loads(lines[0])
+        assert event["op"] == "download"
+        assert event["downloaded"] == 2
+        assert event["failed"] == 0
+
+    def test_logs_mixed_results(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+        output_dir = tmp_path / "pdfs"
+
+        call_count = 0
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return httpx.Response(
+                    status_code=200, content=b"%PDF-1.4 content"
+                )
+            return httpx.Response(status_code=500, text="Error")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr(
+            "pm_tools.download.get_http_client", lambda: client
+        )
+
+        sources = [
+            {
+                "pmid": "111",
+                "source": "pmc",
+                "url": "https://example.com/1.pdf",
+            },
+            {
+                "pmid": "222",
+                "source": "pmc",
+                "url": "https://example.com/2.pdf",
+            },
+        ]
+        download_pdfs(sources, output_dir, pm_dir=pm_dir)
+
+        event = json.loads(
+            (pm_dir / "audit.jsonl").read_text().strip().splitlines()[0]
+        )
+        assert event["downloaded"] == 1
+        assert event["failed"] == 1
+
+    def test_no_audit_without_pm_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without pm_dir, download works as before."""
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                status_code=200, content=b"%PDF-1.4 content"
+            )
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr(
+            "pm_tools.download.get_http_client", lambda: client
+        )
+
+        sources = [
+            {
+                "pmid": "111",
+                "source": "pmc",
+                "url": "https://example.com/1.pdf",
+            },
+        ]
+        result = download_pdfs(sources, output_dir)
+        assert result["downloaded"] == 1
+
+
+# ---------------------------------------------------------------------------
 # Unimplemented features (RED phase)
 # ---------------------------------------------------------------------------
 
@@ -402,7 +526,9 @@ class TestDownloadVerify:
         sources = [{"pmid": "1", "source": "pmc", "url": "https://example.com/1.pdf"}]
         result = download_pdfs(sources, output_dir, verify_pdf=True)
 
-        assert result["failed"] == 1, "HTML response should be detected as non-PDF and counted as failed"
+        assert result["failed"] == 1, (
+            "HTML response should be detected as non-PDF and counted as failed"
+        )
         assert result["downloaded"] == 0
         # Should not have written the file
         assert not (output_dir / "1.pdf").exists(), "Non-PDF content should not be saved"

@@ -11,6 +11,8 @@ from typing import Any
 
 import httpx
 
+from pm_tools.cache import audit_log
+
 BATCH_SIZE = 200
 RATE_LIMIT_DELAY = 0.34
 
@@ -164,6 +166,8 @@ def download_pdfs(
     overwrite: bool = False,
     timeout: int = 30,
     progress_callback: Any = None,
+    *,
+    pm_dir: Path | None = None,
 ) -> dict[str, int]:
     """Download PDFs from found sources.
 
@@ -173,6 +177,7 @@ def download_pdfs(
         overwrite: Whether to overwrite existing files.
         timeout: Download timeout in seconds.
         progress_callback: Optional callable(event_dict) called per source.
+        pm_dir: Path to .pm/ directory for audit logging, or None.
 
     Returns:
         Dict with downloaded, skipped, failed counts.
@@ -182,6 +187,8 @@ def download_pdfs(
     result = {"downloaded": 0, "skipped": 0, "failed": 0}
 
     if not sources:
+        if pm_dir is not None:
+            audit_log(pm_dir, {"op": "download", **result, "total": 0})
         return result
 
     client = get_http_client()
@@ -193,7 +200,9 @@ def download_pdfs(
         if not url:
             result["failed"] += 1
             if progress_callback:
-                progress_callback({"pmid": pmid, "status": "failed", "reason": "no_url"})
+                progress_callback(
+                    {"pmid": pmid, "status": "failed", "reason": "no_url"}
+                )
             continue
 
         out_file = output_dir / f"{pmid}.pdf"
@@ -210,20 +219,27 @@ def download_pdfs(
                 response = client.get(url)
                 if response.status_code not in RETRYABLE_STATUS_CODES:
                     break
-                # Retry on transient errors
                 time.sleep(0.1 * (attempt + 1))
 
             if response is None or response.status_code not in (200, 226):
                 result["failed"] += 1
                 if progress_callback:
-                    progress_callback({"pmid": pmid, "status": "failed", "reason": "http_error"})
+                    progress_callback(
+                        {
+                            "pmid": pmid,
+                            "status": "failed",
+                            "reason": "http_error",
+                        }
+                    )
                 continue
 
             content = response.content
             if not content:
                 result["failed"] += 1
                 if progress_callback:
-                    progress_callback({"pmid": pmid, "status": "failed", "reason": "empty"})
+                    progress_callback(
+                        {"pmid": pmid, "status": "failed", "reason": "empty"}
+                    )
                 continue
 
             out_file.write_bytes(content)
@@ -233,7 +249,24 @@ def download_pdfs(
         except (httpx.HTTPError, OSError):
             result["failed"] += 1
             if progress_callback:
-                progress_callback({"pmid": pmid, "status": "failed", "reason": "exception"})
+                progress_callback(
+                    {
+                        "pmid": pmid,
+                        "status": "failed",
+                        "reason": "exception",
+                    }
+                )
+
+    # Audit log
+    if pm_dir is not None:
+        audit_log(
+            pm_dir,
+            {
+                "op": "download",
+                "total": len(sources),
+                **result,
+            },
+        )
 
     return result
 
@@ -382,7 +415,14 @@ def main(args: list[str] | None = None) -> int:
         print(f"\nSummary: {available} available, {unavailable} not available")
         return 0 if available > 0 else 2
 
-    result = download_pdfs(sources, output_dir, overwrite, timeout)
+    # Detect .pm/ for audit
+    from pm_tools.cache import find_pm_dir
+
+    detected_pm_dir = find_pm_dir()
+
+    result = download_pdfs(
+        sources, output_dir, overwrite, timeout, pm_dir=detected_pm_dir
+    )
 
     total = result["downloaded"] + result["skipped"] + result["failed"]
     if verbose or total > 0:
