@@ -6,6 +6,9 @@ pattern and error recovery. Cache test drives the audit/cache feature.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import httpx
 import pytest
 
@@ -210,15 +213,22 @@ class TestCiteDeduplication:
         assert len(result) == 1, "Should return only one result for duplicate PMID"
 
 
-class TestCiteCache:
-    """cite() should support caching to avoid re-fetching the same PMIDs.
+def _make_pm_dir(tmp_path: Path) -> Path:
+    pm = tmp_path / ".pm"
+    pm.mkdir()
+    for sub in ("search", "fetch", "cite", "download"):
+        (pm / "cache" / sub).mkdir(parents=True)
+    (pm / "audit.jsonl").write_text("")
+    return pm
 
-    Not yet implemented -- drives adding a local cache layer.
-    """
+
+class TestCiteCache:
+    """cite() with cache_dir caches CSL-JSON per PMID."""
 
     def test_cite_with_cache_avoids_refetch(
-        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
         request_count = 0
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -229,13 +239,93 @@ class TestCiteCache:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
 
-        cache_dir = tmp_path / "cache"
         # First call should fetch
-        result1 = cite(["12345678"], cache_dir=cache_dir)
+        result1 = cite(["12345678"], cache_dir=pm_dir)
         assert len(result1) == 1
         assert request_count == 1
 
         # Second call should use cache
-        result2 = cite(["12345678"], cache_dir=cache_dir)
+        result2 = cite(["12345678"], cache_dir=pm_dir)
         assert len(result2) == 1
-        assert request_count == 1, "Second call should use cache, not make HTTP request"
+        assert request_count == 1, "Second call should use cache"
+
+    def test_cache_file_is_valid_json(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, json=_CSL_SINGLE)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
+
+        cite(["12345678"], cache_dir=pm_dir)
+        cached = (pm_dir / "cache" / "cite" / "12345678.json").read_text()
+        data = json.loads(cached)
+        assert data["PMID"] == "12345678"
+
+    def test_no_cache_without_cache_dir(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without cache_dir, cite works as before."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, json=_CSL_SINGLE)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
+
+        result = cite(["12345678"])
+        assert len(result) == 1
+
+
+class TestCiteAudit:
+    """cite() logs to audit.jsonl when pm_dir is provided."""
+
+    def test_logs_cite_event(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, json=_CSL_MULTI)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
+
+        cite(["11111111", "22222222"], cache_dir=pm_dir, pm_dir=pm_dir)
+
+        lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
+        assert len(lines) == 1
+        event = json.loads(lines[0])
+        assert event["op"] == "cite"
+        assert event["requested"] == 2
+
+    def test_logs_cached_count(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+
+        # Pre-cache one PMID
+        (pm_dir / "cache" / "cite" / "11111111.json").write_text(
+            json.dumps(_CSL_MULTI[0])
+        )
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, json=_CSL_MULTI[1])
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
+
+        cite(
+            ["11111111", "22222222"],
+            cache_dir=pm_dir,
+            pm_dir=pm_dir,
+        )
+
+        event = json.loads(
+            (pm_dir / "audit.jsonl").read_text().strip().splitlines()[0]
+        )
+        assert event["cached"] == 1
+        assert event["fetched"] == 1
