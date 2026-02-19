@@ -69,11 +69,25 @@ def quick_main() -> None:
     try:
         import json
 
-        pmids = search.search(query, max_results)
+        from pm_tools.cache import find_pm_dir
+
+        detected_pm_dir = find_pm_dir()
+
+        pmids = search.search(
+            query,
+            max_results,
+            cache_dir=detected_pm_dir,
+            pm_dir=detected_pm_dir,
+        )
         if not pmids:
             sys.exit(0)
 
-        xml = fetch.fetch(pmids, verbose=verbose)
+        xml = fetch.fetch(
+            pmids,
+            verbose=verbose,
+            cache_dir=detected_pm_dir,
+            pm_dir=detected_pm_dir,
+        )
         if not xml:
             sys.exit(0)
 
