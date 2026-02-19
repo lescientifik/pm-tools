@@ -9,9 +9,9 @@ import sys
 from pm_tools import audit, cite, diff, download, fetch, filter, init, parse, search
 
 
-def quick_main() -> None:
+def quick_main(argv: list[str] | None = None) -> int:
     """Quick search: pm search | pm fetch | pm parse in one command."""
-    args = sys.argv[1:]
+    args = argv if argv is not None else sys.argv[1:]
 
     max_results = 100
     query = ""
@@ -133,7 +133,7 @@ SUBCOMMANDS = {
     "download": download.main,
     "diff": diff.main,
     "audit": audit.main,
-    "quick": lambda args=None: quick_main(),
+    "quick": quick_main,
 }
 
 MAIN_HELP = """\
