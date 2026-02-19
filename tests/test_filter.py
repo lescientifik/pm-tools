@@ -416,9 +416,7 @@ class TestFilterAudit:
             _article(pmid="3", year="2024"),
         ]
 
-        result = filter_articles_audited(
-            iter(articles), pm_dir=pm_dir, year="2024"
-        )
+        result = filter_articles_audited(iter(articles), pm_dir=pm_dir, year="2024")
         assert len(result) == 2
 
         lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
@@ -440,9 +438,7 @@ class TestFilterAudit:
             has_abstract=True,
         )
 
-        event = json.loads(
-            (pm_dir / "audit.jsonl").read_text().strip().splitlines()[0]
-        )
+        event = json.loads((pm_dir / "audit.jsonl").read_text().strip().splitlines()[0])
         assert "year" in event["criteria"]
         assert "has_abstract" in event["criteria"]
 
@@ -450,7 +446,5 @@ class TestFilterAudit:
         pm_dir = _make_pm_dir(tmp_path)
         articles = [_article(pmid="1")]
 
-        result = filter_articles_audited(
-            iter(articles), pm_dir=pm_dir
-        )
+        result = filter_articles_audited(iter(articles), pm_dir=pm_dir)
         assert isinstance(result, list)

@@ -86,10 +86,7 @@ def _reassemble_xml(fragments: list[str]) -> str:
     if not fragments:
         return ""
     articles_xml = "\n".join(fragments)
-    return (
-        f"{XML_HEADER}{XML_DOCTYPE}"
-        f"<PubmedArticleSet>\n{articles_xml}\n</PubmedArticleSet>"
-    )
+    return f"{XML_HEADER}{XML_DOCTYPE}<PubmedArticleSet>\n{articles_xml}\n</PubmedArticleSet>"
 
 
 def fetch(
@@ -156,10 +153,7 @@ def fetch(
                     file=sys.stderr,
                 )
 
-            url = (
-                f"{EFETCH_URL}?db=pubmed&id={ids_param}"
-                f"&rettype=abstract&retmode=xml"
-            )
+            url = f"{EFETCH_URL}?db=pubmed&id={ids_param}&rettype=abstract&retmode=xml"
             response = httpx.get(url, timeout=30)
             response.raise_for_status()
             responses.append(response.text)

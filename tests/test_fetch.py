@@ -366,7 +366,7 @@ class TestFetchSmartBatch:
         for pmid in ("111", "222"):
             xml = (
                 f"<PubmedArticle><MedlineCitation>"
-                f"<PMID Version=\"1\">{pmid}</PMID>"
+                f'<PMID Version="1">{pmid}</PMID>'
                 f"<Article><ArticleTitle>Art {pmid}</ArticleTitle></Article>"
                 f"</MedlineCitation></PubmedArticle>"
             )
@@ -388,19 +388,17 @@ class TestFetchSmartBatch:
 
         # Cache only PMID 111
         xml = (
-            '<PubmedArticle><MedlineCitation>'
+            "<PubmedArticle><MedlineCitation>"
             '<PMID Version="1">111</PMID>'
-            '<Article><ArticleTitle>Cached</ArticleTitle></Article>'
-            '</MedlineCitation></PubmedArticle>'
+            "<Article><ArticleTitle>Cached</ArticleTitle></Article>"
+            "</MedlineCitation></PubmedArticle>"
         )
         (pm_dir / "cache" / "fetch" / "111.xml").write_text(xml)
 
         # Mock API returns PMID 222
         mock_response = _make_mock_response("222")
 
-        with patch(
-            "pm_tools.fetch.httpx.get", return_value=mock_response
-        ) as mock_get:
+        with patch("pm_tools.fetch.httpx.get", return_value=mock_response) as mock_get:
             result = fetch(["111", "222"], cache_dir=pm_dir)
 
         # Only 1 API call (for 222), not 2
@@ -413,9 +411,7 @@ class TestFetchSmartBatch:
 
     def test_no_cache_without_cache_dir(self) -> None:
         """Without cache_dir, fetch works as before."""
-        with patch(
-            "pm_tools.fetch.httpx.get", return_value=_make_mock_response()
-        ) as mock_get:
+        with patch("pm_tools.fetch.httpx.get", return_value=_make_mock_response()) as mock_get:
             fetch(["111", "222"])
         assert mock_get.call_count == 1  # single batch, no cache
 
@@ -440,19 +436,17 @@ class TestFetchAudit:
 
         # Pre-cache one article
         xml = (
-            '<PubmedArticle><MedlineCitation>'
+            "<PubmedArticle><MedlineCitation>"
             '<PMID Version="1">111</PMID>'
-            '<Article><ArticleTitle>Cached</ArticleTitle></Article>'
-            '</MedlineCitation></PubmedArticle>'
+            "<Article><ArticleTitle>Cached</ArticleTitle></Article>"
+            "</MedlineCitation></PubmedArticle>"
         )
         (pm_dir / "cache" / "fetch" / "111.xml").write_text(xml)
 
         with patch("pm_tools.fetch.httpx.get", return_value=_make_mock_response("222")):
             fetch(["111", "222"], cache_dir=pm_dir, pm_dir=pm_dir)
 
-        event = json.loads(
-            (pm_dir / "audit.jsonl").read_text().strip().splitlines()[0]
-        )
+        event = json.loads((pm_dir / "audit.jsonl").read_text().strip().splitlines()[0])
         assert event["cached"] == 1
         assert event["fetched"] == 1
 

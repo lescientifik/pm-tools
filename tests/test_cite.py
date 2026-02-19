@@ -265,9 +265,7 @@ class TestCiteCache:
         data = json.loads(cached)
         assert data["PMID"] == "12345678"
 
-    def test_no_cache_without_cache_dir(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_cache_without_cache_dir(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Without cache_dir, cite works as before."""
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -283,9 +281,7 @@ class TestCiteCache:
 class TestCiteAudit:
     """cite() logs to audit.jsonl when pm_dir is provided."""
 
-    def test_logs_cite_event(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_logs_cite_event(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         pm_dir = _make_pm_dir(tmp_path)
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -302,15 +298,11 @@ class TestCiteAudit:
         assert event["op"] == "cite"
         assert event["requested"] == 2
 
-    def test_logs_cached_count(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_logs_cached_count(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         pm_dir = _make_pm_dir(tmp_path)
 
         # Pre-cache one PMID
-        (pm_dir / "cache" / "cite" / "11111111.json").write_text(
-            json.dumps(_CSL_MULTI[0])
-        )
+        (pm_dir / "cache" / "cite" / "11111111.json").write_text(json.dumps(_CSL_MULTI[0]))
 
         def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(status_code=200, json=_CSL_MULTI[1])
@@ -324,8 +316,6 @@ class TestCiteAudit:
             pm_dir=pm_dir,
         )
 
-        event = json.loads(
-            (pm_dir / "audit.jsonl").read_text().strip().splitlines()[0]
-        )
+        event = json.loads((pm_dir / "audit.jsonl").read_text().strip().splitlines()[0])
         assert event["cached"] == 1
         assert event["fetched"] == 1

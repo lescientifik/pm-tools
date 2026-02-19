@@ -200,9 +200,7 @@ def download_pdfs(
         if not url:
             result["failed"] += 1
             if progress_callback:
-                progress_callback(
-                    {"pmid": pmid, "status": "failed", "reason": "no_url"}
-                )
+                progress_callback({"pmid": pmid, "status": "failed", "reason": "no_url"})
             continue
 
         out_file = output_dir / f"{pmid}.pdf"
@@ -237,9 +235,7 @@ def download_pdfs(
             if not content:
                 result["failed"] += 1
                 if progress_callback:
-                    progress_callback(
-                        {"pmid": pmid, "status": "failed", "reason": "empty"}
-                    )
+                    progress_callback({"pmid": pmid, "status": "failed", "reason": "empty"})
                 continue
 
             out_file.write_bytes(content)
@@ -420,9 +416,7 @@ def main(args: list[str] | None = None) -> int:
 
     detected_pm_dir = find_pm_dir()
 
-    result = download_pdfs(
-        sources, output_dir, overwrite, timeout, pm_dir=detected_pm_dir
-    )
+    result = download_pdfs(sources, output_dir, overwrite, timeout, pm_dir=detected_pm_dir)
 
     total = result["downloaded"] + result["skipped"] + result["failed"]
     if verbose or total > 0:

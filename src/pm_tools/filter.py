@@ -378,9 +378,7 @@ def main(args: list[str] | None = None) -> int:
 
     if verbose or detected_pm_dir is not None:
         # Use audited version (consumes iterator into list)
-        result = filter_articles_audited(
-            articles, pm_dir=detected_pm_dir, **filter_kwargs
-        )
+        result = filter_articles_audited(articles, pm_dir=detected_pm_dir, **filter_kwargs)
         for article in result:
             print(json.dumps(article, ensure_ascii=False))
         if verbose:

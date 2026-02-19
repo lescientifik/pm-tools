@@ -307,9 +307,7 @@ class TestDownloadProgress:
 
 
 class TestFindSourcesMixed:
-    def test_accepts_articles_with_pmid_pmcid_doi(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_accepts_articles_with_pmid_pmcid_doi(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """find_pdf_sources should handle a mix of identifier types."""
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -355,21 +353,15 @@ def _make_pm_dir(tmp_path: Path) -> Path:
 class TestDownloadAudit:
     """download_pdfs() logs to audit.jsonl when pm_dir is provided."""
 
-    def test_logs_download_event(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_logs_download_event(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         pm_dir = _make_pm_dir(tmp_path)
         output_dir = tmp_path / "pdfs"
 
         def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(
-                status_code=200, content=b"%PDF-1.4 content"
-            )
+            return httpx.Response(status_code=200, content=b"%PDF-1.4 content")
 
         client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr(
-            "pm_tools.download.get_http_client", lambda: client
-        )
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [
             {
@@ -392,9 +384,7 @@ class TestDownloadAudit:
         assert event["downloaded"] == 2
         assert event["failed"] == 0
 
-    def test_logs_mixed_results(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_logs_mixed_results(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         pm_dir = _make_pm_dir(tmp_path)
         output_dir = tmp_path / "pdfs"
 
@@ -404,15 +394,11 @@ class TestDownloadAudit:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return httpx.Response(
-                    status_code=200, content=b"%PDF-1.4 content"
-                )
+                return httpx.Response(status_code=200, content=b"%PDF-1.4 content")
             return httpx.Response(status_code=500, text="Error")
 
         client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr(
-            "pm_tools.download.get_http_client", lambda: client
-        )
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [
             {
@@ -428,27 +414,19 @@ class TestDownloadAudit:
         ]
         download_pdfs(sources, output_dir, pm_dir=pm_dir)
 
-        event = json.loads(
-            (pm_dir / "audit.jsonl").read_text().strip().splitlines()[0]
-        )
+        event = json.loads((pm_dir / "audit.jsonl").read_text().strip().splitlines()[0])
         assert event["downloaded"] == 1
         assert event["failed"] == 1
 
-    def test_no_audit_without_pm_dir(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_audit_without_pm_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Without pm_dir, download works as before."""
         output_dir = tmp_path / "pdfs"
 
         def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(
-                status_code=200, content=b"%PDF-1.4 content"
-            )
+            return httpx.Response(status_code=200, content=b"%PDF-1.4 content")
 
         client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr(
-            "pm_tools.download.get_http_client", lambda: client
-        )
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [
             {
@@ -472,9 +450,7 @@ class TestDownloadManifest:
     Not yet implemented -- drives adding download tracking.
     """
 
-    def test_writes_manifest_jsonl(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_writes_manifest_jsonl(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         import json
 
         output_dir = tmp_path / "pdfs"
@@ -540,9 +516,7 @@ class TestConcurrentDownload:
     Not yet implemented -- drives adding async/concurrent download support.
     """
 
-    def test_concurrent_downloads(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_concurrent_downloads(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         output_dir = tmp_path / "pdfs"
 
         def _handler(request: httpx.Request) -> httpx.Response:
