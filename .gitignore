@@ -20,3 +20,12 @@ Thumbs.db
 
 # EDirect installation
 edirect/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
