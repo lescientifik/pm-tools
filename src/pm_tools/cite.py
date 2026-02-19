@@ -152,7 +152,6 @@ def cite(
     return results
 
 
-
 HELP_TEXT = """\
 pm cite - Fetch CSL-JSON citations from NCBI Citation Exporter API
 

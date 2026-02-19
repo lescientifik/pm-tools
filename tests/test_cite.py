@@ -175,7 +175,6 @@ class TestCiteErrorRecovery:
         assert len(result) == 2, "Should recover from first batch failure and return second batch"
 
 
-
 class TestCiteDeduplication:
     def test_duplicate_pmids_deduplicated(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Passing the same PMID twice should only fetch it once."""
