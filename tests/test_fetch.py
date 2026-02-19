@@ -201,6 +201,35 @@ class TestFetchBatching:
         # Should contain XML content (not be empty)
         assert "PubmedArticle" in result
 
+    def test_multi_batch_produces_valid_xml(self) -> None:
+        """Multiple batches must produce a single valid XML document.
+
+        Bug: fetch() currently joins batch responses with newline, producing
+        multiple XML declarations and root elements — invalid XML that
+        ET.fromstring() rejects with 'junk after document element'.
+        """
+        import xml.etree.ElementTree as ET
+
+        # Each batch returns a full XML document with its own declaration
+        batch_responses = iter(
+            [
+                _make_mock_response("111"),
+                _make_mock_response("222"),
+            ]
+        )
+
+        with patch("pm_tools.fetch.httpx.get", side_effect=batch_responses):
+            result = fetch(["111", "222"], batch_size=1)
+
+        # Must be parseable as a single XML document
+        root = ET.fromstring(result)
+        assert root.tag == "PubmedArticleSet"
+
+        # Must contain articles from BOTH batches
+        pmids = [elem.text for elem in root.findall(".//PMID") if elem.text]
+        assert "111" in pmids
+        assert "222" in pmids
+
 
 # =============================================================================
 # Rate limiting
