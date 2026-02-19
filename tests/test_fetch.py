@@ -7,13 +7,16 @@ The fetch module will be at pm_tools.fetch with:
 All tests are written RED-first: they MUST fail until the module is implemented.
 """
 
+import json
 import time
+import xml.etree.ElementTree as ET
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 
-from pm_tools.fetch import fetch
+from pm_tools.fetch import fetch, split_xml_articles
 
 MOCK_XML_TEMPLATE = """<?xml version="1.0" ?>
 <!DOCTYPE PubmedArticleSet PUBLIC "-//NLM//DTD PubMedArticle, 1st January 2024//EN"
@@ -292,3 +295,192 @@ class TestFetchErrors:
             pytest.raises((httpx.ConnectError, ConnectionError, RuntimeError)),
         ):
             fetch(["12345"])
+
+
+# =============================================================================
+# XML splitting
+# =============================================================================
+
+TWO_ARTICLES_XML = """<?xml version="1.0" ?>
+<PubmedArticleSet>
+<PubmedArticle>
+    <MedlineCitation><PMID Version="1">111</PMID>
+    <Article><ArticleTitle>Article 111</ArticleTitle></Article>
+    </MedlineCitation>
+</PubmedArticle>
+<PubmedArticle>
+    <MedlineCitation><PMID Version="1">222</PMID>
+    <Article><ArticleTitle>Article 222</ArticleTitle></Article>
+    </MedlineCitation>
+</PubmedArticle>
+</PubmedArticleSet>"""
+
+
+class TestSplitXmlArticles:
+    """split_xml_articles() extracts per-PMID XML fragments."""
+
+    def test_splits_two_articles(self) -> None:
+        result = split_xml_articles(TWO_ARTICLES_XML)
+        assert "111" in result
+        assert "222" in result
+
+    def test_fragments_are_valid_xml(self) -> None:
+        result = split_xml_articles(TWO_ARTICLES_XML)
+        for _pmid, fragment in result.items():
+            root = ET.fromstring(fragment)
+            assert root.tag == "PubmedArticle"
+
+    def test_empty_xml_returns_empty(self) -> None:
+        result = split_xml_articles("")
+        assert result == {}
+
+    def test_single_article(self) -> None:
+        xml = MOCK_XML_TEMPLATE.format(pmid="999")
+        result = split_xml_articles(xml)
+        assert "999" in result
+        assert len(result) == 1
+
+
+# =============================================================================
+# Smart batching (fetch with cache)
+# =============================================================================
+
+
+def _make_pm_dir(tmp_path: Path) -> Path:
+    pm = tmp_path / ".pm"
+    pm.mkdir()
+    for sub in ("search", "fetch", "cite", "download"):
+        (pm / "cache" / sub).mkdir(parents=True)
+    (pm / "audit.jsonl").write_text("")
+    return pm
+
+
+class TestFetchSmartBatch:
+    """fetch() with cache_dir only fetches uncached PMIDs."""
+
+    def test_all_cached_no_api_call(self, tmp_path: Path) -> None:
+        """When all PMIDs are cached, zero API calls are made."""
+        pm_dir = _make_pm_dir(tmp_path)
+
+        # Pre-populate cache with article fragments
+        for pmid in ("111", "222"):
+            xml = (
+                f"<PubmedArticle><MedlineCitation>"
+                f"<PMID Version=\"1\">{pmid}</PMID>"
+                f"<Article><ArticleTitle>Art {pmid}</ArticleTitle></Article>"
+                f"</MedlineCitation></PubmedArticle>"
+            )
+            (pm_dir / "cache" / "fetch" / f"{pmid}.xml").write_text(xml)
+
+        with patch("pm_tools.fetch.httpx.get") as mock_get:
+            result = fetch(["111", "222"], cache_dir=pm_dir)
+
+        mock_get.assert_not_called()
+        assert "111" in result
+        assert "222" in result
+        # Must be valid XML
+        root = ET.fromstring(result)
+        assert root.tag == "PubmedArticleSet"
+
+    def test_partial_cache_fetches_only_missing(self, tmp_path: Path) -> None:
+        """Only uncached PMIDs trigger API calls."""
+        pm_dir = _make_pm_dir(tmp_path)
+
+        # Cache only PMID 111
+        xml = (
+            '<PubmedArticle><MedlineCitation>'
+            '<PMID Version="1">111</PMID>'
+            '<Article><ArticleTitle>Cached</ArticleTitle></Article>'
+            '</MedlineCitation></PubmedArticle>'
+        )
+        (pm_dir / "cache" / "fetch" / "111.xml").write_text(xml)
+
+        # Mock API returns PMID 222
+        mock_response = _make_mock_response("222")
+
+        with patch(
+            "pm_tools.fetch.httpx.get", return_value=mock_response
+        ) as mock_get:
+            result = fetch(["111", "222"], cache_dir=pm_dir)
+
+        # Only 1 API call (for 222), not 2
+        assert mock_get.call_count == 1
+        # Both articles in result
+        root = ET.fromstring(result)
+        pmids = [e.text for e in root.findall(".//PMID") if e.text]
+        assert "111" in pmids
+        assert "222" in pmids
+
+    def test_no_cache_without_cache_dir(self) -> None:
+        """Without cache_dir, fetch works as before."""
+        with patch(
+            "pm_tools.fetch.httpx.get", return_value=_make_mock_response()
+        ) as mock_get:
+            fetch(["111", "222"])
+        assert mock_get.call_count == 1  # single batch, no cache
+
+
+class TestFetchAudit:
+    """fetch() logs to audit.jsonl when pm_dir is provided."""
+
+    def test_logs_fetch_event(self, tmp_path: Path) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+
+        with patch("pm_tools.fetch.httpx.get", return_value=_make_mock_response()):
+            fetch(["111", "222"], cache_dir=pm_dir, pm_dir=pm_dir)
+
+        lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
+        assert len(lines) == 1
+        event = json.loads(lines[0])
+        assert event["op"] == "fetch"
+        assert event["requested"] == 2
+
+    def test_logs_cached_count(self, tmp_path: Path) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+
+        # Pre-cache one article
+        xml = (
+            '<PubmedArticle><MedlineCitation>'
+            '<PMID Version="1">111</PMID>'
+            '<Article><ArticleTitle>Cached</ArticleTitle></Article>'
+            '</MedlineCitation></PubmedArticle>'
+        )
+        (pm_dir / "cache" / "fetch" / "111.xml").write_text(xml)
+
+        with patch("pm_tools.fetch.httpx.get", return_value=_make_mock_response("222")):
+            fetch(["111", "222"], cache_dir=pm_dir, pm_dir=pm_dir)
+
+        event = json.loads(
+            (pm_dir / "audit.jsonl").read_text().strip().splitlines()[0]
+        )
+        assert event["cached"] == 1
+        assert event["fetched"] == 1
+
+
+class TestFetchRoundTrip:
+    """split → cache → reassemble → parse must produce identical results."""
+
+    def test_round_trip_preserves_data(self, tmp_path: Path) -> None:
+        from pm_tools.parse import parse_xml
+
+        pm_dir = _make_pm_dir(tmp_path)
+
+        # Original parse
+        original = parse_xml(TWO_ARTICLES_XML)
+
+        # Split, cache, reassemble via fetch()
+        fragments = split_xml_articles(TWO_ARTICLES_XML)
+        for pmid, frag in fragments.items():
+            (pm_dir / "cache" / "fetch" / f"{pmid}.xml").write_text(frag)
+
+        with patch("pm_tools.fetch.httpx.get") as mock_get:
+            reassembled_xml = fetch(["111", "222"], cache_dir=pm_dir)
+        mock_get.assert_not_called()
+
+        reassembled = parse_xml(reassembled_xml)
+
+        # Same number of articles, same PMIDs, same titles
+        assert len(reassembled) == len(original)
+        orig_pmids = {a["pmid"] for a in original}
+        new_pmids = {a["pmid"] for a in reassembled}
+        assert orig_pmids == new_pmids
