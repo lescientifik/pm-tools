@@ -1,4 +1,4 @@
-"""pm-download: Download full-text PDFs from PubMed Central and Unpaywall."""
+"""pm download: Download full-text PDFs from PubMed Central and Unpaywall."""
 
 from __future__ import annotations
 
@@ -239,11 +239,11 @@ def download_pdfs(
 
 
 HELP_TEXT = """\
-pm-download - Download full-text PDFs from PubMed Central and Unpaywall
+pm download - Download full-text PDFs from PubMed Central and Unpaywall
 
 Usage:
-  pm-parse output | pm-download [OPTIONS]
-  pm-download [OPTIONS] --input FILE
+  pm parse output | pm download [OPTIONS]
+  pm download [OPTIONS] --input FILE
 
 Input Options:
   --input FILE         Read PMIDs from file (one per line)
@@ -271,13 +271,13 @@ Exit Codes:
   2 - No PDFs downloaded (no sources available)
 
 Examples:
-  pm-search "CRISPR" | pm-fetch | pm-parse | pm-download --output-dir ./pdfs/
-  pm-parse output.jsonl | pm-download --dry-run
-  pm-download --input pmids.txt --email user@example.com"""
+  pm search "CRISPR" | pm fetch | pm parse | pm download --output-dir ./pdfs/
+  pm parse output.jsonl | pm download --dry-run
+  pm download --input pmids.txt --email user@example.com"""
 
 
 def main(args: list[str] | None = None) -> int:
-    """CLI entry point for pm-download."""
+    """CLI entry point for pm download."""
     if args is None:
         args = sys.argv[1:]
 

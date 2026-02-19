@@ -69,7 +69,7 @@
 
 ### Nommage
 - [x] Préfixe `pm-` (court, rapide à taper)
-- `pm-search`, `pm-fetch`, `pm-parse`
+- `pm search`, `pm fetch`, `pm parse`
 
 ## Décisions finalisées ✓
 
@@ -79,29 +79,29 @@
 
 ```bash
 # Recherche simple → liste de PMIDs
-pm-search "CRISPR cancer therapy" > pmids.txt
+pm search "CRISPR cancer therapy" > pmids.txt
 
 # Pipeline complet : recherche → fetch → parse → filtrer
-pm-search "CRISPR 2024" | pm-fetch | pm-parse | jq 'select(.journal == "Nature")'
+pm search "CRISPR 2024" | pm fetch | pm parse | jq 'select(.journal == "Nature")'
 
 # Depuis un fichier de PMIDs
-cat pmids.txt | pm-fetch | pm-parse > articles.jsonl
+cat pmids.txt | pm fetch | pm parse > articles.jsonl
 
 # Compter les articles par journal
-pm-search "machine learning" | pm-fetch | pm-parse | jq -r '.journal' | sort | uniq -c | sort -rn
+pm search "machine learning" | pm fetch | pm parse | jq -r '.journal' | sort | uniq -c | sort -rn
 
 # Extraire juste les titres
-pm-search "covid vaccine" | pm-fetch | pm-parse | jq -r '.title'
+pm search "covid vaccine" | pm fetch | pm parse | jq -r '.title'
 
 # Verbose pour debug
-pm-search --verbose "rare disease" 2>debug.log | pm-fetch | pm-parse
+pm search --verbose "rare disease" 2>debug.log | pm fetch | pm parse
 ```
 
 ---
 
 ## Spécifications techniques
 
-### `pm-search`
+### `pm search`
 - **Entrée** : requête PubMed (argument ou stdin)
 - **Sortie** : un PMID par ligne sur stdout
 - **API** : E-utilities esearch
@@ -109,7 +109,7 @@ pm-search --verbose "rare disease" 2>debug.log | pm-fetch | pm-parse
   - `--max N` : limite le nombre de résultats (défaut: 10000)
   - `--verbose` : logs sur stderr
 
-### `pm-fetch`
+### `pm fetch`
 - **Entrée** : PMIDs (un par ligne sur stdin)
 - **Sortie** : XML PubMed brut sur stdout
 - **API** : E-utilities efetch (format=xml, rettype=abstract)
@@ -118,7 +118,7 @@ pm-search --verbose "rare disease" 2>debug.log | pm-fetch | pm-parse
 - **Options** :
   - `--verbose` : logs sur stderr
 
-### `pm-parse`
+### `pm parse`
 - **Entrée** : XML PubMed sur stdin
 - **Sortie** : JSONL (un objet JSON par article)
 - **Parser** : `xml2` + awk + jq
@@ -135,18 +135,18 @@ pm-search --verbose "rare disease" 2>debug.log | pm-fetch | pm-parse
   }
   ```
 
-### `pm-quick`
+### `pm quick`
 - **Entrée** : requête PubMed (argument)
-- **Sortie** : affichage formaté via pm-show (lecture humaine)
+- **Sortie** : affichage formaté via pm show (lecture humaine)
 - **Rôle** : Recherche rapide pour inspection visuelle
 - **Options** :
   - `--max N` : limite le nombre de résultats (défaut: 100)
   - `-v, --verbose` : logs sur stderr
 - **Usage** :
   ```bash
-  pm-quick "CRISPR cancer" --max 20
+  pm quick "CRISPR cancer" --max 20
   ```
-- **Note** : Pour usage programmatique (JSONL), utiliser `pm-search | pm-fetch | pm-parse`
+- **Note** : Pour usage programmatique (JSONL), utiliser `pm search | pm fetch | pm parse`
 
 ---
 
@@ -173,7 +173,7 @@ pm-search --verbose "rare disease" 2>debug.log | pm-fetch | pm-parse
 - Format : XML compressé (`.xml.gz`)
 - ~1200 fichiers, ~35M articles au total
 - Mis à jour annuellement
-- Usage : `zcat pubmed24n0001.xml.gz | pm-parse`
+- Usage : `zcat pubmed24n0001.xml.gz | pm parse`
 
 ### Fichiers Update (mises à jour quotidiennes)
 - URL : https://ftp.ncbi.nlm.nih.gov/pubmed/updatefiles/
@@ -207,16 +207,16 @@ pm-search --verbose "rare disease" 2>debug.log | pm-fetch | pm-parse
 
 ### Mode API (recherche dynamique)
 ```bash
-pm-search "cancer BRCA1" | pm-fetch | pm-parse > results.jsonl
+pm search "cancer BRCA1" | pm fetch | pm parse > results.jsonl
 ```
 
 ### Mode Baseline (corpus local)
 ```bash
 # Tout le corpus
-zcat /data/pubmed/baseline/*.xml.gz | pm-parse > all_pubmed.jsonl
+zcat /data/pubmed/baseline/*.xml.gz | pm parse > all_pubmed.jsonl
 
 # Filtré à la volée
-zcat pubmed24n0001.xml.gz | pm-parse | jq 'select(.year >= "2020")'
+zcat pubmed24n0001.xml.gz | pm parse | jq 'select(.year >= "2020")'
 ```
 
 ---
@@ -225,13 +225,13 @@ zcat pubmed24n0001.xml.gz | pm-parse | jq 'select(.year >= "2020")'
 
 ### Baseline Validation (Phase 0.9)
 
-**Méthode:** Comparaison de `pm-parse` avec `xtract` (EDirect/NCBI) comme oracle de référence sur 30,000 articles du baseline PubMed (pubmed25n0001.xml.gz).
+**Méthode:** Comparaison de `pm parse` avec `xtract` (EDirect/NCBI) comme oracle de référence sur 30,000 articles du baseline PubMed (pubmed25n0001.xml.gz).
 
 **Résultats:**
 - **Taux de correspondance:** 99.7% (91 différences sur 30,000 articles)
 - **Type de différences:** Cosmétiques uniquement (pas d'erreurs de données)
 
-| Différence | pm-parse | xtract | Impact |
+| Différence | pm parse | xtract | Impact |
 |------------|----------|--------|--------|
 | Whitespace trailing | Préservé (`"OgataK "`) | Trimmed (`"OgataK"`) | Cosmétique |
 | Séparateur abstract multi-sections | Espace (` `) | Pipe (`\|`) | Cosmétique |
@@ -242,13 +242,13 @@ zcat pubmed24n0001.xml.gz | pm-parse | jq 'select(.year >= "2020")'
 
 | Parser | Articles/sec | Temps 30k articles | Notes |
 |--------|-------------|-------------------|-------|
-| **pm-parse** | ~6,000 | ~5 sec | Streaming xml2+grep+mawk |
+| **pm parse** | ~6,000 | ~5 sec | Streaming xml2+grep+mawk |
 | xtract (raw) | ~15,000 | ~2 sec | Perl natif, single call |
 | generate-golden.sh | ~14 | ~36 min | 7 xtract calls/article + jq |
 
 **Seuil minimum:** 3,000 articles/sec ✓
 
-**Caractéristiques de pm-parse:**
+**Caractéristiques de pm parse:**
 - Streaming pur (pas de chargement en mémoire)
 - Supporte les fichiers .gz via `zcat`
 - Output JSONL validé (toutes les lignes sont du JSON valide)
@@ -256,7 +256,7 @@ zcat pubmed24n0001.xml.gz | pm-parse | jq 'select(.year >= "2020")'
 
 ### Analyse de Performance (2026-01-11)
 
-**Profilage détaillé du pipeline pm-parse:**
+**Profilage détaillé du pipeline pm parse:**
 
 | Étape | Temps | Lignes traitées | Notes |
 |-------|-------|-----------------|-------|

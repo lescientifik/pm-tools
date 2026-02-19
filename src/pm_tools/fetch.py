@@ -1,4 +1,4 @@
-"""pm-fetch: Fetch PubMed XML from E-utilities API."""
+"""pm fetch: Fetch PubMed XML from E-utilities API."""
 
 from __future__ import annotations
 
@@ -71,10 +71,10 @@ def fetch_stream(
 
 
 HELP_TEXT = """\
-pm-fetch - Fetch PubMed XML from E-utilities API
+pm fetch - Fetch PubMed XML from E-utilities API
 
-Usage: echo "12345" | pm-fetch > articles.xml
-       cat pmids.txt | pm-fetch > articles.xml
+Usage: echo "12345" | pm fetch > articles.xml
+       cat pmids.txt | pm fetch > articles.xml
 
 Options:
   -v, --verbose  Show progress on stderr
@@ -92,13 +92,13 @@ Features:
   - Exits with error on network failure
 
 Examples:
-  echo "12345" | pm-fetch > article.xml
-  cat pmids.txt | pm-fetch > articles.xml
-  pm-search "CRISPR" | pm-fetch | pm-parse > results.jsonl"""
+  echo "12345" | pm fetch > article.xml
+  cat pmids.txt | pm fetch > articles.xml
+  pm search "CRISPR" | pm fetch | pm parse > results.jsonl"""
 
 
 def main(args: list[str] | None = None) -> int:
-    """CLI entry point for pm-fetch."""
+    """CLI entry point for pm fetch."""
     if args is None:
         args = sys.argv[1:]
 
@@ -111,7 +111,7 @@ def main(args: list[str] | None = None) -> int:
             verbose = True
         elif arg.startswith("-"):
             print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            print("hint: use 'pm-fetch --help' for usage", file=sys.stderr)
+            print("hint: use 'pm fetch --help' for usage", file=sys.stderr)
             return 2
 
     # Read PMIDs from stdin

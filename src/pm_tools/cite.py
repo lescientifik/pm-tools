@@ -1,4 +1,4 @@
-"""pm-cite: Fetch CSL-JSON citations from NCBI Citation Exporter API."""
+"""pm cite: Fetch CSL-JSON citations from NCBI Citation Exporter API."""
 
 from __future__ import annotations
 
@@ -169,10 +169,10 @@ def format_citation(csl_json: dict[str, Any], style: str = "apa") -> str:
 
 
 HELP_TEXT = """\
-pm-cite - Fetch CSL-JSON citations from NCBI Citation Exporter API
+pm cite - Fetch CSL-JSON citations from NCBI Citation Exporter API
 
-Usage: echo "12345" | pm-cite > citations.jsonl
-       pm-cite 12345 67890 > citations.jsonl
+Usage: echo "12345" | pm cite > citations.jsonl
+       pm cite 12345 67890 > citations.jsonl
 
 Options:
   -v, --verbose  Show progress on stderr
@@ -183,7 +183,7 @@ Output:
 
 
 def main(args: list[str] | None = None) -> int:
-    """CLI entry point for pm-cite."""
+    """CLI entry point for pm cite."""
     if args is None:
         args = sys.argv[1:]
 

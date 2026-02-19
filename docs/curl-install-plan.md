@@ -13,7 +13,7 @@ Enable one-command installation of pm-tools from GitHub without cloning the repo
 
 ### Current State
 - `install.sh` exists but requires local clone
-- 9 commands: `pm-search`, `pm-fetch`, `pm-parse`, `pm-filter`, `pm-show`, `pm-download`, `pm-diff`, `pm-quick`, `pm-skill`
+- 9 commands: `pm search`, `pm fetch`, `pm parse`, `pm filter`, `pm show`, `pm download`, `pm diff`, `pm quick`, `pm skill`
 - 1 library: `lib/pm-common.sh`
 - Dependencies: `curl`, `xml2`, `jq`, `grep`, (`mawk` optional)
 
@@ -101,15 +101,15 @@ pubmed_parser/
 | File | Size (approx) | Critical |
 |------|---------------|----------|
 | `lib/pm-common.sh` | 1 KB | Yes |
-| `bin/pm-search` | 3 KB | Yes |
-| `bin/pm-fetch` | 4 KB | Yes |
-| `bin/pm-parse` | 15 KB | Yes |
-| `bin/pm-filter` | 8 KB | Yes |
-| `bin/pm-show` | 3 KB | Yes |
-| `bin/pm-download` | 18 KB | Yes |
-| `bin/pm-diff` | 11 KB | Yes |
-| `bin/pm-quick` | 3 KB | Yes |
-| `bin/pm-skill` | 6 KB | Yes |
+| `bin/pm search` | 3 KB | Yes |
+| `bin/pm fetch` | 4 KB | Yes |
+| `bin/pm parse` | 15 KB | Yes |
+| `bin/pm filter` | 8 KB | Yes |
+| `bin/pm show` | 3 KB | Yes |
+| `bin/pm download` | 18 KB | Yes |
+| `bin/pm diff` | 11 KB | Yes |
+| `bin/pm quick` | 3 KB | Yes |
+| `bin/pm skill` | 6 KB | Yes |
 | **Total** | ~70 KB | |
 
 ### Dependency Requirements
@@ -219,7 +219,7 @@ pubmed_parser/
     [ "$status" -eq 0 ]
 
     # Verify all binaries installed
-    for cmd in pm-search pm-fetch pm-parse pm-filter pm-show pm-download pm-diff pm-quick pm-skill; do
+    for cmd in pm search pm fetch pm parse pm filter pm show pm download pm diff pm quick pm skill; do
         [ -x "$tmpdir/bin/$cmd" ]
     done
 
@@ -234,7 +234,7 @@ pubmed_parser/
     bash ./install-remote.sh --prefix "$tmpdir" --offline-dir ./
 
     # Test a simple command
-    run "$tmpdir/bin/pm-parse" --help
+    run "$tmpdir/bin/pm parse" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"JSONL"* ]]
 }
@@ -245,12 +245,12 @@ pubmed_parser/
 
     # Create existing installation
     mkdir -p "$tmpdir/bin"
-    echo "old version" > "$tmpdir/bin/pm-search"
+    echo "old version" > "$tmpdir/bin/pm search"
 
     bash ./install-remote.sh --prefix "$tmpdir" --offline-dir ./
 
     # Check backup exists
-    [ -f "$tmpdir/bin/pm-search.backup" ] || [ -d "$tmpdir/lib/pm-tools.backup" ]
+    [ -f "$tmpdir/bin/pm search.backup" ] || [ -d "$tmpdir/lib/pm-tools.backup" ]
 }
 ```
 
@@ -269,7 +269,7 @@ pubmed_parser/
     [ "$status" -eq 0 ]
 
     # Verify removal
-    [ ! -f "$tmpdir/bin/pm-search" ]
+    [ ! -f "$tmpdir/bin/pm search" ]
     [ ! -d "$tmpdir/lib/pm-tools" ]
 }
 
@@ -279,7 +279,7 @@ pubmed_parser/
 
     # Create existing installation
     mkdir -p "$tmpdir/bin"
-    echo "old version" > "$tmpdir/bin/pm-search"
+    echo "old version" > "$tmpdir/bin/pm search"
 
     # Install (creates backup)
     bash ./install-remote.sh --prefix "$tmpdir" --offline-dir ./
@@ -288,7 +288,7 @@ pubmed_parser/
     bash ./uninstall.sh --prefix "$tmpdir"
 
     # Original restored
-    [ "$(cat "$tmpdir/bin/pm-search")" == "old version" ]
+    [ "$(cat "$tmpdir/bin/pm search")" == "old version" ]
 }
 ```
 
@@ -303,7 +303,7 @@ pubmed_parser/
 
     run bash ./install-remote.sh --prefix "$spacedir" --offline-dir ./
     [ "$status" -eq 0 ]
-    [ -x "$spacedir/bin/pm-search" ]
+    [ -x "$spacedir/bin/pm search" ]
 }
 
 @test "install-remote: handles interrupted download gracefully" {
@@ -315,7 +315,7 @@ pubmed_parser/
     [ "$status" -eq 1 ]
 
     # Should not leave partial installation
-    [ ! -f "$tmpdir/bin/pm-search" ]
+    [ ! -f "$tmpdir/bin/pm search" ]
 }
 
 @test "install-remote: version flag shows version" {
@@ -428,7 +428,7 @@ Semantic versioning: `MAJOR.MINOR.PATCH`
 | Change Type | Example | Bump |
 |-------------|---------|------|
 | Breaking change to output format | Remove field from JSON | MAJOR |
-| New command or option | Add `pm-cite` | MINOR |
+| New command or option | Add `pm cite` | MINOR |
 | Bug fix, performance | Fix edge case | PATCH |
 
 Initial release: `1.0.0`
@@ -488,7 +488,7 @@ curl -fsSL .../install-remote.sh | bash -s -- --prefix /opt/pm-tools
 1. **Single command install works**:
    ```bash
    curl -fsSL https://.../install-remote.sh | bash
-   pm-quick "test"  # Works immediately or shows PATH instruction
+   pm quick "test"  # Works immediately or shows PATH instruction
    ```
 
 2. **All tests pass**: `bats test/install-remote.bats`

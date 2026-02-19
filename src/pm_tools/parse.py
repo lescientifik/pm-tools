@@ -1,4 +1,4 @@
-"""pm-parse: Parse PubMed XML to JSONL."""
+"""pm parse: Parse PubMed XML to JSONL."""
 
 from __future__ import annotations
 
@@ -278,10 +278,10 @@ def parse_xml_stream(input_stream: IO[str] | IO[bytes]) -> Iterator[dict[str, An
 
 
 HELP_TEXT = """\
-pm-parse - Parse PubMed XML to JSONL
+pm parse - Parse PubMed XML to JSONL
 
-Usage: cat articles.xml | pm-parse [OPTIONS] > articles.jsonl
-       zcat articles.xml.gz | pm-parse [OPTIONS] > articles.jsonl
+Usage: cat articles.xml | pm parse [OPTIONS] > articles.jsonl
+       zcat articles.xml.gz | pm parse [OPTIONS] > articles.jsonl
 
 Options:
   -v, --verbose  Show progress on stderr
@@ -292,13 +292,13 @@ Output:
     pmid, title, authors, journal, year, date, doi, pmcid, abstract
 
 Examples:
-  cat pubmed.xml | pm-parse > articles.jsonl
-  zcat pubmed25n0001.xml.gz | pm-parse > articles.jsonl
-  cat pubmed.xml | pm-parse --verbose > articles.jsonl 2>progress.log"""
+  cat pubmed.xml | pm parse > articles.jsonl
+  zcat pubmed25n0001.xml.gz | pm parse > articles.jsonl
+  cat pubmed.xml | pm parse --verbose > articles.jsonl 2>progress.log"""
 
 
 def main(args: list[str] | None = None) -> int:
-    """CLI entry point for pm-parse."""
+    """CLI entry point for pm parse."""
     if args is None:
         args = sys.argv[1:]
 
@@ -311,7 +311,7 @@ def main(args: list[str] | None = None) -> int:
             verbose = True
         elif arg.startswith("-"):
             print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            print("hint: use 'pm-parse --help' for usage", file=sys.stderr)
+            print("hint: use 'pm parse --help' for usage", file=sys.stderr)
             return 2
 
     # Read XML from stdin

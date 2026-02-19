@@ -9,10 +9,10 @@
 ```
 pubmed_parser/
 ├── bin/
-│   ├── pm-search
-│   ├── pm-fetch
-│   ├── pm-parse
-│   └── pm-quick
+│   ├── pm search
+│   ├── pm fetch
+│   ├── pm parse
+│   └── pm quick
 ├── lib/
 │   └── pm-common.sh           # fonctions partagées (logging, etc.)
 ├── scripts/
@@ -26,9 +26,9 @@ pubmed_parser/
 ├── test/
 │   ├── test_helper.bash       # fixtures, mocks
 │   ├── pm-common.bats
-│   ├── pm-search.bats
-│   ├── pm-fetch.bats
-│   ├── pm-parse.bats
+│   ├── pm search.bats
+│   ├── pm fetch.bats
+│   ├── pm parse.bats
 │   └── integration.bats
 ├── fixtures/
 │   ├── random/                # articles extraits aléatoirement
@@ -54,12 +54,12 @@ pubmed_parser/
 
 **Structure Given-When-Then en bats :**
 ```bash
-@test "pm-parse extrait le PMID correctement" {
+@test "pm parse extrait le PMID correctement" {
     # Given: un XML minimal
     local xml='<PubmedArticle><MedlineCitation><PMID>12345</PMID></MedlineCitation></PubmedArticle>'
 
     # When: on parse
-    result=$(echo "$xml" | pm-parse)
+    result=$(echo "$xml" | pm parse)
 
     # Then: le PMID est extrait
     [[ $(echo "$result" | jq -r '.pmid') == "12345" ]]
@@ -88,7 +88,7 @@ pubmed_parser/
   - Lit `mapping.json`
   - Génère des tests bats pour chaque champ
   - Vérifie que le parser extrait bien chaque XPath mappé
-- [x] Output : `test/generated/dtd-coverage.bats` (7 tests, fail until pm-parse implemented)
+- [x] Output : `test/generated/dtd-coverage.bats` (7 tests, fail until pm parse implemented)
 
 ### 0.4 Baseline → Extraction intelligente de fixtures
 - [x] Créer un script `scripts/extract-fixtures.sh` qui :
@@ -105,8 +105,8 @@ pubmed_parser/
 - [x] Output : `fixtures/` avec articles classés par edge case
 
 ### 0.5 Baseline → Tests de non-régression
-- [x] Test : `pm-parse` ne crash sur aucun article du baseline
-- [x] Méthode : `zcat baseline.xml.gz | pm-parse | wc -l` == nombre d'articles attendu (30000)
+- [x] Test : `pm parse` ne crash sur aucun article du baseline
+- [x] Méthode : `zcat baseline.xml.gz | pm parse | wc -l` == nombre d'articles attendu (30000)
 - [x] Mesurer la performance (articles/seconde) : ~1700-2200 articles/sec, seuil minimum 1000
 
 ### 0.6 Golden files via EDirect (oracle officiel)
@@ -215,17 +215,17 @@ when xtract outputs data containing embedded tabs or newlines.
 - [x] Test: valid JSON output for each edge case fixture
 - [x] Test: quotes and backslashes are properly escaped
 - [x] Test: unicode characters are preserved
-- [x] Test: pm-parse output matches golden files
+- [x] Test: pm parse output matches golden files
 
 **0.7.3 Implement robust TSV→JSONL conversion**
 - [x] Refactor generate-golden.sh to use jq for JSON construction
 - [x] Validate output with `jq .` for each record (jq -c does this automatically)
 - Note: Removed awk entirely; jq --arg handles all escaping properly
 
-**0.7.4 Update pm-parse to handle same edge cases**
-- [x] Verify pm-parse awk json_escape handles all cases
+**0.7.4 Update pm parse to handle same edge cases**
+- [x] Verify pm parse awk json_escape handles all cases
 - [x] Fix multi-line value handling (title, journal, abstract) for embedded newlines
-- [x] Add corresponding tests to pm-parse.bats (4 new tests)
+- [x] Add corresponding tests to pm parse.bats (4 new tests)
 
 **0.7.5 Regenerate all golden files**
 - [x] Re-run generate-golden.sh on all fixtures
@@ -248,7 +248,7 @@ generated/mapping.json
 
 ### 0.9 Full baseline validation
 
-**Goal:** Verify pm-parse produces identical output to xtract (the oracle) on 30k articles,
+**Goal:** Verify pm parse produces identical output to xtract (the oracle) on 30k articles,
 and document performance characteristics.
 
 **Key principles:**
@@ -271,14 +271,14 @@ and document performance characteristics.
   - Writes to stdout with progress on stderr
   - Uses jq for proper JSON escaping
 - [x] Create `scripts/compare-jsonl.sh`:
-  - Inputs: two JSONL files (xtract output, pm-parse output)
+  - Inputs: two JSONL files (xtract output, pm parse output)
   - Outputs: summary of differences by field
   - Reports: identical count, different count, missing in each
   - Shows first N differences per field for debugging
 - [x] Create `scripts/benchmark-parser.sh`:
   - Times execution of a parser on a given XML file
   - Reports: total time, articles/second, memory usage (if available)
-  - Accepts parser command as argument (pm-parse, xtract, etc.)
+  - Accepts parser command as argument (pm parse, xtract, etc.)
 
 #### 0.9.2 Generate xtract baseline output
 
@@ -300,21 +300,21 @@ and document performance characteristics.
 
 **Optimization completed (2026-01-11):**
 Bottleneck was per-article jq calls in TSV→JSONL conversion (~50 articles/sec).
-Refactored to use awk for JSON construction (like pm-parse).
+Refactored to use awk for JSON construction (like pm parse).
 
 - [x] Use single xtract call (already implemented)
 - [x] Parse TSV output to JSONL with awk (single pass, no subprocess forks)
 - [x] Achieved speedup: ~50 articles/sec → ~1000+ articles/sec (20x improvement)
 - [x] Performance test added to baseline-validation.bats (threshold: 500 articles/sec)
 
-#### 0.9.3 Generate pm-parse baseline output
+#### 0.9.3 Generate pm parse baseline output
 
-- [x] Run `zcat data/pubmed25n0001.xml.gz | pm-parse > data/pubmed25n0001.pm-parse.jsonl`
+- [x] Run `zcat data/pubmed25n0001.xml.gz | pm parse > data/pubmed25n0001.pm parse.jsonl`
 - [x] Verify line count matches xtract output (30,000 lines)
 - [x] Verify all lines are valid JSON
 
 **Results (2026-01-11):**
-- pm-parse: 30 sec for 30k articles (~1000 articles/sec)
+- pm parse: 30 sec for 30k articles (~1000 articles/sec)
 - All 30,000 lines valid JSON
 
 #### 0.9.4 Compare outputs and analyze differences
@@ -327,13 +327,13 @@ Refactored to use awk for JSON construction (like pm-parse).
 - Remaining differences are cosmetic formatting:
 
 ~~**Difference 1: Trailing whitespace in author names**~~ FIXED
-- ~~pm-parse: `"OgataK "` (preserves XML whitespace)~~
+- ~~pm parse: `"OgataK "` (preserves XML whitespace)~~
 - ~~xtract: `"OgataK"` (trims whitespace)~~
 - **Status:** Fixed - author names now trimmed properly
 
 **Difference 2: Multi-section abstract separator** (remaining)
 - For abstracts with multiple `<AbstractText>` elements:
-- pm-parse: joins with space (` `)
+- pm parse: joins with space (` `)
 - xtract: joins with pipe (`|`)
 - **Impact:** Cosmetic only (10 records affected)
 
@@ -346,14 +346,14 @@ Refactored to use awk for JSON construction (like pm-parse).
 - DOI extraction when multiple ArticleIds present
 - Unicode normalization differences
 
-#### 0.9.5 Fix pm-parse bugs found in 0.9.4
+#### 0.9.5 Fix pm parse bugs found in 0.9.4
 
 - [x] No bugs found - differences are cosmetic (see 0.9.4 results)
 - [x] Cosmetic differences documented in "Future Enhancements" section
 
 #### 0.9.6 Performance benchmarking
 
-- [x] Benchmark pm-parse on full baseline:
+- [x] Benchmark pm parse on full baseline:
   - [x] Record: total time, articles/sec (~1,175 articles/sec, ~25s for 30k)
   - [x] Verify meets minimum threshold (1000 articles/sec per Phase 0.5) ✓
 - [x] Benchmark xtract on sample:
@@ -363,7 +363,7 @@ Refactored to use awk for JSON construction (like pm-parse).
 #### 0.9.7 Final validation and documentation
 
 - [x] All baseline validation tests pass (65 tests)
-- [x] pm-parse output matches xtract output (99.7% match, differences documented)
+- [x] pm parse output matches xtract output (99.7% match, differences documented)
 - [x] Performance meets requirements (1,175 articles/sec > 1,000 threshold)
 - [x] Update spec.md with:
   - [x] Baseline validation results
@@ -380,7 +380,7 @@ Refactored to use awk for JSON construction (like pm-parse).
 | `scripts/compare-jsonl.sh` | Field-level JSONL comparison |
 | `scripts/benchmark-parser.sh` | Performance measurement |
 | `data/pubmed25n0001.xtract.jsonl` | Xtract oracle output (gitignore) |
-| `data/pubmed25n0001.pm-parse.jsonl` | Our parser output (gitignore) |
+| `data/pubmed25n0001.pm parse.jsonl` | Our parser output (gitignore) |
 | `spec.md` | Updated with validation results |
 
 ---
@@ -399,19 +399,19 @@ Refactored to use awk for JSON construction (like pm-parse).
 
 ---
 
-## Phase 2 : `pm-parse` (commencer par la fin du pipeline)
+## Phase 2 : `pm parse` (commencer par la fin du pipeline)
 
 **Pourquoi commencer par parse ?** On peut tester offline avec des fixtures XML extraites du baseline.
 
-### 2.1 Tests unitaires pm-parse
+### 2.1 Tests unitaires pm parse
 - [x] Test : input vide → output vide
 - [x] Test : un article minimal → JSONL avec pmid
 - [x] Test : article complet (extrait baseline) → tous les champs extraits
 - [x] Test : multiple articles → une ligne JSONL par article
 - [x] Test : caractères spéciaux (accents, &amp;, unicode) → échappés correctement
-- [x] Test : fichier .xml.gz → décompression à la volée (zcat | pm-parse)
+- [x] Test : fichier .xml.gz → décompression à la volée (zcat | pm parse)
 
-### 2.2 Implémentation pm-parse
+### 2.2 Implémentation pm parse
 - [x] Script de base qui lit stdin
 - [x] Pipeline `xml2 | awk` pour découper par article
 - [x] Extraction des champs selon mapping DTD
@@ -425,15 +425,15 @@ Refactored to use awk for JSON construction (like pm-parse).
 
 ---
 
-## Phase 3 : `pm-fetch`
+## Phase 3 : `pm fetch`
 
-### 3.1 Tests pm-fetch (avec mocks)
+### 3.1 Tests pm fetch (avec mocks)
 - [x] Test : un PMID → appel curl correct
 - [x] Test : multiple PMIDs → batching (≤200 par requête)
 - [x] Test : rate limiting respecté (≤3 req/sec)
 - [x] Test : erreur réseau → exit 1
 
-### 3.2 Implémentation pm-fetch
+### 3.2 Implémentation pm fetch
 - [x] Lecture PMIDs depuis stdin
 - [x] Batching avec bash arrays (200 PMIDs par batch)
 - [x] Appels curl à efetch
@@ -442,15 +442,15 @@ Refactored to use awk for JSON construction (like pm-parse).
 
 ---
 
-## Phase 4 : `pm-search`
+## Phase 4 : `pm search`
 
-### 4.1 Tests pm-search (avec mocks)
+### 4.1 Tests pm search (avec mocks)
 - [x] Test : requête simple → liste de PMIDs
 - [x] Test : --max N → limite respectée
 - [x] Test : requête vide → erreur
 - [x] Test : aucun résultat → output vide (pas d'erreur)
 
-### 4.2 Implémentation pm-search
+### 4.2 Implémentation pm search
 - [x] Appel curl à esearch
 - [x] Parsing du XML de réponse (grep -oP for IDs)
 - [ ] Pagination si > 10000 résultats (deferred: --max handles most use cases)
@@ -463,7 +463,7 @@ Refactored to use awk for JSON construction (like pm-parse).
 ### 5.1 Mode offline avec baseline
 - [ ] `pm-baseline-download` : télécharge les fichiers baseline
 - [ ] `pm-baseline-parse` : parse les .xml.gz locaux
-- [ ] Ou simplement : `zcat pubmed24n*.xml.gz | pm-parse`
+- [ ] Ou simplement : `zcat pubmed24n*.xml.gz | pm parse`
 
 ### 5.2 Tests
 - [ ] Test : parsing d'un fichier .gz complet
@@ -487,11 +487,11 @@ Refactored to use awk for JSON construction (like pm-parse).
 
 ## Future Enhancements
 
-### ~~Trim Trailing Whitespace in pm-parse~~ DONE
+### ~~Trim Trailing Whitespace in pm parse~~ DONE
 
 **Completed 2026-01-11:** Fixed author formatting when ForeName is missing.
 
-**Problem:** When an author had only LastName (no ForeName), pm-parse output
+**Problem:** When an author had only LastName (no ForeName), pm parse output
 `"lastname "` with trailing space because it always did `lastname + " " + forename`.
 
 **Fix:**
@@ -505,7 +505,7 @@ Remaining 10 differences are abstract separator style (space vs pipe), not data 
 ### ~~Optimize baseline-to-xtract-jsonl.sh Performance~~ DONE
 
 **Completed 2026-01-11:** Refactored to use awk for JSON construction.
-- [x] Use awk for JSON construction (like pm-parse)
+- [x] Use awk for JSON construction (like pm parse)
 - Achieved: ~1000+ articles/sec (20x improvement from ~50 articles/sec)
 
 ### ~~Structured Abstract Parsing~~ DONE
@@ -533,7 +533,7 @@ Remaining 10 differences are abstract separator style (space vs pipe), not data 
 - Label names vary (BACKGROUND, UNLABELLED, RESULTS, etc.)
 
 ### ~~Complete Date Parsing~~ DONE
-**Completed 2026-01-11:** Added ISO 8601 `date` field to pm-parse output.
+**Completed 2026-01-11:** Added ISO 8601 `date` field to pm parse output.
 
 - [x] Extract full date as ISO string (e.g., "1975-12-15")
 - [x] Handle partial dates (year-only: "1976", year-month: "1975-06")
@@ -543,7 +543,7 @@ Remaining 10 differences are abstract separator style (space vs pipe), not data 
 
 See `docs/date-parsing-plan.md` for detailed implementation plan.
 
-### Optimize pm-parse Performance (Phase 7)
+### Optimize pm parse Performance (Phase 7)
 
 **Problem:** Performance test fails under system load. Current implementation processes
 all 4.5M lines from xml2 through awk regex matching, causing ~27 seconds of CPU time
@@ -558,7 +558,7 @@ for the awk stage alone on 30k articles.
 | awk (current) | 27.0s | Regex matching on 4.5M lines |
 | **Total** | **30.5s** | ~987 articles/sec |
 
-**Root Cause:** xml2 produces ~153 lines per article, but pm-parse only needs ~35 lines
+**Root Cause:** xml2 produces ~153 lines per article, but pm parse only needs ~35 lines
 per article. The awk script applies 17 regex patterns to every single line, including
 the 3.5M irrelevant lines (MeSH terms, ChemicalList, etc.).
 
@@ -587,12 +587,12 @@ xml2 | grep -E 'relevant_patterns' | awk 'many_regex_patterns...'
 - awk then processes only 1M lines instead of 4.5M
 - Pipeline remains readable and composable
 
-#### ~~7.1 Add grep prefilter to pm-parse (TDD)~~ DONE
+#### ~~7.1 Add grep prefilter to pm parse (TDD)~~ DONE
 
 **Tests first:**
-- [x] Test: pm-parse output unchanged with prefilter (regression)
-- [x] Test: pm-parse performance > 3000 articles/sec (with 1000 margin for load)
-- [x] Test: pm-parse handles edge cases correctly (empty input, etc.)
+- [x] Test: pm parse output unchanged with prefilter (regression)
+- [x] Test: pm parse performance > 3000 articles/sec (with 1000 margin for load)
+- [x] Test: pm parse handles edge cases correctly (empty input, etc.)
 
 **Implementation:**
 - [x] Add grep prefilter stage between xml2 and awk
@@ -609,7 +609,7 @@ xml2 | grep -E 'relevant_patterns' | awk 'many_regex_patterns...'
 - [x] Test mawk compatibility with current awk script (MD5 hash identical)
 - [x] Auto-detect mawk and use if available, fallback to awk
 
-**Result:** mawk provides additional 1.8x speedup over gawk. pm-parse now auto-detects mawk.
+**Result:** mawk provides additional 1.8x speedup over gawk. pm parse now auto-detects mawk.
 - grep + gawk: 3450 articles/sec (3.6x vs original)
 - grep + mawk: 6000 articles/sec (6.2x vs original)
 
@@ -631,9 +631,9 @@ xml2 | grep -E 'relevant_patterns' | awk 'many_regex_patterns...'
 ```
 0. Étude DTD + baseline         → mapping.md, fixtures/
 1. test/test_helper.bash        → lib/pm-common.sh
-2. test/pm-parse.bats           → bin/pm-parse
-3. test/pm-fetch.bats           → bin/pm-fetch
-4. test/pm-search.bats          → bin/pm-search
+2. test/pm parse.bats           → bin/pm parse
+3. test/pm fetch.bats           → bin/pm fetch
+4. test/pm search.bats          → bin/pm search
 5. test/integration.bats        → validation e2e
 ```
 

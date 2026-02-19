@@ -1,8 +1,8 @@
-# pm-diff Implementation Plan
+# pm diff Implementation Plan
 
 ## Overview
 
-`pm-diff` is a Unix-style CLI tool for comparing two JSONL files to show added, removed, and changed articles.
+`pm diff` is a Unix-style CLI tool for comparing two JSONL files to show added, removed, and changed articles.
 
 **Purpose**: Compare snapshots of article collections (e.g., baseline updates, before/after transformations) using PMID as the unique key.
 
@@ -19,31 +19,31 @@
 
 1. **Baseline Updates**: Compare two versions of parsed baseline files
    ```bash
-   pm-diff baseline_v1.jsonl baseline_v2.jsonl
+   pm diff baseline_v1.jsonl baseline_v2.jsonl
    ```
 
 2. **Processing Validation**: Verify processing didn't lose/add articles
    ```bash
-   pm-parse < raw.xml > parsed.jsonl
-   pm-diff expected.jsonl parsed.jsonl
+   pm parse < raw.xml > parsed.jsonl
+   pm diff expected.jsonl parsed.jsonl
    ```
 
 3. **Filter Impact Analysis**: See what a filter removed
    ```bash
-   pm-filter --year 2020- < all.jsonl > filtered.jsonl
-   pm-diff all.jsonl filtered.jsonl --summary
+   pm filter --year 2020- < all.jsonl > filtered.jsonl
+   pm diff all.jsonl filtered.jsonl --summary
    ```
 
 4. **Incremental Updates**: Track changes between daily/weekly snapshots
    ```bash
-   pm-diff monday.jsonl tuesday.jsonl --format added
+   pm diff monday.jsonl tuesday.jsonl --format added
    ```
 
 ## Data Analysis
 
 ### JSONL Structure
 
-Articles have these fields (from pm-parse):
+Articles have these fields (from pm parse):
 
 | Field | Type | Key? | Comparable |
 |-------|------|------|------------|
@@ -61,7 +61,7 @@ Articles have these fields (from pm-parse):
 
 - PMIDs are globally unique within PubMed
 - A PMID cannot exist twice in the same file (if it does, that's malformed input)
-- PMID is always present (required field from pm-parse)
+- PMID is always present (required field from pm parse)
 
 ### Change Categories
 
@@ -114,7 +114,7 @@ Total: 5 unique PMIDs
 
 Output just the PMIDs, one per line:
 ```bash
-pm-diff old.jsonl new.jsonl --format added
+pm diff old.jsonl new.jsonl --format added
 30001
 30002
 30003
@@ -122,7 +122,7 @@ pm-diff old.jsonl new.jsonl --format added
 
 Useful for piping:
 ```bash
-pm-diff old.jsonl new.jsonl --format added | pm-fetch | pm-parse > new_articles.jsonl
+pm diff old.jsonl new.jsonl --format added | pm fetch | pm parse > new_articles.jsonl
 ```
 
 #### 4. JSONL Output (`--format jsonl`)
@@ -146,11 +146,11 @@ This follows the `diff` convention where exit 1 means "differences found".
 ### Command Line Interface
 
 ```
-pm-diff - Compare two JSONL files by PMID
+pm diff - Compare two JSONL files by PMID
 
-Usage: pm-diff [OPTIONS] OLD_FILE NEW_FILE
-       pm-diff [OPTIONS] OLD_FILE - < new.jsonl
-       pm-diff [OPTIONS] - NEW_FILE < old.jsonl
+Usage: pm diff [OPTIONS] OLD_FILE NEW_FILE
+       pm diff [OPTIONS] OLD_FILE - < new.jsonl
+       pm diff [OPTIONS] - NEW_FILE < old.jsonl
 
 Arguments:
   OLD_FILE    Baseline/reference JSONL file (or - for stdin)
@@ -176,44 +176,44 @@ Options:
 
 Examples:
   # Summary of changes
-  pm-diff baseline_v1.jsonl baseline_v2.jsonl
+  pm diff baseline_v1.jsonl baseline_v2.jsonl
 
   # Get list of new PMIDs for fetching
-  pm-diff old.jsonl new.jsonl --format added | pm-fetch
+  pm diff old.jsonl new.jsonl --format added | pm fetch
 
   # Detailed view of what changed
-  pm-diff old.jsonl new.jsonl --format detailed
+  pm diff old.jsonl new.jsonl --format detailed
 
   # Just check if identical (for scripts)
-  pm-diff file1.jsonl file2.jsonl --quiet && echo "identical"
+  pm diff file1.jsonl file2.jsonl --quiet && echo "identical"
 
   # Compare only title and abstract
-  pm-diff old.jsonl new.jsonl --fields pmid,title,abstract
+  pm diff old.jsonl new.jsonl --fields pmid,title,abstract
 
   # Ignore abstract changes
-  pm-diff old.jsonl new.jsonl --ignore abstract
+  pm diff old.jsonl new.jsonl --ignore abstract
 ```
 
 ## Test Plan
 
-### Unit Tests (test/pm-diff.bats)
+### Unit Tests (test/pm diff.bats)
 
 #### Basic Functionality
 
-1. **pm-diff exists and is executable**
+1. **pm diff exists and is executable**
    - Input: Check file
    - Expected: Exit 0, file exists and executable
 
-2. **pm-diff --help shows usage**
-   - Input: `pm-diff --help`
+2. **pm diff --help shows usage**
+   - Input: `pm diff --help`
    - Expected: Exit 0, help text
 
-3. **pm-diff with missing arguments errors**
-   - Input: `pm-diff` (no args)
+3. **pm diff with missing arguments errors**
+   - Input: `pm diff` (no args)
    - Expected: Exit 2, error message
 
-4. **pm-diff with nonexistent file errors**
-   - Input: `pm-diff nonexistent.jsonl other.jsonl`
+4. **pm diff with nonexistent file errors**
+   - Input: `pm diff nonexistent.jsonl other.jsonl`
    - Expected: Exit 2, "file not found" error
 
 #### Identical Files
@@ -339,15 +339,15 @@ Examples:
 #### Stdin Support
 
 28. **accepts - for OLD file (stdin)**
-    - `cat old.jsonl | pm-diff - new.jsonl`
+    - `cat old.jsonl | pm diff - new.jsonl`
     - Expected: Works correctly
 
 29. **accepts - for NEW file (stdin)**
-    - `cat new.jsonl | pm-diff old.jsonl -`
+    - `cat new.jsonl | pm diff old.jsonl -`
     - Expected: Works correctly
 
 30. **rejects - for both files**
-    - `pm-diff - -`
+    - `pm diff - -`
     - Expected: Exit 2, error message
 
 #### Edge Cases
@@ -397,24 +397,24 @@ Examples:
 
 ### Integration Tests
 
-41. **works with pm-parse output**
+41. **works with pm parse output**
     - Parse two XML files, diff the outputs
     - Verify pipeline works end-to-end
 
-42. **--format added pipes to pm-fetch**
-    - `pm-diff old.jsonl new.jsonl --format added | pm-fetch`
+42. **--format added pipes to pm fetch**
+    - `pm diff old.jsonl new.jsonl --format added | pm fetch`
     - Should produce valid XML
 
 43. **baseline comparison**
-    - Diff pubmed25n0001.pm-parse.jsonl with itself
+    - Diff pubmed25n0001.pm parse.jsonl with itself
     - Expected: Exit 0, no differences
 
 ## Implementation Phases
 
 ### Phase 1: Skeleton and Help (TDD Red)
 
-1. Create `test/pm-diff.bats` with tests 1-4
-2. Create `bin/pm-diff` skeleton with --help only
+1. Create `test/pm diff.bats` with tests 1-4
+2. Create `bin/pm diff` skeleton with --help only
 3. Tests 1-4 should pass, others fail
 
 ### Phase 2: Loading and Identical Check (TDD)
@@ -476,7 +476,7 @@ Examples:
 
 1. Add tests 38-43
 2. Implement proper exit codes
-3. Integration testing with pm-parse
+3. Integration testing with pm parse
 
 ### Phase 12: Review and Polish
 
@@ -568,7 +568,7 @@ diff_fields() {
 ## Success Criteria
 
 1. All 43 tests pass
-2. Shellcheck passes on bin/pm-diff
+2. Shellcheck passes on bin/pm diff
 3. Performance: Compare 30k articles in < 30 seconds
 4. Memory: < 100MB for 30k articles
 5. Code review approved
@@ -578,17 +578,17 @@ diff_fields() {
 
 | File | Purpose |
 |------|---------|
-| `bin/pm-diff` | Main executable |
-| `test/pm-diff.bats` | All tests |
-| `plan.md` | Add pm-diff section |
-| `spec.md` | Add pm-diff specification |
+| `bin/pm diff` | Main executable |
+| `test/pm diff.bats` | All tests |
+| `plan.md` | Add pm diff section |
+| `spec.md` | Add pm diff specification |
 | `test/test_helper.bash` | Add PM_DIFF path |
 
 ## Example Usage After Implementation
 
 ```bash
 # Compare two baseline versions
-pm-diff baseline_v1.jsonl baseline_v2.jsonl
+pm diff baseline_v1.jsonl baseline_v2.jsonl
 # Output:
 # OLD: baseline_v1.jsonl (30000 articles)
 # NEW: baseline_v2.jsonl (30150 articles)
@@ -601,23 +601,23 @@ pm-diff baseline_v1.jsonl baseline_v2.jsonl
 # Total: 30175 unique PMIDs
 
 # Get new articles for processing
-pm-diff baseline_v1.jsonl baseline_v2.jsonl --format added | \
-    pm-fetch | pm-parse > new_articles.jsonl
+pm diff baseline_v1.jsonl baseline_v2.jsonl --format added | \
+    pm fetch | pm parse > new_articles.jsonl
 
 # See what changed in detail
-pm-diff old.jsonl new.jsonl --format detailed
+pm diff old.jsonl new.jsonl --format detailed
 
 # Machine-readable output for scripts
-pm-diff old.jsonl new.jsonl --format jsonl | \
+pm diff old.jsonl new.jsonl --format jsonl | \
     jq 'select(.status == "changed")'
 
 # Quick check if files differ
-if pm-diff old.jsonl new.jsonl --quiet; then
+if pm diff old.jsonl new.jsonl --quiet; then
     echo "Files are identical"
 else
     echo "Files differ"
 fi
 
 # Compare only metadata (ignore abstract)
-pm-diff old.jsonl new.jsonl --ignore abstract
+pm diff old.jsonl new.jsonl --ignore abstract
 ```

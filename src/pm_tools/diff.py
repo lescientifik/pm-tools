@@ -1,4 +1,4 @@
-"""pm-diff: Compare two JSONL files by PMID."""
+"""pm diff: Compare two JSONL files by PMID."""
 
 from __future__ import annotations
 
@@ -158,11 +158,11 @@ def load_jsonl(filepath: str) -> list[dict[str, Any]]:
 
 
 HELP_TEXT = """\
-pm-diff - Compare two JSONL files by PMID
+pm diff - Compare two JSONL files by PMID
 
-Usage: pm-diff [OPTIONS] OLD_FILE NEW_FILE
-       pm-diff [OPTIONS] OLD_FILE - < new.jsonl
-       pm-diff [OPTIONS] - NEW_FILE < old.jsonl
+Usage: pm diff [OPTIONS] OLD_FILE NEW_FILE
+       pm diff [OPTIONS] OLD_FILE - < new.jsonl
+       pm diff [OPTIONS] - NEW_FILE < old.jsonl
 
 Arguments:
   OLD_FILE    Baseline/reference JSONL file (or - for stdin)
@@ -185,14 +185,14 @@ Exit Codes:
   2    Error (invalid arguments, file not found, malformed JSON)
 
 Examples:
-  pm-diff baseline_v1.jsonl baseline_v2.jsonl
-  pm-diff old.jsonl new.jsonl | jq -r 'select(.status=="added") | .pmid'
-  pm-diff file1.jsonl file2.jsonl --quiet && echo "identical"
-  pm-diff old.jsonl new.jsonl --ignore abstract"""
+  pm diff baseline_v1.jsonl baseline_v2.jsonl
+  pm diff old.jsonl new.jsonl | jq -r 'select(.status=="added") | .pmid'
+  pm diff file1.jsonl file2.jsonl --quiet && echo "identical"
+  pm diff old.jsonl new.jsonl --ignore abstract"""
 
 
 def main(args: list[str] | None = None) -> int:
-    """CLI entry point for pm-diff."""
+    """CLI entry point for pm diff."""
     if args is None:
         args = sys.argv[1:]
 
@@ -227,7 +227,7 @@ def main(args: list[str] | None = None) -> int:
 
     if len(positional) < 2:
         print("Error: Two files required", file=sys.stderr)
-        print("Usage: pm-diff [OPTIONS] OLD_FILE NEW_FILE", file=sys.stderr)
+        print("Usage: pm diff [OPTIONS] OLD_FILE NEW_FILE", file=sys.stderr)
         return 2
 
     if len(positional) > 2:

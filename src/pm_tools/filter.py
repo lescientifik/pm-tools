@@ -1,4 +1,4 @@
-"""pm-filter: Filter JSONL articles by field patterns."""
+"""pm filter: Filter JSONL articles by field patterns."""
 
 from __future__ import annotations
 
@@ -173,10 +173,10 @@ def parse_jsonl_stream(input_stream) -> Iterator[dict[str, Any]]:
 
 
 HELP_TEXT = """\
-pm-filter - Filter JSONL articles by field patterns
+pm filter - Filter JSONL articles by field patterns
 
-Usage: pm-parse | pm-filter [OPTIONS]
-       cat articles.jsonl | pm-filter [OPTIONS]
+Usage: pm parse | pm filter [OPTIONS]
+       cat articles.jsonl | pm filter [OPTIONS]
 
 Filter Options:
   --year PATTERN      Year filter (exact, range, or open-ended)
@@ -192,9 +192,9 @@ General Options:
   -h, --help          Show this help
 
 Examples:
-  pm-filter --year 2020- --journal nature --has-abstract
-  pm-filter --author smith
-  pm-filter --year 2020-2024
+  pm filter --year 2020- --journal nature --has-abstract
+  pm filter --author smith
+  pm filter --year 2020-2024
 
 Notes:
   - Multiple filters combine with AND logic
@@ -202,7 +202,7 @@ Notes:
 
 
 def main(args: list[str] | None = None) -> int:
-    """CLI entry point for pm-filter."""
+    """CLI entry point for pm filter."""
     if args is None:
         args = sys.argv[1:]
 

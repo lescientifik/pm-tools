@@ -2,13 +2,13 @@
 
 ## Executive Summary
 
-This document details the plan for implementing complete date parsing in `pm-parse`, enhancing the current year-only extraction to support full dates with ISO 8601 output format.
+This document details the plan for implementing complete date parsing in `pm parse`, enhancing the current year-only extraction to support full dates with ISO 8601 output format.
 
 ---
 
 ## 1. Current State Analysis
 
-### Current Implementation (pm-parse)
+### Current Implementation (pm parse)
 
 ```awk
 # Extract year from PubDate/Year
@@ -241,7 +241,7 @@ function month_to_num(m) {
 | Test Case | Assertion |
 |-----------|-----------|
 | `year` field unchanged | Output still contains `"year": "XXXX"` field |
-| All existing tests pass | No regression in existing pm-parse.bats tests |
+| All existing tests pass | No regression in existing pm parse.bats tests |
 | 30k baseline output | All 30,000 records parse without error |
 
 ### 4.2 Fixture Files to Create
@@ -262,7 +262,7 @@ fixtures/edge-cases/dates/
 
 ### 4.3 Test File Structure
 
-New file: `test/pm-parse-dates.bats`
+New file: `test/pm parse-dates.bats`
 
 ```bash
 #!/usr/bin/env bats
@@ -270,73 +270,73 @@ New file: `test/pm-parse-dates.bats`
 load test_helper
 
 # Category 1: Structured Dates
-@test "pm-parse: full date (Year+Month+Day) produces ISO date" {
-    run bash -c 'cat fixtures/edge-cases/dates/full-date.xml | pm-parse'
+@test "pm parse: full date (Year+Month+Day) produces ISO date" {
+    run bash -c 'cat fixtures/edge-cases/dates/full-date.xml | pm parse'
     [ "$status" -eq 0 ]
     result=$(echo "$output" | jq -r '.date')
     [ "$result" = "1975-10-27" ]
 }
 
-@test "pm-parse: year+month produces YYYY-MM format" {
-    run bash -c 'cat fixtures/edge-cases/dates/year-month.xml | pm-parse'
+@test "pm parse: year+month produces YYYY-MM format" {
+    run bash -c 'cat fixtures/edge-cases/dates/year-month.xml | pm parse'
     [ "$status" -eq 0 ]
     result=$(echo "$output" | jq -r '.date')
     [ "$result" = "1975-06" ]
 }
 
-@test "pm-parse: year only produces YYYY format" {
-    run bash -c 'cat fixtures/edge-cases/dates/year-only.xml | pm-parse'
+@test "pm parse: year only produces YYYY format" {
+    run bash -c 'cat fixtures/edge-cases/dates/year-only.xml | pm parse'
     [ "$status" -eq 0 ]
     result=$(echo "$output" | jq -r '.date')
     [ "$result" = "1976" ]
 }
 
-@test "pm-parse: year+season maps to quarter start" {
-    run bash -c 'cat fixtures/edge-cases/dates/year-season.xml | pm-parse'
+@test "pm parse: year+season maps to quarter start" {
+    run bash -c 'cat fixtures/edge-cases/dates/year-season.xml | pm parse'
     [ "$status" -eq 0 ]
     result=$(echo "$output" | jq -r '.date')
     [ "$result" = "1975-06" ]  # Summer -> June
 }
 
 # Category 2: MedlineDate
-@test "pm-parse: MedlineDate month range extracts start month" {
-    run bash -c 'cat fixtures/edge-cases/dates/medlinedate-month-range.xml | pm-parse'
+@test "pm parse: MedlineDate month range extracts start month" {
+    run bash -c 'cat fixtures/edge-cases/dates/medlinedate-month-range.xml | pm parse'
     [ "$status" -eq 0 ]
     result=$(echo "$output" | jq -r '.date')
     [ "$result" = "1975-07" ]  # Jul-Aug -> July
 }
 
-@test "pm-parse: MedlineDate day range extracts start date" {
-    run bash -c 'cat fixtures/edge-cases/dates/medlinedate-day-range.xml | pm-parse'
+@test "pm parse: MedlineDate day range extracts start date" {
+    run bash -c 'cat fixtures/edge-cases/dates/medlinedate-day-range.xml | pm parse'
     [ "$status" -eq 0 ]
     result=$(echo "$output" | jq -r '.date')
     [ "$result" = "1977-07-04" ]  # Jul 4-7 -> July 4
 }
 
-@test "pm-parse: MedlineDate year range extracts start year" {
-    run bash -c 'cat fixtures/edge-cases/dates/medlinedate-year-range.xml | pm-parse'
+@test "pm parse: MedlineDate year range extracts start year" {
+    run bash -c 'cat fixtures/edge-cases/dates/medlinedate-year-range.xml | pm parse'
     [ "$status" -eq 0 ]
     result=$(echo "$output" | jq -r '.date')
     [ "$result" = "1975" ]
 }
 
-@test "pm-parse: MedlineDate with uppercase months" {
-    run bash -c 'cat fixtures/edge-cases/dates/medlinedate-uppercase.xml | pm-parse'
+@test "pm parse: MedlineDate with uppercase months" {
+    run bash -c 'cat fixtures/edge-cases/dates/medlinedate-uppercase.xml | pm parse'
     [ "$status" -eq 0 ]
     result=$(echo "$output" | jq -r '.date')
     [ "$result" = "1975-03" ]  # MAR-APR -> March
 }
 
 # Category 3: Backwards Compatibility
-@test "pm-parse: year field still present for backwards compatibility" {
-    run bash -c 'cat fixtures/edge-cases/dates/full-date.xml | pm-parse'
+@test "pm parse: year field still present for backwards compatibility" {
+    run bash -c 'cat fixtures/edge-cases/dates/full-date.xml | pm parse'
     [ "$status" -eq 0 ]
     year=$(echo "$output" | jq -r '.year')
     [ "$year" = "1975" ]
 }
 
-@test "pm-parse: date and year fields both present" {
-    run bash -c 'cat fixtures/edge-cases/dates/full-date.xml | pm-parse'
+@test "pm parse: date and year fields both present" {
+    run bash -c 'cat fixtures/edge-cases/dates/full-date.xml | pm parse'
     [ "$status" -eq 0 ]
     date=$(echo "$output" | jq -r '.date')
     year=$(echo "$output" | jq -r '.year')
@@ -354,12 +354,12 @@ load test_helper
 1. Create `fixtures/edge-cases/dates/` directory
 2. Extract sample articles from baseline for each date format
 3. Create synthetic fixtures for edge cases not found in baseline
-4. Write `test/pm-parse-dates.bats` with all test cases
+4. Write `test/pm parse-dates.bats` with all test cases
 5. Verify all tests FAIL (Red phase)
 
 ### Phase 2: Implement Date Parsing (TDD - Green)
 
-1. Add new variables to pm-parse awk script:
+1. Add new variables to pm parse awk script:
    ```awk
    month = ""
    day = ""
@@ -439,7 +439,7 @@ load test_helper
 
 ### Phase 4: Baseline Validation
 
-1. Run pm-parse on full baseline
+1. Run pm parse on full baseline
 2. Verify all 30,000 records parse without error
 3. Validate date field format for sample records
 4. Update performance benchmarks
@@ -459,7 +459,7 @@ load test_helper
 **Mitigation:** Fallback to year-only extraction; log warning in verbose mode
 
 ### Risk 2: Performance Regression
-**Risk:** Additional parsing slows down pm-parse below 1000 articles/sec threshold
+**Risk:** Additional parsing slows down pm parse below 1000 articles/sec threshold
 **Mitigation:**
 - Benchmark after implementation
 - Optimize regex patterns if needed
@@ -476,8 +476,8 @@ load test_helper
 
 ## 7. Success Criteria
 
-1. All tests in `test/pm-parse-dates.bats` pass
-2. All existing tests in `test/pm-parse.bats` still pass
+1. All tests in `test/pm parse-dates.bats` pass
+2. All existing tests in `test/pm parse.bats` still pass
 3. Full baseline (30,000 articles) parses without error
 4. Performance remains above 1000 articles/sec
 5. `date` field correctly formatted per ISO 8601 for all format types

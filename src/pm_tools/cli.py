@@ -1,46 +1,16 @@
-"""CLI entry points for pm-tools.
+"""CLI entry point for pm-tools.
 
-Each pm-* command delegates to its module's main() function.
-The `pm` command provides a unified interface with subcommands.
+The `pm` command provides a unified interface with subcommands:
+  pm search, pm fetch, pm parse, pm filter, pm cite, pm download, pm diff, pm quick
 """
 
 import sys
 
 from pm_tools import cite, diff, download, fetch, filter, parse, search
 
-# --- Individual entry points (for pm-search, pm-fetch, etc.) ---
-
-
-def search_main() -> None:
-    sys.exit(search.main())
-
-
-def fetch_main() -> None:
-    sys.exit(fetch.main())
-
-
-def parse_main() -> None:
-    sys.exit(parse.main())
-
-
-def filter_main() -> None:
-    sys.exit(filter.main())
-
-
-def cite_main() -> None:
-    sys.exit(cite.main())
-
-
-def download_main() -> None:
-    sys.exit(download.main())
-
-
-def diff_main() -> None:
-    sys.exit(diff.main())
-
 
 def quick_main() -> None:
-    """Quick search: pm-search | pm-fetch | pm-parse in one command."""
+    """Quick search: pm search | pm fetch | pm parse in one command."""
     args = sys.argv[1:]
 
     max_results = 100
@@ -86,7 +56,7 @@ def quick_main() -> None:
 
     if not query:
         print("Error: Missing query argument", file=sys.stderr)
-        print('Usage: pm-quick [OPTIONS] "search query"', file=sys.stderr)
+        print('Usage: pm quick [OPTIONS] "search query"', file=sys.stderr)
         sys.exit(1)
 
     if not query.strip():
@@ -117,9 +87,9 @@ def quick_main() -> None:
 
 
 QUICK_HELP = """\
-pm-quick - Quick PubMed search (outputs JSONL)
+pm quick - Quick PubMed search (outputs JSONL)
 
-Usage: pm-quick [OPTIONS] "search query"
+Usage: pm quick [OPTIONS] "search query"
 
 Options:
   --max N         Maximum results (default: 100)
@@ -130,11 +100,11 @@ Output:
   JSONL to stdout (one article per line)
 
 Examples:
-  pm-quick "CRISPR cancer therapy"
-  pm-quick --max 20 "machine learning diagnosis"
+  pm quick "CRISPR cancer therapy"
+  pm quick --max 20 "machine learning diagnosis"
 
 For advanced filtering, use the full pipeline:
-  pm-search "query" | pm-fetch | pm-parse | pm-filter --year 2024"""
+  pm search "query" | pm fetch | pm parse | pm filter --year 2024"""
 
 
 # --- Unified `pm` entry point ---

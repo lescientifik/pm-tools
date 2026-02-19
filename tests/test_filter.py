@@ -28,7 +28,7 @@ def _article(
     doi: str | None = "10.1234/test",
     abstract: str = "Some abstract text.",
 ) -> dict:
-    """Build a minimal article dict matching the pm-parse JSONL schema."""
+    """Build a minimal article dict matching the pm parse JSONL schema."""
     art: dict = {
         "pmid": pmid,
         "title": title,

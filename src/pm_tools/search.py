@@ -1,4 +1,4 @@
-"""pm-search: Search PubMed and return PMIDs."""
+"""pm search: Search PubMed and return PMIDs."""
 
 from __future__ import annotations
 
@@ -43,9 +43,9 @@ def search(query: str, max_results: int = DEFAULT_MAX) -> list[str]:
 
 
 HELP_TEXT = """\
-pm-search - Search PubMed and return PMIDs
+pm search - Search PubMed and return PMIDs
 
-Usage: pm-search [OPTIONS] "search query"
+Usage: pm search [OPTIONS] "search query"
 
 Options:
   --max N        Maximum results to return (default: 10000)
@@ -55,9 +55,9 @@ Output:
   PMIDs to stdout, one per line
 
 Examples:
-  pm-search "CRISPR cancer therapy"
-  pm-search --max 100 "machine learning"
-  pm-search "covid vaccine 2024" | pm-fetch | pm-parse > results.jsonl
+  pm search "CRISPR cancer therapy"
+  pm search --max 100 "machine learning"
+  pm search "covid vaccine 2024" | pm fetch | pm parse > results.jsonl
 
 Query syntax:
   Uses PubMed query syntax. See:
@@ -65,7 +65,7 @@ Query syntax:
 
 
 def main(args: list[str] | None = None) -> int:
-    """CLI entry point for pm-search."""
+    """CLI entry point for pm search."""
     if args is None:
         args = sys.argv[1:]
 
@@ -96,14 +96,14 @@ def main(args: list[str] | None = None) -> int:
                 return 2
         elif arg.startswith("-"):
             print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            print("hint: use 'pm-search --help' for usage", file=sys.stderr)
+            print("hint: use 'pm search --help' for usage", file=sys.stderr)
             return 2
         else:
             query = arg
         i += 1
 
     if not query:
-        print('Usage: pm-search [--max N] "search query"', file=sys.stderr)
+        print('Usage: pm search [--max N] "search query"', file=sys.stderr)
         return 1
 
     if not query.strip():
