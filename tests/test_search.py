@@ -7,6 +7,8 @@ The search module will be at pm_tools.search with:
 All tests are written RED-first: they MUST fail until the module is implemented.
 """
 
+import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -289,3 +291,119 @@ class TestSearchErrorHandling:
             pytest.raises((httpx.ConnectError, ConnectionError, RuntimeError)),
         ):
             search("cancer")
+
+
+# =============================================================================
+# Search cache
+# =============================================================================
+
+
+def _make_pm_dir(tmp_path: Path) -> Path:
+    """Create a .pm/ structure for testing."""
+    pm = tmp_path / ".pm"
+    pm.mkdir()
+    for sub in ("search", "fetch", "cite", "download"):
+        (pm / "cache" / sub).mkdir(parents=True)
+    (pm / "audit.jsonl").write_text("")
+    return pm
+
+
+class TestSearchCache:
+    """search() caches results in .pm/cache/search/ when cache_dir is given."""
+
+    def test_caches_results(self, mock_esearch_response: str, tmp_path: Path) -> None:
+        """First call caches, second returns from cache with 0 API calls."""
+        pm_dir = _make_pm_dir(tmp_path)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_esearch_response
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+            result1 = search("CRISPR cancer", cache_dir=pm_dir)
+            assert mock_get.call_count == 1
+
+            result2 = search("CRISPR cancer", cache_dir=pm_dir)
+            assert mock_get.call_count == 1  # no additional API call
+
+        assert result1 == result2
+
+    def test_different_queries_different_cache(
+        self, mock_esearch_response: str, tmp_path: Path
+    ) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_esearch_response
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+            search("CRISPR", cache_dir=pm_dir)
+            search("gene therapy", cache_dir=pm_dir)
+            assert mock_get.call_count == 2  # both queries hit API
+
+    def test_refresh_bypasses_cache(self, mock_esearch_response: str, tmp_path: Path) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_esearch_response
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+            search("CRISPR", cache_dir=pm_dir)
+            search("CRISPR", cache_dir=pm_dir, refresh=True)
+            assert mock_get.call_count == 2  # refresh forces API call
+
+    def test_no_cache_without_cache_dir(self, mock_esearch_response: str) -> None:
+        """Without cache_dir, search works as before (no caching)."""
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_esearch_response
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+            search("CRISPR")
+            search("CRISPR")
+            assert mock_get.call_count == 2  # no cache → 2 API calls
+
+
+class TestSearchAudit:
+    """search() logs to audit.jsonl when pm_dir is provided."""
+
+    def test_logs_search_event(self, mock_esearch_response: str, tmp_path: Path) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_esearch_response
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("pm_tools.search.httpx.get", return_value=mock_response):
+            search("CRISPR cancer", cache_dir=pm_dir, pm_dir=pm_dir)
+
+        lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
+        assert len(lines) == 1
+        event = json.loads(lines[0])
+        assert event["op"] == "search"
+        assert event["db"] == "pubmed"
+        assert event["query"] == "CRISPR cancer"
+        assert event["count"] == 3  # mock returns 3 PMIDs
+        assert event["cached"] is False
+
+    def test_logs_cached_event_with_original_ts(
+        self, mock_esearch_response: str, tmp_path: Path
+    ) -> None:
+        pm_dir = _make_pm_dir(tmp_path)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_esearch_response
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("pm_tools.search.httpx.get", return_value=mock_response):
+            search("CRISPR", cache_dir=pm_dir, pm_dir=pm_dir)
+            search("CRISPR", cache_dir=pm_dir, pm_dir=pm_dir)
+
+        lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
+        assert len(lines) == 2
+        event2 = json.loads(lines[1])
+        assert event2["cached"] is True
+        assert "original_ts" in event2
