@@ -1,12 +1,10 @@
 """Tests for pm_tools.download — find PDF sources and download them.
 
-RED phase: tests that drive improvements to the download module.
+RED phase: tests that validate download behavior and drive new features.
 
-Tests that will fail against the current implementation:
-  - Retry on transient errors (not implemented)
-  - Rate limiting between downloads (not implemented)
-  - Progress callback support (not implemented)
-  - Concurrent downloads (not implemented)
+Core tests validate existing functionality. Tests for unimplemented features
+(concurrent downloads, download manifest, file verification) will fail,
+driving new development.
 """
 
 from __future__ import annotations
@@ -249,10 +247,7 @@ class TestDownloadErrors:
     def test_retry_on_transient_503_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A 503 response should be retried up to 3 times before counting as failed.
-
-        This tests a retry mechanism that is not yet implemented.
-        """
+        """A 503 response should be retried before counting as failed."""
         output_dir = tmp_path / "pdfs"
         attempt_count = 0
 
@@ -274,12 +269,46 @@ class TestDownloadErrors:
 
 
 # ---------------------------------------------------------------------------
+# Progress tracking
+# ---------------------------------------------------------------------------
+
+
+class TestDownloadProgress:
+    def test_progress_callback_called_for_each_download(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        output_dir = tmp_path / "pdfs"
+        progress_events: list[dict] = []
+
+        def on_progress(event: dict) -> None:
+            progress_events.append(event)
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=b"%PDF-1.4 content")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {"pmid": "1", "source": "pmc", "url": "https://example.com/1.pdf"},
+            {"pmid": "2", "source": "pmc", "url": "https://example.com/2.pdf"},
+        ]
+        download_pdfs(sources, output_dir, progress_callback=on_progress)
+
+        assert len(progress_events) == 2, "Should call progress_callback for each source"
+        assert progress_events[0]["pmid"] == "1"
+        assert progress_events[1]["pmid"] == "2"
+
+
+# ---------------------------------------------------------------------------
 # Integration: JSONL input with mixed identifiers
 # ---------------------------------------------------------------------------
 
 
 class TestFindSourcesMixed:
-    def test_accepts_articles_with_pmid_pmcid_doi(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_accepts_articles_with_pmid_pmcid_doi(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """find_pdf_sources should handle a mix of identifier types."""
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -309,23 +338,22 @@ class TestFindSourcesMixed:
 
 
 # ---------------------------------------------------------------------------
-# New feature: progress tracking
+# Unimplemented features (RED phase)
 # ---------------------------------------------------------------------------
 
 
-class TestDownloadProgress:
-    def test_progress_callback_called_for_each_download(
+class TestDownloadManifest:
+    """download_pdfs should produce a manifest JSONL file listing all downloaded files.
+
+    Not yet implemented -- drives adding download tracking.
+    """
+
+    def test_writes_manifest_jsonl(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """download_pdfs should accept an optional progress_callback parameter.
+        import json
 
-        This tests a feature that is not yet implemented.
-        """
         output_dir = tmp_path / "pdfs"
-        progress_events: list[dict] = []
-
-        def on_progress(event: dict) -> None:
-            progress_events.append(event)
 
         def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(status_code=200, content=b"%PDF-1.4 content")
@@ -335,10 +363,72 @@ class TestDownloadProgress:
 
         sources = [
             {"pmid": "1", "source": "pmc", "url": "https://example.com/1.pdf"},
-            {"pmid": "2", "source": "pmc", "url": "https://example.com/2.pdf"},
+            {"pmid": "2", "source": "unpaywall", "url": "https://example.com/2.pdf"},
         ]
-        download_pdfs(sources, output_dir, progress_callback=on_progress)
+        download_pdfs(sources, output_dir, manifest=True)
 
-        assert len(progress_events) == 2, "Should call progress_callback for each source"
-        assert progress_events[0]["pmid"] == "1"
-        assert progress_events[1]["pmid"] == "2"
+        manifest_path = output_dir / "manifest.jsonl"
+        assert manifest_path.exists(), "Should create manifest.jsonl in output directory"
+
+        entries = [json.loads(line) for line in manifest_path.read_text().splitlines()]
+        assert len(entries) == 2
+        assert entries[0]["pmid"] == "1"
+        assert entries[0]["source"] == "pmc"
+        assert "path" in entries[0]
+
+
+class TestDownloadVerify:
+    """download_pdfs should verify downloaded files are valid PDFs.
+
+    Not yet implemented -- drives adding content verification.
+    """
+
+    def test_non_pdf_content_counted_as_failed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If the response is HTML instead of PDF, it should be counted as failed."""
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                status_code=200,
+                content=b"<html><body>Access Denied</body></html>",
+                headers={"content-type": "text/html"},
+            )
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [{"pmid": "1", "source": "pmc", "url": "https://example.com/1.pdf"}]
+        result = download_pdfs(sources, output_dir, verify_pdf=True)
+
+        assert result["failed"] == 1, "HTML response should be detected as non-PDF and counted as failed"
+        assert result["downloaded"] == 0
+        # Should not have written the file
+        assert not (output_dir / "1.pdf").exists(), "Non-PDF content should not be saved"
+
+
+class TestConcurrentDownload:
+    """download_pdfs should support concurrent downloads with max_concurrent parameter.
+
+    Not yet implemented -- drives adding async/concurrent download support.
+    """
+
+    def test_concurrent_downloads(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=b"%PDF-1.4 content")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {"pmid": str(i), "source": "pmc", "url": f"https://example.com/{i}.pdf"}
+            for i in range(10)
+        ]
+        result = download_pdfs(sources, output_dir, max_concurrent=4)
+
+        assert result["downloaded"] == 10, "All 10 PDFs should be downloaded"
