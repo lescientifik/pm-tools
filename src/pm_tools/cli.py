@@ -6,7 +6,7 @@ The `pm` command provides a unified interface with subcommands:
 
 import sys
 
-from pm_tools import cite, diff, download, fetch, filter, init, parse, search
+from pm_tools import audit, cite, diff, download, fetch, filter, init, parse, search
 
 
 def quick_main() -> None:
@@ -132,6 +132,7 @@ SUBCOMMANDS = {
     "cite": cite.main,
     "download": download.main,
     "diff": diff.main,
+    "audit": audit.main,
     "quick": lambda args=None: quick_main(),
 }
 
@@ -149,6 +150,7 @@ Commands:
   cite        Fetch CSL-JSON citations
   download    Download full-text PDFs
   diff        Compare two JSONL files by PMID
+  audit       View audit trail and PRISMA report
   quick       One-command search pipeline (outputs JSONL)
 
 Examples:
