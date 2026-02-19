@@ -6,7 +6,7 @@ The `pm` command provides a unified interface with subcommands:
 
 import sys
 
-from pm_tools import cite, diff, download, fetch, filter, parse, search
+from pm_tools import cite, diff, download, fetch, filter, init, parse, search
 
 
 def quick_main() -> None:
@@ -110,6 +110,7 @@ For advanced filtering, use the full pipeline:
 # --- Unified `pm` entry point ---
 
 SUBCOMMANDS = {
+    "init": init.main,
     "search": search.main,
     "fetch": fetch.main,
     "parse": parse.main,
@@ -126,6 +127,7 @@ pm - PubMed CLI tools for AI agents
 Usage: pm <command> [OPTIONS]
 
 Commands:
+  init        Initialize audit trail and cache (.pm/)
   search      Search PubMed, return PMIDs
   fetch       Fetch PubMed XML by PMIDs
   parse       Parse PubMed XML to JSONL
