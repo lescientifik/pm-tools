@@ -220,8 +220,8 @@ def fetch_stream(
 HELP_TEXT = """\
 pm fetch - Fetch PubMed XML from E-utilities API
 
-Tip: for most tasks, use 'pm quick' instead — it runs search + fetch + parse
-in one command: pm quick "query" --max 100 > results.jsonl
+Tip: for most tasks, use 'pm collect' instead — it runs search + fetch + parse
+in one command: pm collect "query" --max 100 > results.jsonl
 
 Usage: cat pmids.txt | pm fetch > articles.xml
 

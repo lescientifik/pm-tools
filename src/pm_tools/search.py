@@ -139,9 +139,9 @@ Options:
 Output:
   PMIDs to stdout, one per line
 
-Tip: for most tasks, use 'pm quick' instead — it runs search + fetch + parse
+Tip: for most tasks, use 'pm collect' instead — it runs search + fetch + parse
 in one command and outputs JSONL directly:
-  pm quick "CRISPR cancer therapy" --max 100 > results.jsonl
+  pm collect "CRISPR cancer therapy" --max 100 > results.jsonl
 
 If you need raw PMIDs, save them to a file for reuse:
   pm search "CRISPR cancer therapy" --max 100 > pmids.txt

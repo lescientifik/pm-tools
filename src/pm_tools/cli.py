@@ -1,7 +1,7 @@
 """CLI entry point for pm-tools.
 
 The `pm` command provides a unified interface with subcommands:
-  pm search, pm fetch, pm parse, pm filter, pm cite, pm download, pm diff, pm quick
+  pm search, pm fetch, pm parse, pm filter, pm cite, pm download, pm diff, pm collect
 """
 
 import sys
@@ -9,8 +9,8 @@ import sys
 from pm_tools import audit, cite, diff, download, fetch, filter, init, parse, search
 
 
-def quick_main(argv: list[str] | None = None) -> int:
-    """Quick search: pm search | pm fetch | pm parse in one command."""
+def collect_main(argv: list[str] | None = None) -> int:
+    """Collect articles: pm search | pm fetch | pm parse in one command."""
     args = argv if argv is not None else sys.argv[1:]
 
     max_results = 100
@@ -21,7 +21,7 @@ def quick_main(argv: list[str] | None = None) -> int:
     while i < len(args):
         arg = args[i]
         if arg in ("--help", "-h"):
-            print(QUICK_HELP)
+            print(COLLECT_HELP)
             sys.exit(0)
         elif arg in ("--verbose", "-v"):
             verbose = True
@@ -56,7 +56,7 @@ def quick_main(argv: list[str] | None = None) -> int:
 
     if not query:
         print("Error: Missing query argument", file=sys.stderr)
-        print('Usage: pm quick [OPTIONS] "search query"', file=sys.stderr)
+        print('Usage: pm collect [OPTIONS] "search query"', file=sys.stderr)
         sys.exit(1)
 
     if not query.strip():
@@ -100,10 +100,10 @@ def quick_main(argv: list[str] | None = None) -> int:
         sys.exit(1)
 
 
-QUICK_HELP = """\
-pm quick - Quick PubMed search (outputs JSONL)
+COLLECT_HELP = """\
+pm collect - Collect PubMed articles (search + fetch + parse → JSONL)
 
-Usage: pm quick [OPTIONS] "search query"
+Usage: pm collect [OPTIONS] "search query"
 
 Options:
   --max N         Maximum results (default: 100)
@@ -114,8 +114,8 @@ Output:
   JSONL to stdout (one article per line)
 
 Examples:
-  pm quick "CRISPR cancer therapy"
-  pm quick --max 20 "machine learning diagnosis"
+  pm collect "CRISPR cancer therapy" --max 100 > results.jsonl
+  pm collect --max 50 "machine learning diagnosis" > results.jsonl
 
 For advanced filtering, use the full pipeline:
   pm search "query" | pm fetch | pm parse | pm filter --year 2024"""
@@ -133,7 +133,7 @@ SUBCOMMANDS = {
     "download": download.main,
     "diff": diff.main,
     "audit": audit.main,
-    "quick": quick_main,
+    "collect": collect_main,
 }
 
 MAIN_HELP = """\
@@ -142,11 +142,11 @@ pm - PubMed CLI tools for AI agents
 Usage: pm <command> [OPTIONS]
 
 Recommended workflow:
-  pm quick       Search + fetch + parse in one command (RECOMMENDED)
+  pm collect     Search + fetch + parse in one command (RECOMMENDED)
   pm filter      Filter JSONL articles by year, journal, author, etc.
 
 All commands:
-  quick       Search + fetch + parse in one command (RECOMMENDED)
+  collect     Search + fetch + parse in one command (RECOMMENDED)
   search      Search PubMed, return PMIDs
   fetch       Fetch PubMed XML by PMIDs
   parse       Parse PubMed XML to JSONL
@@ -158,11 +158,11 @@ All commands:
   init        Initialize audit trail and cache (.pm/)
 
 Examples:
-  pm quick "CRISPR cancer" --max 100 > results.jsonl
+  pm collect "CRISPR cancer" --max 100 > results.jsonl
   pm filter --year 2024 --has-abstract < results.jsonl
 
 Tip: save results to a file so you can reuse them without re-searching:
-  pm quick "my query" > results.jsonl
+  pm collect "my query" > results.jsonl
   pm filter --year 2024 < results.jsonl
   pm filter --has-doi < results.jsonl
 

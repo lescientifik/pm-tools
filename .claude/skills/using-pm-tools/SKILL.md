@@ -22,7 +22,7 @@ Unix-style CLI tools for PubMed: search -> fetch -> parse -> filter.
 
 ## AI Workflow (REQUIRED)
 
-**NEVER use `pm quick`** - it's for human terminal use only.
+**NEVER use `pm collect`** - it's for human terminal use only.
 
 **ALWAYS save results to files** to avoid re-querying PubMed API:
 
@@ -186,7 +186,7 @@ pm filter --has-doi             # Must have DOI
 
 ## Human Commands (NOT for AI)
 
-`pm quick` and `pm show` produce pretty output for humans reading terminals.
+`pm collect` and `pm show` produce pretty output for humans reading terminals.
 AI should read JSONL directly with `jq` for structured access.
 
 ## Notes

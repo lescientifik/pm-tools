@@ -280,8 +280,8 @@ def parse_xml_stream(input_stream: IO[str] | IO[bytes]) -> Iterator[dict[str, An
 HELP_TEXT = """\
 pm parse - Parse PubMed XML to JSONL
 
-Tip: for most tasks, use 'pm quick' instead — it runs search + fetch + parse
-in one command: pm quick "query" --max 100 > results.jsonl
+Tip: for most tasks, use 'pm collect' instead — it runs search + fetch + parse
+in one command: pm collect "query" --max 100 > results.jsonl
 
 Usage: cat articles.xml | pm parse [OPTIONS] > articles.jsonl
 
