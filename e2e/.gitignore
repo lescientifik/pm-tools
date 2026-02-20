@@ -1,0 +1,4 @@
+# Agent work directories (runtime artifacts)
+workdirs/
+# Sequence counters (runtime)
+logs/*.seq
