@@ -220,8 +220,10 @@ def fetch_stream(
 HELP_TEXT = """\
 pm fetch - Fetch PubMed XML from E-utilities API
 
-Usage: echo "12345" | pm fetch > articles.xml
-       cat pmids.txt | pm fetch > articles.xml
+Tip: for most tasks, use 'pm collect' instead — it runs search + fetch + parse
+in one command: pm collect "query" --max 100 > results.jsonl
+
+Usage: cat pmids.txt | pm fetch > articles.xml
 
 Options:
   -v, --verbose  Show progress on stderr
@@ -233,13 +235,7 @@ Input:
 Output:
   PubMed XML to stdout
 
-Features:
-  - Batches requests (200 PMIDs per API call)
-  - Rate limits to ~3 requests/second
-  - Exits with error on network failure
-
 Examples:
-  echo "12345" | pm fetch > article.xml
   cat pmids.txt | pm fetch > articles.xml
   pm search "CRISPR" | pm fetch | pm parse > results.jsonl"""
 
