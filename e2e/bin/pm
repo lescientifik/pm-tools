@@ -1,0 +1,79 @@
+#!/usr/bin/python3
+"""pm-spy: wrapper around the real pm CLI that logs every invocation.
+
+Each agent gets its own log file via AGENT_ID env var.
+Log format: JSONL with timestamp, command, args, exit_code, stdout, stderr.
+"""
+import json
+import os
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+AGENT_ID = os.environ.get("AGENT_ID", "unknown")
+LOG_DIR = Path(os.environ.get("PM_SPY_LOG_DIR", "/home/user/pm-tools/e2e/logs"))
+LOG_FILE = LOG_DIR / f"{AGENT_ID}.jsonl"
+SEQ_FILE = LOG_DIR / f"{AGENT_ID}.seq"
+
+REAL_PM = ["/root/.local/bin/uv", "run", "--project", "/home/user/pm-tools", "pm"]
+
+
+def main() -> int:
+    # Atomic sequence number per agent
+    seq = 0
+    if SEQ_FILE.exists():
+        seq = int(SEQ_FILE.read_text().strip())
+    seq += 1
+    SEQ_FILE.write_text(str(seq))
+
+    ts = datetime.now(timezone.utc).isoformat()
+    args = sys.argv[1:]
+
+    # Read stdin if it's being piped (not a terminal)
+    stdin_data = None
+    if not sys.stdin.isatty():
+        stdin_data = sys.stdin.read()
+
+    # Run the real pm command, passing through stdin if present
+    result = subprocess.run(
+        REAL_PM + args,
+        input=stdin_data,
+        capture_output=True,
+        text=True,
+    )
+
+    # Print stdout/stderr so the agent sees them
+    if result.stdout:
+        sys.stdout.write(result.stdout)
+    if result.stderr:
+        sys.stderr.write(result.stderr)
+
+    # Log entry
+    # Truncate large outputs for readability (keep first/last 500 chars)
+    def truncate(s: str, max_len: int = 2000) -> str:
+        if len(s) <= max_len:
+            return s
+        return s[:max_len // 2] + f"\n... [{len(s)} chars total, truncated] ...\n" + s[-max_len // 2:]
+
+    entry = {
+        "seq": seq,
+        "ts": ts,
+        "agent": AGENT_ID,
+        "cmd": f"pm {' '.join(args)}",
+        "exit_code": result.returncode,
+        "stdin_lines": stdin_data.count("\n") if stdin_data else 0,
+        "stdout": truncate(result.stdout),
+        "stderr": truncate(result.stderr),
+    }
+
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(LOG_FILE, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+    return result.returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())
