@@ -1,0 +1,67 @@
+#!/usr/bin/python3.12
+"""Spy wrapper for pm CLI (CONTROL version A).
+
+Logs every invocation to $PM_SPY_LOG then delegates to .venv-control/bin/pm.
+"""
+import json
+import os
+import subprocess
+import sys
+import time
+
+REAL_PM = "/home/user/pm-tools/.venv-control/bin/pm"
+LOG_FILE = os.environ.get("PM_SPY_LOG", "/home/user/pm-tools/e2e/ab-logs/control.jsonl")
+
+# Build command string
+full_args = [REAL_PM] + sys.argv[1:]
+cmd_str = "pm " + " ".join(sys.argv[1:])
+
+# Read stdin if piped
+stdin_data = None
+stdin_lines = 0
+if not sys.stdin.isatty():
+    stdin_data = sys.stdin.read()
+    stdin_lines = len(stdin_data.strip().split("\n")) if stdin_data.strip() else 0
+
+# Run the real pm
+t0 = time.time()
+result = subprocess.run(
+    full_args,
+    input=stdin_data,
+    capture_output=True,
+    text=True,
+)
+elapsed = time.time() - t0
+
+# Write stdout/stderr to our stdout/stderr
+if result.stdout:
+    sys.stdout.write(result.stdout)
+if result.stderr:
+    sys.stderr.write(result.stderr)
+
+# Get sequence number
+seq_file = LOG_FILE + ".seq"
+try:
+    with open(seq_file, "r") as f:
+        seq = int(f.read().strip()) + 1
+except (FileNotFoundError, ValueError):
+    seq = 1
+with open(seq_file, "w") as f:
+    f.write(str(seq))
+
+# Log entry
+entry = {
+    "seq": seq,
+    "variant": "control",
+    "cmd": cmd_str,
+    "exit_code": result.returncode,
+    "stdin_lines": stdin_lines,
+    "stdout": result.stdout[:2048] if result.stdout else "",
+    "stderr": result.stderr[:1024] if result.stderr else "",
+    "elapsed_s": round(elapsed, 3),
+    "ts": time.time(),
+}
+with open(LOG_FILE, "a") as f:
+    f.write(json.dumps(entry) + "\n")
+
+sys.exit(result.returncode)

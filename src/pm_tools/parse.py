@@ -280,8 +280,10 @@ def parse_xml_stream(input_stream: IO[str] | IO[bytes]) -> Iterator[dict[str, An
 HELP_TEXT = """\
 pm parse - Parse PubMed XML to JSONL
 
+Tip: for most tasks, use 'pm quick' instead — it runs search + fetch + parse
+in one command: pm quick "query" --max 100 > results.jsonl
+
 Usage: cat articles.xml | pm parse [OPTIONS] > articles.jsonl
-       zcat articles.xml.gz | pm parse [OPTIONS] > articles.jsonl
 
 Options:
   -v, --verbose  Show progress on stderr
@@ -293,7 +295,6 @@ Output:
 
 Examples:
   cat pubmed.xml | pm parse > articles.jsonl
-  zcat pubmed25n0001.xml.gz | pm parse > articles.jsonl
   cat pubmed.xml | pm parse --verbose > articles.jsonl 2>progress.log"""
 
 

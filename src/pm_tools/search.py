@@ -139,10 +139,13 @@ Options:
 Output:
   PMIDs to stdout, one per line
 
-Examples:
-  pm search "CRISPR cancer therapy"
-  pm search --max 100 "machine learning"
-  pm search "covid vaccine 2024" | pm fetch | pm parse > results.jsonl
+Tip: for most tasks, use 'pm quick' instead — it runs search + fetch + parse
+in one command and outputs JSONL directly:
+  pm quick "CRISPR cancer therapy" --max 100 > results.jsonl
+
+If you need raw PMIDs, save them to a file for reuse:
+  pm search "CRISPR cancer therapy" --max 100 > pmids.txt
+  cat pmids.txt | pm fetch | pm parse > results.jsonl
 
 Query syntax:
   Uses PubMed query syntax. See:

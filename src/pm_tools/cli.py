@@ -141,8 +141,12 @@ pm - PubMed CLI tools for AI agents
 
 Usage: pm <command> [OPTIONS]
 
-Commands:
-  init        Initialize audit trail and cache (.pm/)
+Recommended workflow:
+  pm quick       Search + fetch + parse in one command (RECOMMENDED)
+  pm filter      Filter JSONL articles by year, journal, author, etc.
+
+All commands:
+  quick       Search + fetch + parse in one command (RECOMMENDED)
   search      Search PubMed, return PMIDs
   fetch       Fetch PubMed XML by PMIDs
   parse       Parse PubMed XML to JSONL
@@ -151,12 +155,16 @@ Commands:
   download    Download full-text PDFs
   diff        Compare two JSONL files by PMID
   audit       View audit trail and PRISMA report
-  quick       One-command search pipeline (outputs JSONL)
+  init        Initialize audit trail and cache (.pm/)
 
 Examples:
-  pm search "CRISPR cancer" | pm fetch | pm parse > results.jsonl
-  pm quick "covid vaccine" --max 50
-  pm filter --year 2024 --has-abstract < articles.jsonl
+  pm quick "CRISPR cancer" --max 100 > results.jsonl
+  pm filter --year 2024 --has-abstract < results.jsonl
+
+Tip: save results to a file so you can reuse them without re-searching:
+  pm quick "my query" > results.jsonl
+  pm filter --year 2024 < results.jsonl
+  pm filter --has-doi < results.jsonl
 
 Use 'pm <command> --help' for command-specific help."""
 
