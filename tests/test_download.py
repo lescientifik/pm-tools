@@ -1613,6 +1613,154 @@ class TestDownloadPdfsLogging:
 
 
 # ---------------------------------------------------------------------------
+# Phase 9.3: End-to-end tgz extraction pipeline
+# ---------------------------------------------------------------------------
+
+
+class TestTgzEndToEnd:
+    """Full pipeline: JSONL → find_pdf_sources → download_pdfs with tgz."""
+
+    def test_tgz_only_article_downloaded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Article with tgz-only PMC source → PDF extracted and saved."""
+        output_dir = tmp_path / "pdfs"
+        tgz_content = _make_tgz({"PMC9273392/article.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
+            if "ftp.ncbi.nlm.nih.gov" in url:
+                return httpx.Response(status_code=200, content=tgz_content)
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        articles = [_art(pmid="1", pmcid="PMC9273392")]
+        sources = find_pdf_sources(articles)
+        result = download_pdfs(sources, output_dir)
+
+        assert result["downloaded"] == 1
+        assert (output_dir / "1.pdf").read_bytes() == _FAKE_PDF
+
+    def test_mixed_pdf_and_tgz(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Two articles: one PDF direct, one tgz-only → both downloaded."""
+        output_dir = tmp_path / "pdfs"
+        direct_pdf = b"%PDF-1.4 direct download"
+        tgz_pdf = b"%PDF-1.4 extracted from tgz"
+        tgz_content = _make_tgz({"PMC9273392/article.pdf": tgz_pdf})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                if "PMC12345" in url:
+                    return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
+                if "PMC9273392" in url:
+                    return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
+            if "oa_pdf" in url:
+                return httpx.Response(status_code=200, content=direct_pdf)
+            if "oa_package" in url:
+                return httpx.Response(status_code=200, content=tgz_content)
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        articles = [
+            _art(pmid="1", pmcid="PMC12345"),
+            _art(pmid="2", pmcid="PMC9273392"),
+        ]
+        sources = find_pdf_sources(articles)
+        result = download_pdfs(sources, output_dir)
+
+        assert result["downloaded"] == 2
+        assert (output_dir / "1.pdf").read_bytes() == direct_pdf
+        assert (output_dir / "2.pdf").read_bytes() == tgz_pdf
+
+    def test_corrupted_tgz_counted_as_failed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Article with tgz-only but corrupted archive → failed with diagnostic."""
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
+            if "ftp.ncbi.nlm.nih.gov" in url:
+                return httpx.Response(status_code=200, content=b"corrupted data")
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        articles = [_art(pmid="1", pmcid="PMC9273392")]
+        sources = find_pdf_sources(articles)
+        result = download_pdfs(sources, output_dir)
+
+        assert result["failed"] == 1
+        assert result["downloaded"] == 0
+        assert not (output_dir / "1.pdf").exists()
+
+    def test_dry_run_shows_tgz_as_available(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Dry-run shows 'PDF available via pmc' for tgz sources too."""
+        from pm_tools.download import main as download_main
+
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        jsonl_input = '{"pmid":"1","pmcid":"PMC9273392","doi":""}\n'
+        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
+
+        exit_code = download_main(["--output-dir", str(output_dir), "--dry-run", "--pmc-only"])
+
+        captured = capsys.readouterr()
+        assert "PDF available via pmc" in captured.out
+        assert exit_code == 0
+
+    def test_tgz_summary_counts_correctly(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Summary counts tgz-extracted PDFs as 'downloaded'."""
+        output_dir = tmp_path / "pdfs"
+        tgz_content = _make_tgz({"PMC9273392/article.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
+            if "ftp.ncbi.nlm.nih.gov" in url:
+                return httpx.Response(status_code=200, content=tgz_content)
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        articles = [_art(pmid="1", pmcid="PMC9273392")]
+        sources = find_pdf_sources(articles)
+        result = download_pdfs(sources, output_dir)
+
+        assert result["downloaded"] == 1
+        assert result["failed"] == 0
+        assert result["skipped"] == 0
+
+
+# ---------------------------------------------------------------------------
 # Integration: JSONL input with mixed identifiers
 # ---------------------------------------------------------------------------
 
