@@ -70,10 +70,24 @@ def _matches_journal_exact(article: dict[str, Any], value: str) -> bool:
 
 
 def _matches_author(article: dict[str, Any], pattern: str) -> bool:
-    """Check if any author contains pattern (case-insensitive)."""
+    """Check if any author contains pattern (case-insensitive).
+
+    Searches concatenation of 'family given' or 'literal' for substring match.
+    """
     authors = article.get("authors", [])
     pattern_lower = pattern.lower()
-    return any(pattern_lower in author.lower() for author in authors)
+    for author in authors:
+        literal = author.get("literal", "")
+        if literal:
+            full = literal
+        else:
+            full = author.get("family", "")
+            given = author.get("given", "")
+            if given:
+                full = f"{full} {given}"
+        if pattern_lower in full.lower():
+            return True
+    return False
 
 
 def _has_abstract(article: dict[str, Any]) -> bool:

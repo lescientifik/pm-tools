@@ -24,7 +24,7 @@ def _article(
     *,
     pmid: str = "1",
     title: str = "A Title",
-    authors: list[str] | None = None,
+    authors: list[dict[str, str]] | None = None,
     journal: str = "Nature",
     year: int = 2024,
     doi: str | None = "10.1234/test",
@@ -34,7 +34,9 @@ def _article(
     art: dict = {
         "pmid": pmid,
         "title": title,
-        "authors": authors if authors is not None else ["Smith J", "Doe A"],
+        "authors": authors
+        if authors is not None
+        else [{"family": "Smith", "given": "J"}, {"family": "Doe", "given": "A"}],
         "journal": journal,
         "year": year,
     }
@@ -49,15 +51,29 @@ def _article(
 def sample_articles() -> list[dict]:
     """A small set of articles spanning several years/journals/authors."""
     return [
-        _article(pmid="1", year=2020, journal="Nature", authors=["Smith J"]),
-        _article(pmid="2", year=2022, journal="Science", authors=["Doe A", "Smith J"]),
-        _article(pmid="3", year=2024, journal="Nature Medicine", authors=["Lee B"]),
-        _article(pmid="4", year=2019, journal="The Lancet", authors=["Garcia C"]),
+        _article(
+            pmid="1", year=2020, journal="Nature", authors=[{"family": "Smith", "given": "J"}]
+        ),
+        _article(
+            pmid="2",
+            year=2022,
+            journal="Science",
+            authors=[{"family": "Doe", "given": "A"}, {"family": "Smith", "given": "J"}],
+        ),
+        _article(
+            pmid="3",
+            year=2024,
+            journal="Nature Medicine",
+            authors=[{"family": "Lee", "given": "B"}],
+        ),
+        _article(
+            pmid="4", year=2019, journal="The Lancet", authors=[{"family": "Garcia", "given": "C"}]
+        ),
         _article(
             pmid="5",
             year=2024,
             journal="Nature",
-            authors=["Brown D"],
+            authors=[{"family": "Brown", "given": "D"}],
             abstract="",
             doi=None,
         ),
@@ -184,6 +200,22 @@ class TestAuthorFilter:
         art = _article(pmid="99", authors=[])
         result = _filter([art], author="Smith")
         assert result == []
+
+    def test_author_matches_family_name(self) -> None:
+        articles = [_article(pmid="1", authors=[{"family": "Smith", "given": "J"}])]
+        result = _filter(articles, author="smith")
+        assert len(result) == 1
+
+    def test_author_matches_given_name(self) -> None:
+        articles = [_article(pmid="1", authors=[{"family": "Smith", "given": "John"}])]
+        result = _filter(articles, author="john")
+        assert len(result) == 1
+
+    def test_author_matches_across_fields(self) -> None:
+        """'smith john' matches concatenated 'Smith John'."""
+        articles = [_article(pmid="1", authors=[{"family": "Smith", "given": "John"}])]
+        result = _filter(articles, author="smith john")
+        assert len(result) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -372,9 +404,19 @@ class TestMinAuthorsFilter:
 
     def test_min_authors_filters_by_count(self) -> None:
         articles = [
-            _article(pmid="1", authors=["Smith J"]),
-            _article(pmid="2", authors=["Smith J", "Doe A"]),
-            _article(pmid="3", authors=["Smith J", "Doe A", "Lee B"]),
+            _article(pmid="1", authors=[{"family": "Smith", "given": "J"}]),
+            _article(
+                pmid="2",
+                authors=[{"family": "Smith", "given": "J"}, {"family": "Doe", "given": "A"}],
+            ),
+            _article(
+                pmid="3",
+                authors=[
+                    {"family": "Smith", "given": "J"},
+                    {"family": "Doe", "given": "A"},
+                    {"family": "Lee", "given": "B"},
+                ],
+            ),
         ]
         result = _filter(articles, min_authors=2)
         pmids = [a["pmid"] for a in result]
@@ -382,9 +424,17 @@ class TestMinAuthorsFilter:
 
     def test_min_authors_with_other_filters(self) -> None:
         articles = [
-            _article(pmid="1", authors=["Smith J"], year=2024),
-            _article(pmid="2", authors=["Smith J", "Doe A"], year=2024),
-            _article(pmid="3", authors=["Smith J", "Doe A"], year=2020),
+            _article(pmid="1", authors=[{"family": "Smith", "given": "J"}], year=2024),
+            _article(
+                pmid="2",
+                authors=[{"family": "Smith", "given": "J"}, {"family": "Doe", "given": "A"}],
+                year=2024,
+            ),
+            _article(
+                pmid="3",
+                authors=[{"family": "Smith", "given": "J"}, {"family": "Doe", "given": "A"}],
+                year=2020,
+            ),
         ]
         result = _filter(articles, min_authors=2, year="2024")
         assert len(result) == 1
