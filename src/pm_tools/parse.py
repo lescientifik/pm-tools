@@ -135,18 +135,24 @@ def parse_article(article: ET.Element) -> dict[str, Any]:
         if title:
             result["title"] = title
 
-        # Authors
+        # Authors (CSL-JSON structured dicts)
         author_list = art.find("AuthorList")
         if author_list is not None:
-            authors = []
+            authors: list[dict[str, str]] = []
             for author_elem in author_list.findall("Author"):
                 lastname = _get_text(author_elem.find("LastName"))
                 forename = _get_text(author_elem.find("ForeName"))
+                collectivename = _get_text(author_elem.find("CollectiveName"))
+                suffix = _get_text(author_elem.find("Suffix"))
                 if lastname:
+                    author_dict: dict[str, str] = {"family": lastname}
                     if forename:
-                        authors.append(f"{lastname} {forename}")
-                    else:
-                        authors.append(lastname)
+                        author_dict["given"] = forename
+                    if suffix:
+                        author_dict["suffix"] = suffix
+                    authors.append(author_dict)
+                elif collectivename:
+                    authors.append({"literal": collectivename})
             if authors:
                 result["authors"] = authors
 

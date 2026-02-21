@@ -221,10 +221,10 @@ class TestParseDOISource:
 
 
 class TestParseAuthors:
-    """Author name formatting: "LastName ForeName"."""
+    """Author names as structured CSL-JSON dicts."""
 
-    def test_authors_formatted_as_lastname_forename(self) -> None:
-        """Authors are formatted as "LastName ForeName"."""
+    def test_authors_formatted_as_dicts(self) -> None:
+        """Authors are structured dicts with family/given keys."""
         xml = """<PubmedArticleSet>
 <PubmedArticle>
   <MedlineCitation>
@@ -242,11 +242,11 @@ class TestParseAuthors:
         result = parse_xml(xml)
         authors = result[0]["authors"]
 
-        assert authors[0] == "Smith John"
-        assert authors[1] == "Doe Jane"
+        assert authors[0] == {"family": "Smith", "given": "John"}
+        assert authors[1] == {"family": "Doe", "given": "Jane"}
 
-    def test_author_with_only_lastname_no_trailing_whitespace(self) -> None:
-        """Author with only LastName (no ForeName) has no trailing space."""
+    def test_author_with_only_lastname(self) -> None:
+        """Author with only LastName has no 'given' key."""
         xml = """<PubmedArticleSet>
 <PubmedArticle>
   <MedlineCitation>
@@ -265,10 +265,74 @@ class TestParseAuthors:
         authors = result[0]["authors"]
 
         assert len(authors) == 2
-        assert authors[0] == "Smith John"
-        assert authors[1] == "OgataK"
-        # Explicitly verify no trailing whitespace
-        assert not authors[1].endswith(" ")
+        assert authors[0] == {"family": "Smith", "given": "John"}
+        assert authors[1] == {"family": "OgataK"}
+        assert "given" not in authors[1]
+
+    def test_author_dict_has_correct_keys(self) -> None:
+        """Explicit key validation: with and without given name."""
+        xml = """<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>200</PMID>
+    <Article>
+      <AuthorList>
+        <Author><LastName>Full</LastName><ForeName>Name</ForeName></Author>
+        <Author><LastName>OnlyLast</LastName></Author>
+      </AuthorList>
+    </Article>
+  </MedlineCitation>
+</PubmedArticle>
+</PubmedArticleSet>"""
+
+        result = parse_xml(xml)
+        authors = result[0]["authors"]
+
+        assert set(authors[0].keys()) == {"family", "given"}
+        assert set(authors[1].keys()) == {"family"}
+
+    def test_collective_name_as_literal(self) -> None:
+        """CollectiveName authors stored as {'literal': ...}."""
+        xml = """<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>201</PMID>
+    <Article>
+      <AuthorList>
+        <Author><LastName>Smith</LastName><ForeName>J</ForeName></Author>
+        <Author><CollectiveName>WHO Working Group</CollectiveName></Author>
+      </AuthorList>
+    </Article>
+  </MedlineCitation>
+</PubmedArticle>
+</PubmedArticleSet>"""
+
+        result = parse_xml(xml)
+        authors = result[0]["authors"]
+
+        assert len(authors) == 2
+        assert authors[0] == {"family": "Smith", "given": "J"}
+        assert authors[1] == {"literal": "WHO Working Group"}
+
+    def test_author_with_suffix(self) -> None:
+        """Author with Suffix element gets 'suffix' key."""
+        xml = """<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>202</PMID>
+    <Article>
+      <AuthorList>
+        <Author><LastName>Smith</LastName><ForeName>John</ForeName><Suffix>Jr</Suffix></Author>
+      </AuthorList>
+    </Article>
+  </MedlineCitation>
+</PubmedArticle>
+</PubmedArticleSet>"""
+
+        result = parse_xml(xml)
+        authors = result[0]["authors"]
+
+        assert authors[0] == {"family": "Smith", "given": "John", "suffix": "Jr"}
 
 
 # =============================================================================
@@ -383,7 +447,7 @@ class TestParseUnicode:
 
         result = parse_xml(xml)
 
-        assert result[0]["authors"][0] == "M\u00fcller Fran\u00e7ois"
+        assert result[0]["authors"][0] == {"family": "M\u00fcller", "given": "Fran\u00e7ois"}
 
 
 # =============================================================================
@@ -1095,7 +1159,10 @@ class TestParseRealFixtures:
         assert "abstract" in article
         assert "abstract_sections" in article
         assert len(article["abstract_sections"]) == 2
-        assert article["authors"] == ["Hummerich W", "Krause D K"]
+        assert article["authors"] == [
+            {"family": "Hummerich", "given": "W"},
+            {"family": "Krause", "given": "D K"},
+        ]
 
     def test_quotes_backslash_fixture(self, edge_cases_dir: Path) -> None:
         """Parse the quotes-backslash fixture."""
