@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sys
 import time
 import xml.etree.ElementTree as ET
@@ -12,6 +13,8 @@ from typing import Any
 import httpx
 
 from pm_tools.cache import audit_log
+
+logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 200
 RATE_LIMIT_DELAY = 0.34
@@ -56,14 +59,18 @@ def pmc_lookup(pmcid: str) -> str | None:
     """Query PMC OA Service for PDF URL."""
     client = get_http_client()
     url = f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmcid}"
+    logger.debug("PMC lookup: %s", url)
     try:
         response = client.get(url)
         if response.status_code != 200:
+            logger.warning("PMC lookup %s: HTTP %d", pmcid, response.status_code)
             return None
-    except httpx.HTTPError:
+    except httpx.HTTPError as e:
+        logger.warning("PMC lookup %s: %s", pmcid, e)
         return None
 
     if "<error" in response.text:
+        logger.warning("PMC lookup %s: API error in response", pmcid)
         return None
 
     try:
@@ -75,8 +82,8 @@ def pmc_lookup(pmcid: str) -> str | None:
                     if href.startswith("ftp://"):
                         href = href.replace("ftp://", "https://", 1)
                     return href
-    except ET.ParseError:
-        pass
+    except ET.ParseError as e:
+        logger.warning("PMC lookup %s: XML parse error: %s", pmcid, e)
 
     return None
 
@@ -86,15 +93,22 @@ def unpaywall_lookup(doi: str, email: str) -> str | None:
     client = get_http_client()
     encoded_doi = doi.replace("/", "%2F")
     url = f"https://api.unpaywall.org/v2/{encoded_doi}?email={email}"
+    logger.debug("Unpaywall lookup: %s", url)
     try:
         response = client.get(url)
         if response.status_code != 200:
+            logger.warning("Unpaywall lookup %s: HTTP %d", doi, response.status_code)
             return None
         data = response.json()
-    except (httpx.HTTPError, json.JSONDecodeError):
+    except httpx.HTTPError as e:
+        logger.warning("Unpaywall lookup %s: %s", doi, e)
+        return None
+    except json.JSONDecodeError as e:
+        logger.warning("Unpaywall lookup %s: JSON decode error: %s", doi, e)
         return None
 
     if not data.get("is_oa"):
+        logger.debug("Unpaywall lookup %s: not open access", doi)
         return None
 
     best_loc = data.get("best_oa_location", {})
@@ -157,9 +171,17 @@ def find_pdf_sources(
                     )
                     continue
         except Exception:
-            pass
+            logger.warning("PMID %s: unexpected error during source lookup", pmid, exc_info=True)
 
-        # No source found
+        # No source found — log the reason
+        if not pmcid and not doi:
+            logger.debug("PMID %s: no source found (no PMCID, no DOI)", pmid)
+        elif not pmcid:
+            logger.debug("PMID %s: no source found (no PMCID)", pmid)
+        elif not doi:
+            logger.debug("PMID %s: no source found (no DOI)", pmid)
+        else:
+            logger.debug("PMID %s: no source found (lookups returned None)", pmid)
         sources.append(
             {
                 "pmid": pmid,
@@ -213,6 +235,7 @@ def download_pdfs(
         url = source.get("url")
 
         if not url:
+            logger.warning("PMID %s: no PDF URL available", pmid)
             result["failed"] += 1
             if progress_callback:
                 progress_callback({"pmid": pmid, "status": "failed", "reason": "no_url"})
@@ -235,6 +258,10 @@ def download_pdfs(
                 time.sleep(0.1 * (attempt + 1))
 
             if response is None or response.status_code not in (200, 226):
+                status_code = response.status_code if response is not None else 0
+                logger.warning(
+                    "PMID %s: HTTP %d from %s", pmid, status_code, url
+                )
                 result["failed"] += 1
                 if progress_callback:
                     progress_callback(
@@ -242,12 +269,15 @@ def download_pdfs(
                             "pmid": pmid,
                             "status": "failed",
                             "reason": "http_error",
+                            "status_code": status_code,
+                            "url": url,
                         }
                     )
                 continue
 
             content = response.content
             if not content:
+                logger.warning("PMID %s: empty response from %s", pmid, url)
                 result["failed"] += 1
                 if progress_callback:
                     progress_callback({"pmid": pmid, "status": "failed", "reason": "empty"})
@@ -257,7 +287,8 @@ def download_pdfs(
             result["downloaded"] += 1
             if progress_callback:
                 progress_callback({"pmid": pmid, "status": "downloaded"})
-        except (httpx.HTTPError, OSError):
+        except (httpx.HTTPError, OSError) as e:
+            logger.warning("PMID %s: %s from %s", pmid, e, url)
             result["failed"] += 1
             if progress_callback:
                 progress_callback(
@@ -265,6 +296,7 @@ def download_pdfs(
                         "pmid": pmid,
                         "status": "failed",
                         "reason": "exception",
+                        "url": url,
                     }
                 )
 
@@ -426,31 +458,30 @@ def main(args: list[str] | None = None) -> int:
         print(f"\nSummary: {available} available, {unavailable} not available")
         return 0 if available > 0 else 2
 
+    # Configure logger for CLI output
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG if verbose else logging.WARNING)
+
     # Detect .pm/ for audit
     from pm_tools.cache import find_pm_dir
 
     detected_pm_dir = find_pm_dir()
 
-    def _verbose_progress(event: dict[str, Any]) -> None:
-        pmid = event.get("pmid", "?")
-        status = event.get("status", "?")
-        reason = event.get("reason", "")
-        detail = f" ({reason})" if reason else ""
-        print(f"PMID {pmid}: {status}{detail}", file=sys.stderr)
-
-    callback = _verbose_progress if verbose else None
+    # Logger handles stderr output; no progress_callback needed in CLI
     result = download_pdfs(
-        sources, output_dir, overwrite, timeout, progress_callback=callback, pm_dir=detected_pm_dir
+        sources, output_dir, overwrite, timeout, progress_callback=None, pm_dir=detected_pm_dir
     )
 
-    total = result["downloaded"] + result["skipped"] + result["failed"]
-    if verbose or total > 0:
-        print(
-            f"Downloaded: {result['downloaded']}, "
-            f"Skipped: {result['skipped']}, "
-            f"Failed: {result['failed']}",
-            file=sys.stderr,
-        )
+    # User-facing summary — always printed (not a log message)
+    print(
+        f"Downloaded: {result['downloaded']}, "
+        f"Skipped: {result['skipped']}, "
+        f"Failed: {result['failed']}",
+        file=sys.stderr,
+    )
 
     if result["downloaded"] == 0 and result["skipped"] == 0:
         return 2

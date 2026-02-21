@@ -10,6 +10,7 @@ driving new development.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import httpx
@@ -313,6 +314,109 @@ class TestPmcLookupErrors:
 
 
 # ---------------------------------------------------------------------------
+# Phase 8.1: pmc_lookup logging
+# ---------------------------------------------------------------------------
+
+
+class TestPmcLookupLogging:
+    def test_logs_warning_on_http_error_status(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """pmc_lookup logs WARNING with status code when HTTP != 200."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=500, text="Server Error")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            pmc_lookup("PMC99999")
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "500" in warnings[0].message
+        assert "PMC99999" in warnings[0].message
+
+    def test_logs_warning_on_api_error_in_response(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """pmc_lookup logs WARNING when response contains <error."""
+        error_xml = (
+            '<?xml version="1.0"?><OA>'
+            '<error code="idIsNotValid">id parameter is not valid</error>'
+            "</OA>"
+        )
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, text=error_xml)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            pmc_lookup("PMC99999")
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "PMC99999" in warnings[0].message
+
+    def test_logs_warning_on_parse_error(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """pmc_lookup logs WARNING when XML parsing fails."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, text="not xml at all <<<")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            pmc_lookup("PMC99999")
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "PMC99999" in warnings[0].message
+
+    def test_logs_debug_with_url(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """pmc_lookup logs DEBUG with the URL being queried."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            pmc_lookup("PMC12345")
+
+        debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
+        assert len(debug_msgs) >= 1
+        assert "pmc/utils/oa" in debug_msgs[0].message
+
+    def test_logs_warning_on_network_error(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """pmc_lookup logs WARNING on network errors (ConnectError, etc.)."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("Connection refused")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            pmc_lookup("PMC12345")
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "PMC12345" in warnings[0].message
+
+
+# ---------------------------------------------------------------------------
 # unpaywall_lookup error handling
 # ---------------------------------------------------------------------------
 
@@ -360,6 +464,108 @@ class TestUnpaywallLookupErrors:
 
 
 # ---------------------------------------------------------------------------
+# Phase 8.2: unpaywall_lookup logging
+# ---------------------------------------------------------------------------
+
+
+class TestUnpaywallLookupLogging:
+    def test_logs_warning_on_http_error_status(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """unpaywall_lookup logs WARNING with status code when HTTP != 200."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=404, text="Not Found")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            unpaywall_lookup("10.1234/test", "test@example.com")
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "404" in warnings[0].message
+        assert "10.1234/test" in warnings[0].message
+
+    def test_logs_warning_on_json_decode_error(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """unpaywall_lookup logs WARNING when JSON parsing fails."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                status_code=200,
+                text="<html>Error</html>",
+                headers={"content-type": "text/html"},
+            )
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            unpaywall_lookup("10.1234/test", "test@example.com")
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "10.1234/test" in warnings[0].message
+
+    def test_logs_warning_on_network_error(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """unpaywall_lookup logs WARNING on network errors."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("Connection refused")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            unpaywall_lookup("10.1234/test", "test@example.com")
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "10.1234/test" in warnings[0].message
+
+    def test_logs_debug_with_url(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """unpaywall_lookup logs DEBUG with the URL being queried."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, json=_UNPAYWALL_RESPONSE)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            unpaywall_lookup("10.1234/test", "test@example.com")
+
+        debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
+        assert len(debug_msgs) >= 1
+        assert "api.unpaywall.org" in debug_msgs[0].message
+
+    def test_logs_debug_not_open_access(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """unpaywall_lookup logs DEBUG when article is not open access."""
+        closed_response = {"doi": "10.1234/test", "is_oa": False}
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, json=closed_response)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            unpaywall_lookup("10.1234/test", "test@example.com")
+
+        debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
+        assert any("not open access" in r.message for r in debug_msgs)
+
+
+# ---------------------------------------------------------------------------
 # find_pdf_sources error resilience
 # ---------------------------------------------------------------------------
 
@@ -390,6 +596,46 @@ class TestFindPdfSourcesErrorResilience:
         assert len(result) == 2
         assert sources_by_pmid["1"]["source"] is None
         assert sources_by_pmid["2"]["source"] == "pmc"
+
+
+# ---------------------------------------------------------------------------
+# Phase 8.3: find_pdf_sources logging
+# ---------------------------------------------------------------------------
+
+
+class TestFindPdfSourcesLogging:
+    def test_logs_warning_on_exception(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """find_pdf_sources logs WARNING when an unexpected exception occurs."""
+
+        def _boom(pmcid: str) -> str | None:
+            raise RuntimeError("unexpected crash")
+
+        monkeypatch.setattr("pm_tools.download.pmc_lookup", _boom)
+
+        articles = [_art(pmid="1", pmcid="PMC11111")]
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            result = find_pdf_sources(articles)
+
+        # Should not crash — returns source: None
+        assert result[0]["source"] is None
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "1" in warnings[0].message  # PMID in message
+
+    def test_logs_debug_reason_no_source(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """find_pdf_sources logs DEBUG explaining why no source was found."""
+        # Article with no pmcid and no doi — should log the reason
+        articles = [_art(pmid="42")]
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            find_pdf_sources(articles, pmc_only=True)
+
+        debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
+        assert any("42" in r.message for r in debug_msgs)
 
 
 # ---------------------------------------------------------------------------
@@ -424,15 +670,21 @@ class TestPmcLookupFtpUrls:
 
 
 # ---------------------------------------------------------------------------
-# Verbose progress in main()
+# Phase 8.5: main() logging configuration + integration
 # ---------------------------------------------------------------------------
 
 
 class TestDownloadVerboseProgress:
+    """Migrated from capsys/_verbose_progress to caplog/logger (issue #8)."""
+
     def test_verbose_shows_per_article_status(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """With -v, stderr contains per-article PMID and status."""
+        """With -v, stderr contains per-article PMID and status via logger."""
         import io
 
         from pm_tools.download import main as download_main
@@ -455,11 +707,204 @@ class TestDownloadVerboseProgress:
         jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
         monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
 
-        exit_code = download_main(["--output-dir", str(output_dir), "-v"])
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            exit_code = download_main(["--output-dir", str(output_dir), "-v"])
+
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        # Summary always on stderr; DEBUG logs contain PMC lookup URL
+        assert "Downloaded: 1" in captured.err
+        assert any("PMC lookup:" in r.message for r in caplog.records)
+
+
+class TestMainLoggingConfig:
+    def test_warnings_on_stderr_without_verbose(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Without --verbose, WARNING-level logs still appear."""
+        import io
+
+        from pm_tools.download import main as download_main
+
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=403, text="Forbidden")
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        jsonl_input = '{"pmid":"11111","pmcid":"PMC99999","doi":""}\n'
+        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
+
+        with caplog.at_level(logging.WARNING, logger="pm_tools.download"):
+            download_main(["--output-dir", str(output_dir), "--pmc-only"])
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+
+    def test_debug_hidden_without_verbose(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Without --verbose, DEBUG-level logs should NOT appear on stderr."""
+        import io
+
+        from pm_tools.download import main as download_main
+
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
+            if "ftp.ncbi.nlm.nih.gov" in url or "example.com" in url:
+                return httpx.Response(status_code=200, content=b"%PDF-1.4 content")
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
+        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
+
+        # Run without -v: logger level should be WARNING
+        download_main(["--output-dir", str(output_dir)])
 
         captured = capsys.readouterr()
-        assert exit_code == 0
-        assert "99999" in captured.err
+        # DEBUG messages like "PMC lookup:" should NOT be in stderr
+        assert "PMC lookup:" not in captured.err
+
+    def test_debug_shown_with_verbose(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """With --verbose, DEBUG-level logs appear."""
+        import io
+
+        from pm_tools.download import main as download_main
+
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
+            if "ftp.ncbi.nlm.nih.gov" in url or "example.com" in url:
+                return httpx.Response(status_code=200, content=b"%PDF-1.4 content")
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
+        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
+
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            download_main(["--output-dir", str(output_dir), "-v"])
+
+        debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
+        assert any("PMC lookup:" in r.message for r in debug_msgs)
+
+    def test_summary_always_on_stderr(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Summary line always appears on stderr, even without --verbose."""
+        import io
+
+        from pm_tools.download import main as download_main
+
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
+            if "ftp.ncbi.nlm.nih.gov" in url or "example.com" in url:
+                return httpx.Response(status_code=200, content=b"%PDF-1.4 content")
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
+        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
+
+        download_main(["--output-dir", str(output_dir)])
+
+        captured = capsys.readouterr()
+        assert "Downloaded:" in captured.err
+        assert "Failed:" in captured.err
+
+    def test_issue_8_repro_diagnostics(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Repro case from issue #8: failing PMIDs must produce diagnostics."""
+        import io
+
+        from pm_tools.download import main as download_main
+
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                if "PMC11111" in url:
+                    # First PMID has a PMC source, but download returns 403
+                    return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
+                # Second PMID has no PMC source
+                return httpx.Response(status_code=200, text='<OA><error code="idIsNotValid"/></OA>')
+            if "ftp.ncbi.nlm.nih.gov" in url:
+                return httpx.Response(status_code=403, text="Forbidden")
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        # Two PMIDs: one with PMC source (will 403), one without any source
+        jsonl_lines = (
+            '{"pmid":"30623617","pmcid":"PMC11111","doi":""}\n'
+            '{"pmid":"35350465","pmcid":"","doi":""}\n'
+        )
+        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_lines))
+
+        with caplog.at_level(logging.WARNING, logger="pm_tools.download"):
+            exit_code = download_main(
+                ["--output-dir", str(output_dir), "--pmc-only"]
+            )
+
+        captured = capsys.readouterr()
+
+        # Must explain WHY each PMID failed
+        all_output = caplog.text + captured.err
+        assert "403" in all_output, "Should mention HTTP 403"
+        assert "Downloaded: 0" in captured.err
+        assert "Failed: 2" in captured.err
+        assert exit_code == 2  # No PDFs downloaded
 
 
 # ---------------------------------------------------------------------------
@@ -492,6 +937,155 @@ class TestDownloadProgress:
         assert len(progress_events) == 2, "Should call progress_callback for each source"
         assert progress_events[0]["pmid"] == "1"
         assert progress_events[1]["pmid"] == "2"
+
+
+# ---------------------------------------------------------------------------
+# Phase 8.4: download_pdfs logging
+# ---------------------------------------------------------------------------
+
+
+class TestDownloadPdfsLogging:
+    def test_logs_warning_with_http_status_code(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """download_pdfs logs WARNING with actual HTTP status code on failure."""
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=403, text="Forbidden")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [{"pmid": "123", "source": "pmc", "url": "https://example.com/1.pdf"}]
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            download_pdfs(sources, output_dir)
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "403" in warnings[0].message
+        assert "123" in warnings[0].message
+
+    def test_logs_warning_with_url_and_pmid(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """download_pdfs logs WARNING with URL and PMID for each failure."""
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=500, text="Error")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [{"pmid": "456", "source": "pmc", "url": "https://example.com/paper.pdf"}]
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            download_pdfs(sources, output_dir)
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "456" in warnings[0].message
+        assert "example.com" in warnings[0].message
+
+    def test_logs_warning_on_exception(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """download_pdfs logs WARNING with exception message on HTTPError/OSError."""
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ReadTimeout("Read timed out")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [{"pmid": "789", "source": "pmc", "url": "https://example.com/1.pdf"}]
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            download_pdfs(sources, output_dir)
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "789" in warnings[0].message
+
+    def test_logs_warning_on_empty_response(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """download_pdfs logs WARNING when response body is empty."""
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=b"")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [{"pmid": "321", "source": "pmc", "url": "https://example.com/empty.pdf"}]
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            download_pdfs(sources, output_dir)
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "321" in warnings[0].message
+        assert "empty" in warnings[0].message.lower()
+
+    def test_logs_warning_on_retry_exhaustion(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """download_pdfs logs WARNING when all retries are exhausted (3x 503)."""
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=503, text="Service Unavailable")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [{"pmid": "654", "source": "pmc", "url": "https://example.com/retry.pdf"}]
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            download_pdfs(sources, output_dir)
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "654" in warnings[0].message
+        assert "503" in warnings[0].message
+
+    def test_callback_includes_status_code_and_url(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """progress_callback event dict includes status_code and url on failure."""
+        output_dir = tmp_path / "pdfs"
+        events: list[dict] = []
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=403, text="Forbidden")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [{"pmid": "1", "source": "pmc", "url": "https://example.com/1.pdf"}]
+        download_pdfs(sources, output_dir, progress_callback=events.append)
+
+        assert len(events) == 1
+        assert events[0]["status"] == "failed"
+        assert events[0]["status_code"] == 403
+        assert events[0]["url"] == "https://example.com/1.pdf"
+        # Backward compat: original keys still present
+        assert events[0]["pmid"] == "1"
+        assert events[0]["reason"] == "http_error"
+
+    def test_logs_warning_no_url(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """download_pdfs logs WARNING when source has no URL."""
+        output_dir = tmp_path / "pdfs"
+
+        sources = [{"pmid": "999", "source": None, "url": None}]
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            download_pdfs(sources, output_dir)
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) >= 1
+        assert "999" in warnings[0].message
 
 
 # ---------------------------------------------------------------------------
@@ -630,6 +1224,28 @@ class TestDownloadAudit:
         ]
         result = download_pdfs(sources, output_dir)
         assert result["downloaded"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Phase 8.0: Logger infrastructure
+# ---------------------------------------------------------------------------
+
+
+class TestLoggerSetup:
+    def test_download_module_has_logger(self) -> None:
+        """The download module should have a logger named 'pm_tools.download'."""
+        import pm_tools.download as mod
+
+        assert hasattr(mod, "logger")
+        assert mod.logger.name == "pm_tools.download"
+
+    def test_caplog_captures_download_logs(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Validate that caplog can capture logs from pm_tools.download."""
+        import pm_tools.download as mod
+
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            mod.logger.debug("caplog test message")
+        assert any("caplog test message" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
