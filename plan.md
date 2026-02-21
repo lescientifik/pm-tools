@@ -649,6 +649,16 @@ xml2 | grep -E 'relevant_patterns' | awk 'many_regex_patterns...'
 
 ---
 
+## Phase 9 — PMC tgz archive extraction
+
+- [x] **9.0**: `PmcResult` dataclass + refactor `pmc_lookup()` return type + adapt `find_pdf_sources()` (atomic)
+- [x] **9.1**: `_extract_pdf_from_tgz()` pure function with PMCID-aware selection
+- [x] **9.2**: Handle tgz in `download_pdfs()` with progress callbacks
+- [x] **9.3**: End-to-end integration tests (tgz-only, mixed, corrupted, dry-run)
+- [x] **9.4**: Quality gate + review
+
+---
+
 ## Ressources
 
 - DTD PubMed : https://dtd.nlm.nih.gov/ncbi/pubmed/

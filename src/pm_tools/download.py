@@ -2,19 +2,35 @@
 
 from __future__ import annotations
 
+import io
 import json
+import logging
 import sys
+import tarfile
 import time
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 
 from pm_tools.cache import audit_log
 
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PmcResult:
+    """Result from PMC OA lookup: URL and format (pdf or tgz)."""
+
+    url: str
+    format: Literal["pdf", "tgz"]
+
+
 BATCH_SIZE = 200
 RATE_LIMIT_DELAY = 0.34
+MAX_PDF_MEMBER_SIZE = 200 * 1024 * 1024  # 200 MB guard against decompression bombs
 
 # Module-level HTTP client factory (allows monkeypatching in tests)
 _http_client: httpx.Client | None = None
@@ -52,33 +68,96 @@ def convert_pmids(
     return results
 
 
-def pmc_lookup(pmcid: str) -> str | None:
-    """Query PMC OA Service for PDF URL."""
+def pmc_lookup(pmcid: str) -> PmcResult | None:
+    """Query PMC OA Service for PDF or tgz URL.
+
+    Prefers pdf over tgz when both are available.
+    Returns PmcResult with url and format, or None if no link found.
+    """
     client = get_http_client()
     url = f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmcid}"
+    logger.debug("PMC lookup: %s", url)
     try:
         response = client.get(url)
         if response.status_code != 200:
+            logger.warning("PMC lookup %s: HTTP %d", pmcid, response.status_code)
             return None
-    except httpx.HTTPError:
+    except httpx.HTTPError as e:
+        logger.warning("PMC lookup %s: %s", pmcid, e)
         return None
 
     if "<error" in response.text:
+        logger.warning("PMC lookup %s: API error in response", pmcid)
         return None
 
     try:
         root = ET.fromstring(response.text)
+        pdf_href: str | None = None
+        tgz_href: str | None = None
         for link in root.iter("link"):
-            if link.get("format") == "pdf":
-                href = link.get("href")
-                if href:
-                    if href.startswith("ftp://"):
-                        href = href.replace("ftp://", "https://", 1)
-                    return href
-    except ET.ParseError:
-        pass
+            fmt = link.get("format")
+            href = link.get("href")
+            if not href:
+                continue
+            if href.startswith("ftp://"):
+                href = href.replace("ftp://", "https://", 1)
+            if fmt == "pdf":
+                pdf_href = href
+            elif fmt == "tgz":
+                tgz_href = href
+
+        if pdf_href:
+            logger.debug("PMC lookup %s: found pdf link", pmcid)
+            return PmcResult(url=pdf_href, format="pdf")
+        if tgz_href:
+            logger.debug("PMC lookup %s: found tgz link (no pdf available)", pmcid)
+            return PmcResult(url=tgz_href, format="tgz")
+    except ET.ParseError as e:
+        logger.warning("PMC lookup %s: XML parse error: %s", pmcid, e)
 
     return None
+
+
+def _extract_pdf_from_tgz(content: bytes, pmcid: str = "") -> bytes | None:
+    """Extract the PDF file from a PMC tar.gz archive.
+
+    Uses extractfile() (memory-only, no disk writes) to avoid path traversal.
+    Skips members larger than MAX_PDF_MEMBER_SIZE to guard against
+    decompression bombs.
+
+    When multiple PDFs are present, prefers the one whose name contains
+    the PMCID. Otherwise returns the largest PDF.
+
+    Returns the PDF content, or None if no suitable PDF found.
+    """
+    try:
+        with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as tar:
+            pdf_members = [
+                m
+                for m in tar.getmembers()
+                if m.name.lower().endswith(".pdf")
+                and m.isfile()
+                and 0 < m.size <= MAX_PDF_MEMBER_SIZE
+            ]
+            if not pdf_members:
+                return None
+
+            # Prefer member whose name contains the PMCID
+            if pmcid:
+                pmcid_lower = pmcid.lower()
+                matching = [m for m in pdf_members if pmcid_lower in m.name.lower()]
+                if matching:
+                    pdf_members = matching
+
+            # Among remaining, pick the largest (main article vs supplement)
+            best = max(pdf_members, key=lambda m: m.size)
+            f = tar.extractfile(best)
+            if f is None:
+                return None
+            data = f.read()
+            return data if data else None
+    except (tarfile.TarError, OSError):
+        return None
 
 
 def unpaywall_lookup(doi: str, email: str) -> str | None:
@@ -86,15 +165,22 @@ def unpaywall_lookup(doi: str, email: str) -> str | None:
     client = get_http_client()
     encoded_doi = doi.replace("/", "%2F")
     url = f"https://api.unpaywall.org/v2/{encoded_doi}?email={email}"
+    logger.debug("Unpaywall lookup: %s", url)
     try:
         response = client.get(url)
         if response.status_code != 200:
+            logger.warning("Unpaywall lookup %s: HTTP %d", doi, response.status_code)
             return None
         data = response.json()
-    except (httpx.HTTPError, json.JSONDecodeError):
+    except httpx.HTTPError as e:
+        logger.warning("Unpaywall lookup %s: %s", doi, e)
+        return None
+    except json.JSONDecodeError as e:
+        logger.warning("Unpaywall lookup %s: JSON decode error: %s", doi, e)
         return None
 
     if not data.get("is_oa"):
+        logger.debug("Unpaywall lookup %s: not open access", doi)
         return None
 
     best_loc = data.get("best_oa_location", {})
@@ -131,14 +217,15 @@ def find_pdf_sources(
         try:
             # Try PMC first
             if not unpaywall_only and pmcid:
-                pdf_url = pmc_lookup(pmcid)
-                if pdf_url:
+                pmc_result = pmc_lookup(pmcid)
+                if pmc_result is not None:
                     sources.append(
                         {
                             "pmid": pmid,
                             "source": "pmc",
-                            "url": pdf_url,
+                            "url": pmc_result.url,
                             "pmcid": pmcid,
+                            "pmc_format": pmc_result.format,
                         }
                     )
                     continue
@@ -157,9 +244,17 @@ def find_pdf_sources(
                     )
                     continue
         except Exception:
-            pass
+            logger.warning("PMID %s: unexpected error during source lookup", pmid, exc_info=True)
 
-        # No source found
+        # No source found — log the reason
+        if not pmcid and not doi:
+            logger.debug("PMID %s: no source found (no PMCID, no DOI)", pmid)
+        elif not pmcid:
+            logger.debug("PMID %s: no source found (no PMCID)", pmid)
+        elif not doi:
+            logger.debug("PMID %s: no source found (no DOI)", pmid)
+        else:
+            logger.debug("PMID %s: no source found (lookups returned None)", pmid)
         sources.append(
             {
                 "pmid": pmid,
@@ -213,6 +308,7 @@ def download_pdfs(
         url = source.get("url")
 
         if not url:
+            logger.warning("PMID %s: no PDF URL available", pmid)
             result["failed"] += 1
             if progress_callback:
                 progress_callback({"pmid": pmid, "status": "failed", "reason": "no_url"})
@@ -235,6 +331,8 @@ def download_pdfs(
                 time.sleep(0.1 * (attempt + 1))
 
             if response is None or response.status_code not in (200, 226):
+                status_code = response.status_code if response is not None else 0
+                logger.warning("PMID %s: HTTP %d from %s", pmid, status_code, url)
                 result["failed"] += 1
                 if progress_callback:
                     progress_callback(
@@ -242,22 +340,49 @@ def download_pdfs(
                             "pmid": pmid,
                             "status": "failed",
                             "reason": "http_error",
+                            "status_code": status_code,
+                            "url": url,
                         }
                     )
                 continue
 
             content = response.content
             if not content:
+                logger.warning("PMID %s: empty response from %s", pmid, url)
                 result["failed"] += 1
                 if progress_callback:
                     progress_callback({"pmid": pmid, "status": "failed", "reason": "empty"})
                 continue
 
+            # Handle tgz archives: extract PDF from archive
+            if source.get("pmc_format") == "tgz":
+                logger.debug("PMID %s: extracting PDF from tgz archive", pmid)
+                pdf_content = _extract_pdf_from_tgz(content, source.get("pmcid", ""))
+                if not pdf_content:
+                    logger.warning(
+                        "PMID %s: no PDF found in tgz archive from %s",
+                        pmid,
+                        url,
+                    )
+                    result["failed"] += 1
+                    if progress_callback:
+                        progress_callback(
+                            {
+                                "pmid": pmid,
+                                "status": "failed",
+                                "reason": "tgz_no_pdf",
+                                "url": url,
+                            }
+                        )
+                    continue
+                content = pdf_content
+
             out_file.write_bytes(content)
             result["downloaded"] += 1
             if progress_callback:
                 progress_callback({"pmid": pmid, "status": "downloaded"})
-        except (httpx.HTTPError, OSError):
+        except (httpx.HTTPError, OSError) as e:
+            logger.warning("PMID %s: %s from %s", pmid, e, url)
             result["failed"] += 1
             if progress_callback:
                 progress_callback(
@@ -265,6 +390,7 @@ def download_pdfs(
                         "pmid": pmid,
                         "status": "failed",
                         "reason": "exception",
+                        "url": url,
                     }
                 )
 
@@ -426,31 +552,30 @@ def main(args: list[str] | None = None) -> int:
         print(f"\nSummary: {available} available, {unavailable} not available")
         return 0 if available > 0 else 2
 
+    # Configure logger for CLI output
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG if verbose else logging.WARNING)
+
     # Detect .pm/ for audit
     from pm_tools.cache import find_pm_dir
 
     detected_pm_dir = find_pm_dir()
 
-    def _verbose_progress(event: dict[str, Any]) -> None:
-        pmid = event.get("pmid", "?")
-        status = event.get("status", "?")
-        reason = event.get("reason", "")
-        detail = f" ({reason})" if reason else ""
-        print(f"PMID {pmid}: {status}{detail}", file=sys.stderr)
-
-    callback = _verbose_progress if verbose else None
+    # Logger handles stderr output; no progress_callback needed in CLI
     result = download_pdfs(
-        sources, output_dir, overwrite, timeout, progress_callback=callback, pm_dir=detected_pm_dir
+        sources, output_dir, overwrite, timeout, progress_callback=None, pm_dir=detected_pm_dir
     )
 
-    total = result["downloaded"] + result["skipped"] + result["failed"]
-    if verbose or total > 0:
-        print(
-            f"Downloaded: {result['downloaded']}, "
-            f"Skipped: {result['skipped']}, "
-            f"Failed: {result['failed']}",
-            file=sys.stderr,
-        )
+    # User-facing summary — always printed (not a log message)
+    print(
+        f"Downloaded: {result['downloaded']}, "
+        f"Skipped: {result['skipped']}, "
+        f"Failed: {result['failed']}",
+        file=sys.stderr,
+    )
 
     if result["downloaded"] == 0 and result["skipped"] == 0:
         return 2
