@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import sys
+import tarfile
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -28,6 +30,7 @@ class PmcResult:
 
 BATCH_SIZE = 200
 RATE_LIMIT_DELAY = 0.34
+MAX_PDF_MEMBER_SIZE = 200 * 1024 * 1024  # 200 MB guard against decompression bombs
 
 # Module-level HTTP client factory (allows monkeypatching in tests)
 _http_client: httpx.Client | None = None
@@ -113,6 +116,48 @@ def pmc_lookup(pmcid: str) -> PmcResult | None:
         logger.warning("PMC lookup %s: XML parse error: %s", pmcid, e)
 
     return None
+
+
+def _extract_pdf_from_tgz(content: bytes, pmcid: str = "") -> bytes | None:
+    """Extract the PDF file from a PMC tar.gz archive.
+
+    Uses extractfile() (memory-only, no disk writes) to avoid path traversal.
+    Skips members larger than MAX_PDF_MEMBER_SIZE to guard against
+    decompression bombs.
+
+    When multiple PDFs are present, prefers the one whose name contains
+    the PMCID. Otherwise returns the largest PDF.
+
+    Returns the PDF content, or None if no suitable PDF found.
+    """
+    try:
+        with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as tar:
+            pdf_members = [
+                m
+                for m in tar.getmembers()
+                if m.name.lower().endswith(".pdf")
+                and m.isfile()
+                and 0 < m.size <= MAX_PDF_MEMBER_SIZE
+            ]
+            if not pdf_members:
+                return None
+
+            # Prefer member whose name contains the PMCID
+            if pmcid:
+                pmcid_lower = pmcid.lower()
+                matching = [m for m in pdf_members if pmcid_lower in m.name.lower()]
+                if matching:
+                    pdf_members = matching
+
+            # Among remaining, pick the largest (main article vs supplement)
+            best = max(pdf_members, key=lambda m: m.size)
+            f = tar.extractfile(best)
+            if f is None:
+                return None
+            data = f.read()
+            return data if data else None
+    except (tarfile.TarError, OSError):
+        return None
 
 
 def unpaywall_lookup(doi: str, email: str) -> str | None:

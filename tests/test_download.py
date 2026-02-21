@@ -9,8 +9,10 @@ driving new development.
 
 from __future__ import annotations
 
+import io
 import json
 import logging
+import tarfile
 from pathlib import Path
 
 import httpx
@@ -18,6 +20,7 @@ import pytest
 
 from pm_tools.download import (
     PmcResult,
+    _extract_pdf_from_tgz,
     download_pdfs,
     find_pdf_sources,
     pmc_lookup,
@@ -42,6 +45,20 @@ def _art(
     if doi is not None:
         d["doi"] = doi
     return d
+
+
+_FAKE_PDF = b"%PDF-1.4 fake pdf content for testing"
+
+
+def _make_tgz(files: dict[str, bytes]) -> bytes:
+    """Create an in-memory tar.gz archive from {name: content} dict."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for name, data in files.items():
+            info = tarfile.TarInfo(name=name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +109,91 @@ class TestPmcResult:
         result = PmcResult(url="https://example.com/archive.tar.gz", format="tgz")
         assert result.url == "https://example.com/archive.tar.gz"
         assert result.format == "tgz"
+
+
+# ---------------------------------------------------------------------------
+# Phase 9.1: _extract_pdf_from_tgz (pure function)
+# ---------------------------------------------------------------------------
+
+
+class TestExtractPdfFromTgz:
+    def test_extracts_pdf_from_subdirectory(self) -> None:
+        """PDF in a subdirectory (typical PMC structure) is found."""
+        archive = _make_tgz({"PMC12345/paper.pdf": _FAKE_PDF})
+        result = _extract_pdf_from_tgz(archive)
+        assert result == _FAKE_PDF
+
+    def test_prefers_pdf_matching_pmcid(self) -> None:
+        """When multiple PDFs exist, prefer the one matching PMCID."""
+        supplement = b"%PDF-1.4 supplement"
+        main_pdf = b"%PDF-1.4 main article (larger)"
+        archive = _make_tgz(
+            {
+                "PMC12345/supplement_s1.pdf": supplement,
+                "PMC12345/PMC12345_article.pdf": main_pdf,
+            }
+        )
+        result = _extract_pdf_from_tgz(archive, pmcid="PMC12345")
+        # Should prefer the one with PMC12345 in the name
+        assert result == main_pdf
+
+    def test_multiple_pdfs_no_pmcid_returns_largest(self) -> None:
+        """Without PMCID hint, return the largest PDF."""
+        small = b"%PDF-1.4 small"
+        large = b"%PDF-1.4 large article content" * 10
+        archive = _make_tgz(
+            {
+                "dir/small.pdf": small,
+                "dir/large.pdf": large,
+            }
+        )
+        result = _extract_pdf_from_tgz(archive)
+        assert result == large
+
+    def test_no_pdf_returns_none(self) -> None:
+        """Archive with only XML/images returns None."""
+        archive = _make_tgz(
+            {
+                "PMC12345/paper.nxml": b"<article>...</article>",
+                "PMC12345/figure1.jpg": b"\xff\xd8\xff\xe0 fake jpg",
+            }
+        )
+        result = _extract_pdf_from_tgz(archive)
+        assert result is None
+
+    def test_invalid_data_returns_none(self) -> None:
+        """Random bytes (not a valid tgz) returns None."""
+        result = _extract_pdf_from_tgz(b"this is not a tar.gz file at all")
+        assert result is None
+
+    def test_html_soft_404_returns_none(self) -> None:
+        """HTML response (soft 404) returns None."""
+        result = _extract_pdf_from_tgz(b"<html><body>Access Denied</body></html>")
+        assert result is None
+
+    def test_empty_archive_returns_none(self) -> None:
+        """Empty tar.gz archive returns None."""
+        archive = _make_tgz({})
+        result = _extract_pdf_from_tgz(archive)
+        assert result is None
+
+    def test_empty_pdf_returns_none(self) -> None:
+        """A 0-byte PDF member returns None (not b'')."""
+        archive = _make_tgz({"PMC12345/paper.pdf": b""})
+        result = _extract_pdf_from_tgz(archive)
+        assert result is None
+
+    def test_oversized_member_skipped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Members with size > MAX_PDF_MEMBER_SIZE are skipped."""
+        import pm_tools.download as dl
+
+        # Temporarily lower the limit so our test PDF exceeds it
+        monkeypatch.setattr(dl, "MAX_PDF_MEMBER_SIZE", 5)
+
+        archive = _make_tgz({"PMC12345/paper.pdf": _FAKE_PDF})
+        result = _extract_pdf_from_tgz(archive)
+        # _FAKE_PDF is ~40 bytes > 5 byte limit → skipped → None
+        assert result is None
 
 
 # ---------------------------------------------------------------------------
