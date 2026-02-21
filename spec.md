@@ -129,7 +129,7 @@ pm search --verbose "rare disease" 2>debug.log | pm fetch | pm parse
     "title": "Article title",
     "authors": ["Smith J", "Doe A"],
     "journal": "Nature",
-    "year": "2024",
+    "year": 2024,
     "doi": "10.1234/example",
     "abstract": "Full abstract text..."
   }

@@ -23,7 +23,7 @@ def _art(
     title: str = "Title",
     authors: list[str] | None = None,
     journal: str = "Nature",
-    year: str = "2024",
+    year: int = 2024,
     doi: str = "10.1234/test",
     abstract: str = "Abstract text.",
     **extra: object,
@@ -206,8 +206,8 @@ class TestIgnoreFields:
         assert result_ignored == []
 
     def test_ignore_multiple_fields(self) -> None:
-        old = [_art(pmid="1", abstract="Old", year="2020")]
-        new = [_art(pmid="1", abstract="New", year="2024")]
+        old = [_art(pmid="1", abstract="Old", year=2020)]
+        new = [_art(pmid="1", abstract="New", year=2024)]
 
         result = diff_jsonl(old, new, ignore_fields=["abstract", "year"])
         assert result == []
@@ -264,8 +264,8 @@ class TestChangedFieldsDetail:
     """
 
     def test_changed_record_includes_changed_fields_list(self) -> None:
-        old = [_art(pmid="1", title="Old Title", year="2020")]
-        new = [_art(pmid="1", title="New Title", year="2024")]
+        old = [_art(pmid="1", title="Old Title", year=2020)]
+        new = [_art(pmid="1", title="New Title", year=2024)]
         result = diff_jsonl(old, new)
 
         changed = [d for d in result if d["status"] == "changed"]

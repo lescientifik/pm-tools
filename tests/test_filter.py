@@ -26,7 +26,7 @@ def _article(
     title: str = "A Title",
     authors: list[str] | None = None,
     journal: str = "Nature",
-    year: str = "2024",
+    year: int = 2024,
     doi: str | None = "10.1234/test",
     abstract: str = "Some abstract text.",
 ) -> dict:
@@ -49,13 +49,13 @@ def _article(
 def sample_articles() -> list[dict]:
     """A small set of articles spanning several years/journals/authors."""
     return [
-        _article(pmid="1", year="2020", journal="Nature", authors=["Smith J"]),
-        _article(pmid="2", year="2022", journal="Science", authors=["Doe A", "Smith J"]),
-        _article(pmid="3", year="2024", journal="Nature Medicine", authors=["Lee B"]),
-        _article(pmid="4", year="2019", journal="The Lancet", authors=["Garcia C"]),
+        _article(pmid="1", year=2020, journal="Nature", authors=["Smith J"]),
+        _article(pmid="2", year=2022, journal="Science", authors=["Doe A", "Smith J"]),
+        _article(pmid="3", year=2024, journal="Nature Medicine", authors=["Lee B"]),
+        _article(pmid="4", year=2019, journal="The Lancet", authors=["Garcia C"]),
         _article(
             pmid="5",
-            year="2024",
+            year=2024,
             journal="Nature",
             authors=["Brown D"],
             abstract="",
@@ -297,9 +297,9 @@ class TestTitleFilter:
 
     def test_title_combined_with_year(self) -> None:
         articles = [
-            _article(pmid="1", title="CRISPR 2020", year="2020"),
-            _article(pmid="2", title="CRISPR 2024", year="2024"),
-            _article(pmid="3", title="Other topic", year="2024"),
+            _article(pmid="1", title="CRISPR 2020", year=2020),
+            _article(pmid="2", title="CRISPR 2024", year=2024),
+            _article(pmid="3", title="Other topic", year=2024),
         ]
         result = _filter(articles, title="crispr", year="2024")
         assert len(result) == 1
@@ -321,7 +321,7 @@ class TestFilterCount:
     def test_count_with_no_matches(self) -> None:
         from pm_tools.filter import count_matching
 
-        articles = [_article(pmid="1", year="2020")]
+        articles = [_article(pmid="1", year=2020)]
         result = count_matching(iter(articles), year="2024")
         assert result == 0
 
@@ -382,9 +382,9 @@ class TestMinAuthorsFilter:
 
     def test_min_authors_with_other_filters(self) -> None:
         articles = [
-            _article(pmid="1", authors=["Smith J"], year="2024"),
-            _article(pmid="2", authors=["Smith J", "Doe A"], year="2024"),
-            _article(pmid="3", authors=["Smith J", "Doe A"], year="2020"),
+            _article(pmid="1", authors=["Smith J"], year=2024),
+            _article(pmid="2", authors=["Smith J", "Doe A"], year=2024),
+            _article(pmid="3", authors=["Smith J", "Doe A"], year=2020),
         ]
         result = _filter(articles, min_authors=2, year="2024")
         assert len(result) == 1
@@ -411,9 +411,9 @@ class TestFilterAudit:
     def test_logs_filter_event(self, tmp_path: Path) -> None:
         pm_dir = _make_pm_dir(tmp_path)
         articles = [
-            _article(pmid="1", year="2024"),
-            _article(pmid="2", year="2020"),
-            _article(pmid="3", year="2024"),
+            _article(pmid="1", year=2024),
+            _article(pmid="2", year=2020),
+            _article(pmid="3", year=2024),
         ]
 
         result = filter_articles_audited(iter(articles), pm_dir=pm_dir, year="2024")
@@ -429,7 +429,7 @@ class TestFilterAudit:
 
     def test_logs_filter_criteria(self, tmp_path: Path) -> None:
         pm_dir = _make_pm_dir(tmp_path)
-        articles = [_article(pmid="1", year="2024")]
+        articles = [_article(pmid="1", year=2024)]
 
         filter_articles_audited(
             iter(articles),

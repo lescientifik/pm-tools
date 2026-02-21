@@ -11,7 +11,7 @@ from typing import Any
 from pm_tools.cache import audit_log
 
 
-def _parse_year_filter(year_str: str) -> tuple[str | None, str | None]:
+def _parse_year_filter(year_str: str) -> tuple[int | None, int | None]:
     """Parse year filter string into (min, max) tuple.
 
     Supports: "2024", "2020-2024", "2020-", "-2024"
@@ -34,21 +34,28 @@ def _parse_year_filter(year_str: str) -> tuple[str | None, str | None]:
 
     if "-" in year_str:
         parts = year_str.split("-", 1)
-        year_min = parts[0] if parts[0] else None
-        year_max = parts[1] if parts[1] else None
+        year_min = int(parts[0]) if parts[0] else None
+        year_max = int(parts[1]) if parts[1] else None
         return year_min, year_max
     else:
-        return year_str, year_str
+        val = int(year_str)
+        return val, val
 
 
-def _matches_year(article: dict[str, Any], year_min: str | None, year_max: str | None) -> bool:
+def _matches_year(article: dict[str, Any], year_min: int | None, year_max: int | None) -> bool:
     """Check if article matches year filter."""
     year = article.get("year")
     if year is None:
         return False
-    if year_min and year < year_min:
+    # Support both int (new) and str (legacy JSONL files)
+    if isinstance(year, str):
+        try:
+            year = int(year)
+        except ValueError:
+            return False
+    if year_min is not None and year < year_min:
         return False
-    return not (year_max and year > year_max)
+    return not (year_max is not None and year > year_max)
 
 
 def _matches_journal(article: dict[str, Any], pattern: str) -> bool:

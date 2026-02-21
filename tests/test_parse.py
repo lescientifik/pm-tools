@@ -92,7 +92,7 @@ class TestParseCompleteArticle:
         assert article["pmid"] == "12345678"
         assert article["title"] == "Test Article Title"
         assert article["journal"] == "Nature Medicine"
-        assert article["year"] == "2024"
+        assert article["year"] == 2024
         assert article["doi"] == "10.1234/test"
         assert article["abstract"] == "This is the abstract."
 
@@ -552,7 +552,7 @@ class TestParseDates:
         result = parse_xml(xml)
 
         assert result[0]["date"] == "1975-10-27"
-        assert result[0]["year"] == "1975"
+        assert result[0]["year"] == 1975
 
     def test_year_month_format(self) -> None:
         """Year+Month (no day) produces YYYY-MM."""
@@ -577,7 +577,7 @@ class TestParseDates:
         result = parse_xml(xml)
 
         assert result[0]["date"] == "1975-06"
-        assert result[0]["year"] == "1975"
+        assert result[0]["year"] == 1975
 
     def test_year_only_format(self) -> None:
         """Year only produces YYYY."""
@@ -601,7 +601,7 @@ class TestParseDates:
         result = parse_xml(xml)
 
         assert result[0]["date"] == "1976"
-        assert result[0]["year"] == "1976"
+        assert result[0]["year"] == 1976
 
     def test_year_season_maps_to_month(self) -> None:
         """Year+Season (Summer) maps to quarter start month (06)."""
@@ -626,7 +626,7 @@ class TestParseDates:
         result = parse_xml(xml)
 
         assert result[0]["date"] == "1975-06"
-        assert result[0]["year"] == "1975"
+        assert result[0]["year"] == 1975
 
     def test_numeric_month_format(self) -> None:
         """Numeric month (09) is handled correctly."""
@@ -684,7 +684,7 @@ class TestParseMedlineDates:
         result = parse_xml(xml)
 
         assert result[0]["date"] == "1975-07"
-        assert result[0]["year"] == "1975"
+        assert result[0]["year"] == 1975
 
     def test_medlinedate_day_range(self) -> None:
         """MedlineDate "1977 Jul 4-7" extracts start date -> 1977-07-04."""
@@ -708,7 +708,7 @@ class TestParseMedlineDates:
         result = parse_xml(xml)
 
         assert result[0]["date"] == "1977-07-04"
-        assert result[0]["year"] == "1977"
+        assert result[0]["year"] == 1977
 
     def test_medlinedate_year_range(self) -> None:
         """MedlineDate "1975-1976" extracts start year -> 1975."""
@@ -732,7 +732,7 @@ class TestParseMedlineDates:
         result = parse_xml(xml)
 
         assert result[0]["date"] == "1975"
-        assert result[0]["year"] == "1975"
+        assert result[0]["year"] == 1975
 
     def test_medlinedate_cross_year(self) -> None:
         """MedlineDate "1975 Dec-1976 Jan" extracts start month -> 1975-12."""
@@ -756,7 +756,7 @@ class TestParseMedlineDates:
         result = parse_xml(xml)
 
         assert result[0]["date"] == "1975-12"
-        assert result[0]["year"] == "1975"
+        assert result[0]["year"] == 1975
 
     def test_medlinedate_uppercase_months(self) -> None:
         """MedlineDate "1975 MAR-APR" handles uppercase months -> 1975-03."""
@@ -780,7 +780,7 @@ class TestParseMedlineDates:
         result = parse_xml(xml)
 
         assert result[0]["date"] == "1975-03"
-        assert result[0]["year"] == "1975"
+        assert result[0]["year"] == 1975
 
 
 # =============================================================================
@@ -818,7 +818,7 @@ class TestParseDateBackwardsCompat:
         assert "date" in article
         assert "year" in article
         assert article["date"] == "1975-10-27"
-        assert article["year"] == "1975"
+        assert article["year"] == 1975
 
     def test_medlinedate_preserves_year_field(self) -> None:
         """MedlineDate entries still have a year field."""
@@ -841,7 +841,7 @@ class TestParseDateBackwardsCompat:
 
         result = parse_xml(xml)
 
-        assert result[0]["year"] == "1975"
+        assert result[0]["year"] == 1975
 
 
 # =============================================================================
@@ -863,7 +863,7 @@ class TestParseDateFixtures:
 
         assert len(result) == 1
         assert result[0]["date"] == "1975-10-27"
-        assert result[0]["year"] == "1975"
+        assert result[0]["year"] == 1975
 
     def test_year_month_fixture(self, date_fixtures_dir: Path) -> None:
         """Fixture file year-month.xml produces 1975-06."""

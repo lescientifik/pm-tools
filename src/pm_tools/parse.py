@@ -176,7 +176,7 @@ def parse_article(article: ET.Element) -> dict[str, Any]:
                             year = year_match.group()
 
                     if year:
-                        result["year"] = year
+                        result["year"] = int(year)
 
                     date = _build_date(year, month, day, season, medline_date)
                     if date:
