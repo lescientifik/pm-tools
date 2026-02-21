@@ -123,8 +123,16 @@ class TestChanged:
         assert changed[0]["new"]["title"] == "New Title"
 
     def test_detects_author_change(self) -> None:
-        old = [_art(pmid="1", authors=["Smith J"])]
-        new = [_art(pmid="1", authors=["Smith J", "Doe A"])]
+        old = [_art(pmid="1", authors=[{"family": "Smith", "given": "J"}])]
+        new = [
+            _art(
+                pmid="1",
+                authors=[
+                    {"family": "Smith", "given": "J"},
+                    {"family": "Doe", "given": "A"},
+                ],
+            )
+        ]
         result = diff_jsonl(old, new)
 
         changed = [d for d in result if d["status"] == "changed"]

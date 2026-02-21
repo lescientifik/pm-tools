@@ -217,6 +217,17 @@ class TestAuthorFilter:
         result = _filter(articles, author="smith john")
         assert len(result) == 1
 
+    def test_author_matches_literal_collective_name(self) -> None:
+        """'WHO' matches {"literal": "WHO Working Group"}."""
+        articles = [_article(pmid="1", authors=[{"literal": "WHO Working Group"}])]
+        result = _filter(articles, author="WHO")
+        assert len(result) == 1
+
+    def test_author_literal_no_match(self) -> None:
+        articles = [_article(pmid="1", authors=[{"literal": "WHO Working Group"}])]
+        result = _filter(articles, author="Smith")
+        assert result == []
+
 
 # ---------------------------------------------------------------------------
 # has-abstract / has-doi flags
