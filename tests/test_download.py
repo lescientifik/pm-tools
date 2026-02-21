@@ -16,7 +16,13 @@ from pathlib import Path
 import httpx
 import pytest
 
-from pm_tools.download import download_pdfs, find_pdf_sources, pmc_lookup, unpaywall_lookup
+from pm_tools.download import (
+    PmcResult,
+    download_pdfs,
+    find_pdf_sources,
+    pmc_lookup,
+    unpaywall_lookup,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -67,6 +73,25 @@ _UNPAYWALL_RESPONSE = {
 
 def _make_transport(handler) -> httpx.MockTransport:
     return httpx.MockTransport(handler)
+
+
+# ---------------------------------------------------------------------------
+# Phase 9.0a: PmcResult dataclass
+# ---------------------------------------------------------------------------
+
+
+class TestPmcResult:
+    def test_pmc_result_has_url_and_format(self) -> None:
+        """PmcResult can be instantiated with url and format fields."""
+        result = PmcResult(url="https://example.com/paper.pdf", format="pdf")
+        assert result.url == "https://example.com/paper.pdf"
+        assert result.format == "pdf"
+
+    def test_pmc_result_tgz_format(self) -> None:
+        """PmcResult supports tgz format."""
+        result = PmcResult(url="https://example.com/archive.tar.gz", format="tgz")
+        assert result.url == "https://example.com/archive.tar.gz"
+        assert result.format == "tgz"
 
 
 # ---------------------------------------------------------------------------
@@ -639,34 +664,213 @@ class TestFindPdfSourcesLogging:
 
 
 # ---------------------------------------------------------------------------
-# FTP → HTTPS conversion in pmc_lookup
+# Phase 9.0b: pmc_lookup returns PmcResult + tgz support
 # ---------------------------------------------------------------------------
 
 
-class TestPmcLookupFtpUrls:
-    def test_ftp_url_converted_to_https(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """PMC OA responses with ftp:// URLs are converted to https://."""
-        ftp_response = """\
+_PMC_OA_TGZ_ONLY_XML = (
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    "<OA><records>"
+    '<record id="PMC9273392" citation="X" license="CC BY">'
+    '<link format="tgz"'
+    ' href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/46/ea/PMC9273392.tar.gz" />'
+    "</record>"
+    "</records></OA>"
+)
+
+_PMC_OA_BOTH_FORMATS_XML = (
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    "<OA><records>"
+    '<record id="PMC3531190" citation="X" license="CC BY">'
+    '<link format="tgz"'
+    ' href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/ab/cd/PMC3531190.tar.gz" />'
+    '<link format="pdf"'
+    ' href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_pdf/ab/cd/PMC3531190.pdf" />'
+    "</record>"
+    "</records></OA>"
+)
+
+_PMC_OA_NO_LINKS_XML = """\
 <?xml version="1.0" encoding="UTF-8"?>
 <OA>
   <records>
-    <record id="PMC12345" citation="Some Citation" license="CC BY">
-      <link format="pdf" href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_pdf/ab/cd/PMC12345.pdf" />
+    <record id="PMC99999" citation="Some Citation" license="CC BY">
     </record>
   </records>
 </OA>
 """
 
+
+class TestPmcLookupReturnType:
+    def test_pdf_format_returns_pmc_result(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """pmc_lookup with PDF link returns PmcResult(format='pdf')."""
+
         def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, text=ftp_response)
+            return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
 
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         result = pmc_lookup("PMC12345")
         assert result is not None
-        assert result.startswith("https://")
-        assert "ftp.ncbi.nlm.nih.gov" in result
+        assert isinstance(result, PmcResult)
+        assert result.format == "pdf"
+        assert "PMC12345" in result.url
+
+    def test_tgz_only_returns_pmc_result_tgz(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """pmc_lookup with tgz-only link returns PmcResult(format='tgz')."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = pmc_lookup("PMC9273392")
+        assert result is not None
+        assert isinstance(result, PmcResult)
+        assert result.format == "tgz"
+        assert "PMC9273392" in result.url
+
+    def test_both_formats_prefers_pdf(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When both pdf and tgz are available, prefer pdf."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, text=_PMC_OA_BOTH_FORMATS_XML)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = pmc_lookup("PMC3531190")
+        assert result is not None
+        assert result.format == "pdf"
+
+    def test_no_links_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """pmc_lookup with no links returns None."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, text=_PMC_OA_NO_LINKS_XML)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = pmc_lookup("PMC99999")
+        assert result is None
+
+    def test_ftp_url_converted_to_https_pdf(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """FTP URLs are converted to HTTPS for pdf links."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = pmc_lookup("PMC12345")
+        assert result is not None
+        assert result.url.startswith("https://")
+        assert "ftp.ncbi.nlm.nih.gov" in result.url
+
+    def test_ftp_url_converted_to_https_tgz(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """FTP URLs are converted to HTTPS for tgz links."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = pmc_lookup("PMC9273392")
+        assert result is not None
+        assert result.url.startswith("https://")
+        assert "ftp.ncbi.nlm.nih.gov" in result.url
+
+    def test_logs_debug_with_format(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """pmc_lookup logs DEBUG indicating the format found."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            pmc_lookup("PMC9273392")
+
+        debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
+        assert any("tgz" in r.message for r in debug_msgs)
+
+
+# ---------------------------------------------------------------------------
+# Phase 9.0c: find_pdf_sources propagates pmc_format
+# ---------------------------------------------------------------------------
+
+
+class TestFindPdfSourcesPmcFormat:
+    def test_pmc_format_pdf_when_pdf_available(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Source dict contains pmc_format='pdf' when PDF direct link available."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            if "pmc/utils/oa" in str(request.url):
+                return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        articles = [_art(pmid="1", pmcid="PMC12345")]
+        result = find_pdf_sources(articles)
+
+        pmc = [r for r in result if r["source"] == "pmc"]
+        assert len(pmc) == 1
+        assert pmc[0]["pmc_format"] == "pdf"
+
+    def test_pmc_format_tgz_when_tgz_only(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Source dict contains pmc_format='tgz' when only tgz available."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            if "pmc/utils/oa" in str(request.url):
+                return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        articles = [_art(pmid="1", pmcid="PMC9273392")]
+        result = find_pdf_sources(articles)
+
+        pmc = [r for r in result if r["source"] == "pmc"]
+        assert len(pmc) == 1
+        assert pmc[0]["pmc_format"] == "tgz"
+
+    def test_no_pmc_format_for_unpaywall(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Unpaywall sources don't have pmc_format key."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            if "api.unpaywall.org" in str(request.url):
+                return httpx.Response(status_code=200, json=_UNPAYWALL_RESPONSE)
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        articles = [_art(pmid="1", doi="10.1234/test")]
+        result = find_pdf_sources(articles, email="test@example.com")
+
+        unpaywall = [r for r in result if r["source"] == "unpaywall"]
+        assert len(unpaywall) == 1
+        assert "pmc_format" not in unpaywall[0]
+
+    def test_no_pmc_format_for_no_source(self) -> None:
+        """Articles with no source don't have pmc_format key."""
+        articles = [_art(pmid="1")]
+        result = find_pdf_sources(articles)
+
+        no_source = [r for r in result if r["source"] is None]
+        assert len(no_source) == 1
+        assert "pmc_format" not in no_source[0]
 
 
 # ---------------------------------------------------------------------------
@@ -893,9 +1097,7 @@ class TestMainLoggingConfig:
         monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_lines))
 
         with caplog.at_level(logging.WARNING, logger="pm_tools.download"):
-            exit_code = download_main(
-                ["--output-dir", str(output_dir), "--pmc-only"]
-            )
+            exit_code = download_main(["--output-dir", str(output_dir), "--pmc-only"])
 
         captured = capsys.readouterr()
 
@@ -1073,9 +1275,7 @@ class TestDownloadPdfsLogging:
         assert events[0]["pmid"] == "1"
         assert events[0]["reason"] == "http_error"
 
-    def test_logs_warning_no_url(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_logs_warning_no_url(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         """download_pdfs logs WARNING when source has no URL."""
         output_dir = tmp_path / "pdfs"
 

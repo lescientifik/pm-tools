@@ -7,14 +7,24 @@ import logging
 import sys
 import time
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 
 from pm_tools.cache import audit_log
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PmcResult:
+    """Result from PMC OA lookup: URL and format (pdf or tgz)."""
+
+    url: str
+    format: Literal["pdf", "tgz"]
+
 
 BATCH_SIZE = 200
 RATE_LIMIT_DELAY = 0.34
@@ -55,8 +65,12 @@ def convert_pmids(
     return results
 
 
-def pmc_lookup(pmcid: str) -> str | None:
-    """Query PMC OA Service for PDF URL."""
+def pmc_lookup(pmcid: str) -> PmcResult | None:
+    """Query PMC OA Service for PDF or tgz URL.
+
+    Prefers pdf over tgz when both are available.
+    Returns PmcResult with url and format, or None if no link found.
+    """
     client = get_http_client()
     url = f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmcid}"
     logger.debug("PMC lookup: %s", url)
@@ -75,13 +89,26 @@ def pmc_lookup(pmcid: str) -> str | None:
 
     try:
         root = ET.fromstring(response.text)
+        pdf_href: str | None = None
+        tgz_href: str | None = None
         for link in root.iter("link"):
-            if link.get("format") == "pdf":
-                href = link.get("href")
-                if href:
-                    if href.startswith("ftp://"):
-                        href = href.replace("ftp://", "https://", 1)
-                    return href
+            fmt = link.get("format")
+            href = link.get("href")
+            if not href:
+                continue
+            if href.startswith("ftp://"):
+                href = href.replace("ftp://", "https://", 1)
+            if fmt == "pdf":
+                pdf_href = href
+            elif fmt == "tgz":
+                tgz_href = href
+
+        if pdf_href:
+            logger.debug("PMC lookup %s: found pdf link", pmcid)
+            return PmcResult(url=pdf_href, format="pdf")
+        if tgz_href:
+            logger.debug("PMC lookup %s: found tgz link (no pdf available)", pmcid)
+            return PmcResult(url=tgz_href, format="tgz")
     except ET.ParseError as e:
         logger.warning("PMC lookup %s: XML parse error: %s", pmcid, e)
 
@@ -145,14 +172,15 @@ def find_pdf_sources(
         try:
             # Try PMC first
             if not unpaywall_only and pmcid:
-                pdf_url = pmc_lookup(pmcid)
-                if pdf_url:
+                pmc_result = pmc_lookup(pmcid)
+                if pmc_result is not None:
                     sources.append(
                         {
                             "pmid": pmid,
                             "source": "pmc",
-                            "url": pdf_url,
+                            "url": pmc_result.url,
                             "pmcid": pmcid,
+                            "pmc_format": pmc_result.format,
                         }
                     )
                     continue
@@ -259,9 +287,7 @@ def download_pdfs(
 
             if response is None or response.status_code not in (200, 226):
                 status_code = response.status_code if response is not None else 0
-                logger.warning(
-                    "PMID %s: HTTP %d from %s", pmid, status_code, url
-                )
+                logger.warning("PMID %s: HTTP %d from %s", pmid, status_code, url)
                 result["failed"] += 1
                 if progress_callback:
                     progress_callback(
