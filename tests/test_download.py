@@ -15,7 +15,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from pm_tools.download import download_pdfs, find_pdf_sources
+from pm_tools.download import download_pdfs, find_pdf_sources, pmc_lookup, unpaywall_lookup
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -47,7 +47,7 @@ _PMC_OA_RESPONSE_XML = """\
 <OA>
   <records>
     <record id="PMC12345" citation="Some Citation" license="CC BY">
-      <link format="pdf" href="https://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_pdf/ab/cd/PMC12345.pdf" />
+      <link format="pdf" href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_pdf/ab/cd/PMC12345.pdf" />
     </record>
   </records>
 </OA>
@@ -267,6 +267,199 @@ class TestDownloadErrors:
 
         assert result["downloaded"] == 1, "Should succeed after retrying transient 503"
         assert attempt_count == 3, "Should have made 3 attempts (2 retries + 1 success)"
+
+
+# ---------------------------------------------------------------------------
+# pmc_lookup error handling
+# ---------------------------------------------------------------------------
+
+
+class TestPmcLookupErrors:
+    def test_network_error_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ConnectError during PMC lookup returns None instead of raising."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("Connection refused")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = pmc_lookup("PMC12345")
+        assert result is None
+
+    def test_timeout_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ReadTimeout during PMC lookup returns None instead of raising."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ReadTimeout("Read timed out")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = pmc_lookup("PMC12345")
+        assert result is None
+
+    def test_http_500_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """HTTP 500 from PMC OA service returns None."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=500, text="Internal Server Error")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = pmc_lookup("PMC12345")
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# unpaywall_lookup error handling
+# ---------------------------------------------------------------------------
+
+
+class TestUnpaywallLookupErrors:
+    def test_network_error_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ConnectError during Unpaywall lookup returns None."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("Connection refused")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = unpaywall_lookup("10.1234/test", "test@example.com")
+        assert result is None
+
+    def test_non_json_response_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """HTML response instead of JSON returns None."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                status_code=200,
+                text="<html>Error</html>",
+                headers={"content-type": "text/html"},
+            )
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = unpaywall_lookup("10.1234/test", "test@example.com")
+        assert result is None
+
+    def test_http_404_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """HTTP 404 from Unpaywall returns None."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=404, text="Not Found")
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = unpaywall_lookup("10.1234/test", "test@example.com")
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# find_pdf_sources error resilience
+# ---------------------------------------------------------------------------
+
+
+class TestFindPdfSourcesErrorResilience:
+    def test_pmc_error_does_not_stop_loop(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """If first article's PMC lookup crashes, second article is still processed."""
+        call_count = 0
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise httpx.ConnectError("Connection refused")
+            return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        articles = [
+            _art(pmid="1", pmcid="PMC11111"),
+            _art(pmid="2", pmcid="PMC12345"),
+        ]
+        result = find_pdf_sources(articles)
+
+        # First should fail gracefully, second should succeed
+        sources_by_pmid = {r["pmid"]: r for r in result}
+        assert len(result) == 2
+        assert sources_by_pmid["1"]["source"] is None
+        assert sources_by_pmid["2"]["source"] == "pmc"
+
+
+# ---------------------------------------------------------------------------
+# FTP → HTTPS conversion in pmc_lookup
+# ---------------------------------------------------------------------------
+
+
+class TestPmcLookupFtpUrls:
+    def test_ftp_url_converted_to_https(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """PMC OA responses with ftp:// URLs are converted to https://."""
+        ftp_response = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<OA>
+  <records>
+    <record id="PMC12345" citation="Some Citation" license="CC BY">
+      <link format="pdf" href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_pdf/ab/cd/PMC12345.pdf" />
+    </record>
+  </records>
+</OA>
+"""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, text=ftp_response)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = pmc_lookup("PMC12345")
+        assert result is not None
+        assert result.startswith("https://")
+        assert "ftp.ncbi.nlm.nih.gov" in result
+
+
+# ---------------------------------------------------------------------------
+# Verbose progress in main()
+# ---------------------------------------------------------------------------
+
+
+class TestDownloadVerboseProgress:
+    def test_verbose_shows_per_article_status(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """With -v, stderr contains per-article PMID and status."""
+        import io
+
+        from pm_tools.download import main as download_main
+
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
+            if "ftp.ncbi.nlm.nih.gov" in url or "example.com" in url:
+                return httpx.Response(status_code=200, content=b"%PDF-1.4 content")
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        # Simulate JSONL input via stdin
+        jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
+        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
+
+        exit_code = download_main(["--output-dir", str(output_dir), "-v"])
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "99999" in captured.err
 
 
 # ---------------------------------------------------------------------------

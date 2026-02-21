@@ -56,7 +56,12 @@ def pmc_lookup(pmcid: str) -> str | None:
     """Query PMC OA Service for PDF URL."""
     client = get_http_client()
     url = f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmcid}"
-    response = client.get(url)
+    try:
+        response = client.get(url)
+        if response.status_code != 200:
+            return None
+    except httpx.HTTPError:
+        return None
 
     if "<error" in response.text:
         return None
@@ -67,6 +72,8 @@ def pmc_lookup(pmcid: str) -> str | None:
             if link.get("format") == "pdf":
                 href = link.get("href")
                 if href:
+                    if href.startswith("ftp://"):
+                        href = href.replace("ftp://", "https://", 1)
                     return href
     except ET.ParseError:
         pass
@@ -79,9 +86,14 @@ def unpaywall_lookup(doi: str, email: str) -> str | None:
     client = get_http_client()
     encoded_doi = doi.replace("/", "%2F")
     url = f"https://api.unpaywall.org/v2/{encoded_doi}?email={email}"
-    response = client.get(url)
+    try:
+        response = client.get(url)
+        if response.status_code != 200:
+            return None
+        data = response.json()
+    except (httpx.HTTPError, json.JSONDecodeError):
+        return None
 
-    data = response.json()
     if not data.get("is_oa"):
         return None
 
@@ -116,33 +128,36 @@ def find_pdf_sources(
         pmcid = article.get("pmcid", "")
         doi = article.get("doi", "")
 
-        # Try PMC first
-        if not unpaywall_only and pmcid:
-            pdf_url = pmc_lookup(pmcid)
-            if pdf_url:
-                sources.append(
-                    {
-                        "pmid": pmid,
-                        "source": "pmc",
-                        "url": pdf_url,
-                        "pmcid": pmcid,
-                    }
-                )
-                continue
+        try:
+            # Try PMC first
+            if not unpaywall_only and pmcid:
+                pdf_url = pmc_lookup(pmcid)
+                if pdf_url:
+                    sources.append(
+                        {
+                            "pmid": pmid,
+                            "source": "pmc",
+                            "url": pdf_url,
+                            "pmcid": pmcid,
+                        }
+                    )
+                    continue
 
-        # Try Unpaywall
-        if not pmc_only and doi and email:
-            pdf_url = unpaywall_lookup(doi, email)
-            if pdf_url:
-                sources.append(
-                    {
-                        "pmid": pmid,
-                        "source": "unpaywall",
-                        "url": pdf_url,
-                        "doi": doi,
-                    }
-                )
-                continue
+            # Try Unpaywall
+            if not pmc_only and doi and email:
+                pdf_url = unpaywall_lookup(doi, email)
+                if pdf_url:
+                    sources.append(
+                        {
+                            "pmid": pmid,
+                            "source": "unpaywall",
+                            "url": pdf_url,
+                            "doi": doi,
+                        }
+                    )
+                    continue
+        except Exception:
+            pass
 
         # No source found
         sources.append(
@@ -214,7 +229,7 @@ def download_pdfs(
         try:
             response = None
             for attempt in range(MAX_RETRIES):
-                response = client.get(url)
+                response = client.get(url, timeout=timeout)
                 if response.status_code not in RETRYABLE_STATUS_CODES:
                     break
                 time.sleep(0.1 * (attempt + 1))
@@ -416,7 +431,17 @@ def main(args: list[str] | None = None) -> int:
 
     detected_pm_dir = find_pm_dir()
 
-    result = download_pdfs(sources, output_dir, overwrite, timeout, pm_dir=detected_pm_dir)
+    def _verbose_progress(event: dict[str, Any]) -> None:
+        pmid = event.get("pmid", "?")
+        status = event.get("status", "?")
+        reason = event.get("reason", "")
+        detail = f" ({reason})" if reason else ""
+        print(f"PMID {pmid}: {status}{detail}", file=sys.stderr)
+
+    callback = _verbose_progress if verbose else None
+    result = download_pdfs(
+        sources, output_dir, overwrite, timeout, progress_callback=callback, pm_dir=detected_pm_dir
+    )
 
     total = result["downloaded"] + result["skipped"] + result["failed"]
     if verbose or total > 0:
