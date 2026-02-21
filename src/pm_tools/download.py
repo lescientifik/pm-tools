@@ -354,6 +354,29 @@ def download_pdfs(
                     progress_callback({"pmid": pmid, "status": "failed", "reason": "empty"})
                 continue
 
+            # Handle tgz archives: extract PDF from archive
+            if source.get("pmc_format") == "tgz":
+                logger.debug("PMID %s: extracting PDF from tgz archive", pmid)
+                pdf_content = _extract_pdf_from_tgz(content, source.get("pmcid", ""))
+                if not pdf_content:
+                    logger.warning(
+                        "PMID %s: no PDF found in tgz archive from %s",
+                        pmid,
+                        url,
+                    )
+                    result["failed"] += 1
+                    if progress_callback:
+                        progress_callback(
+                            {
+                                "pmid": pmid,
+                                "status": "failed",
+                                "reason": "tgz_no_pdf",
+                                "url": url,
+                            }
+                        )
+                    continue
+                content = pdf_content
+
             out_file.write_bytes(content)
             result["downloaded"] += 1
             if progress_callback:

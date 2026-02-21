@@ -1244,6 +1244,228 @@ class TestDownloadProgress:
 
 
 # ---------------------------------------------------------------------------
+# Phase 9.2: download_pdfs tgz extraction
+# ---------------------------------------------------------------------------
+
+
+class TestDownloadPdfsTgz:
+    def test_tgz_source_extracts_and_saves_pdf(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Source with pmc_format='tgz' extracts PDF from archive."""
+        output_dir = tmp_path / "pdfs"
+        tgz_content = _make_tgz({"PMC12345/paper.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz_content)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {
+                "pmid": "1",
+                "source": "pmc",
+                "url": "https://example.com/archive.tar.gz",
+                "pmcid": "PMC12345",
+                "pmc_format": "tgz",
+            }
+        ]
+        result = download_pdfs(sources, output_dir)
+
+        assert result["downloaded"] == 1
+        saved = output_dir / "1.pdf"
+        assert saved.exists()
+        assert saved.read_bytes() == _FAKE_PDF
+
+    def test_tgz_source_no_pdf_counted_as_failed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """tgz archive without PDF → failed + WARNING."""
+        output_dir = tmp_path / "pdfs"
+        tgz_content = _make_tgz({"PMC12345/paper.nxml": b"<article/>"})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz_content)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {
+                "pmid": "1",
+                "source": "pmc",
+                "url": "https://example.com/archive.tar.gz",
+                "pmcid": "PMC12345",
+                "pmc_format": "tgz",
+            }
+        ]
+        with caplog.at_level(logging.WARNING, logger="pm_tools.download"):
+            result = download_pdfs(sources, output_dir)
+
+        assert result["failed"] == 1
+        assert result["downloaded"] == 0
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("no PDF found in tgz" in r.message for r in warnings)
+
+    def test_tgz_html_soft_404_counted_as_failed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """HTML response (soft 404) instead of tgz → failed."""
+        output_dir = tmp_path / "pdfs"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                status_code=200,
+                content=b"<html><body>Access Denied</body></html>",
+            )
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {
+                "pmid": "1",
+                "source": "pmc",
+                "url": "https://example.com/archive.tar.gz",
+                "pmcid": "PMC12345",
+                "pmc_format": "tgz",
+            }
+        ]
+        with caplog.at_level(logging.WARNING, logger="pm_tools.download"):
+            result = download_pdfs(sources, output_dir)
+
+        assert result["failed"] == 1
+
+    def test_pdf_format_unchanged(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Source with pmc_format='pdf' downloads directly (no extraction)."""
+        output_dir = tmp_path / "pdfs"
+        pdf_content = b"%PDF-1.4 direct pdf"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=pdf_content)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {
+                "pmid": "1",
+                "source": "pmc",
+                "url": "https://example.com/paper.pdf",
+                "pmcid": "PMC12345",
+                "pmc_format": "pdf",
+            }
+        ]
+        result = download_pdfs(sources, output_dir)
+
+        assert result["downloaded"] == 1
+        assert (output_dir / "1.pdf").read_bytes() == pdf_content
+
+    def test_no_pmc_format_unchanged(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Source without pmc_format (unpaywall) downloads directly."""
+        output_dir = tmp_path / "pdfs"
+        pdf_content = b"%PDF-1.4 unpaywall pdf"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=pdf_content)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [{"pmid": "1", "source": "unpaywall", "url": "https://example.com/paper.pdf"}]
+        result = download_pdfs(sources, output_dir)
+
+        assert result["downloaded"] == 1
+        assert (output_dir / "1.pdf").read_bytes() == pdf_content
+
+    def test_tgz_logs_debug_extracting(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Extracting from tgz logs DEBUG message."""
+        output_dir = tmp_path / "pdfs"
+        tgz_content = _make_tgz({"PMC12345/paper.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz_content)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {
+                "pmid": "1",
+                "source": "pmc",
+                "url": "https://example.com/archive.tar.gz",
+                "pmcid": "PMC12345",
+                "pmc_format": "tgz",
+            }
+        ]
+        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
+            download_pdfs(sources, output_dir)
+
+        debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
+        assert any("tgz" in r.message.lower() for r in debug_msgs)
+
+    def test_tgz_failure_progress_callback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """progress_callback receives tgz_no_pdf reason on extraction failure."""
+        output_dir = tmp_path / "pdfs"
+        tgz_content = _make_tgz({"PMC12345/paper.nxml": b"<article/>"})
+        events: list[dict] = []
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz_content)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {
+                "pmid": "1",
+                "source": "pmc",
+                "url": "https://example.com/archive.tar.gz",
+                "pmcid": "PMC12345",
+                "pmc_format": "tgz",
+            }
+        ]
+        download_pdfs(sources, output_dir, progress_callback=events.append)
+
+        assert len(events) == 1
+        assert events[0]["status"] == "failed"
+        assert events[0]["reason"] == "tgz_no_pdf"
+
+    def test_tgz_success_progress_callback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """progress_callback receives 'downloaded' on successful tgz extraction."""
+        output_dir = tmp_path / "pdfs"
+        tgz_content = _make_tgz({"PMC12345/paper.pdf": _FAKE_PDF})
+        events: list[dict] = []
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz_content)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {
+                "pmid": "1",
+                "source": "pmc",
+                "url": "https://example.com/archive.tar.gz",
+                "pmcid": "PMC12345",
+                "pmc_format": "tgz",
+            }
+        ]
+        download_pdfs(sources, output_dir, progress_callback=events.append)
+
+        assert len(events) == 1
+        assert events[0]["status"] == "downloaded"
+
+
+# ---------------------------------------------------------------------------
 # Phase 8.4: download_pdfs logging
 # ---------------------------------------------------------------------------
 
