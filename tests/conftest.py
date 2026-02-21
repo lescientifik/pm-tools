@@ -61,6 +61,7 @@ def complete_article_xml() -> str:
         <Author><LastName>Smith</LastName><ForeName>John</ForeName></Author>
         <Author><LastName>Doe</LastName><ForeName>Jane</ForeName></Author>
       </AuthorList>
+      <ELocationID EIdType="doi" ValidYN="Y">10.1234/test</ELocationID>
     </Article>
   </MedlineCitation>
   <PubmedData>

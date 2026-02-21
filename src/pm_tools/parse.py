@@ -203,6 +203,14 @@ def parse_article(article: ET.Element) -> dict[str, Any]:
                 if sections:
                     result["abstract_sections"] = sections
 
+        # DOI from ELocationID (canonical source, preferred)
+        for eloc in art.findall("ELocationID"):
+            if eloc.get("EIdType") == "doi" and eloc.get("ValidYN") != "N":
+                text = _get_text(eloc)
+                if text:
+                    result["doi"] = text
+                    break
+
     # PubmedData - ArticleIds
     pubmed_data = article.find("PubmedData")
     if pubmed_data is not None:
@@ -211,7 +219,7 @@ def parse_article(article: ET.Element) -> dict[str, Any]:
             for aid in article_id_list.findall("ArticleId"):
                 id_type = aid.get("IdType", "")
                 text = _get_text(aid)
-                if id_type == "doi" and text:
+                if id_type == "doi" and text and "doi" not in result:
                     result["doi"] = text
                 elif id_type == "pmc" and text:
                     result["pmcid"] = text

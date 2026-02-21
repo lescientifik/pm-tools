@@ -120,6 +120,102 @@ class TestParseCompleteArticle:
 
 
 # =============================================================================
+# DOI source (ELocationID vs ArticleIdList)
+# =============================================================================
+
+
+class TestParseDOISource:
+    """DOI should be extracted from ELocationID first, falling back to ArticleIdList."""
+
+    def test_doi_from_elocationid_preferred(self) -> None:
+        """When DOI exists in both ELocationID and ArticleIdList, ELocationID wins."""
+        xml = """<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>100</PMID>
+    <Article>
+      <ArticleTitle>Test</ArticleTitle>
+      <ELocationID EIdType="doi" ValidYN="Y">10.1234/elocationid-doi</ELocationID>
+    </Article>
+  </MedlineCitation>
+  <PubmedData>
+    <ArticleIdList>
+      <ArticleId IdType="doi">10.1234/articleidlist-doi</ArticleId>
+    </ArticleIdList>
+  </PubmedData>
+</PubmedArticle>
+</PubmedArticleSet>"""
+
+        result = parse_xml(xml)
+        assert result[0]["doi"] == "10.1234/elocationid-doi"
+
+    def test_doi_fallback_to_articleidlist(self) -> None:
+        """When DOI only exists in ArticleIdList, it is still extracted."""
+        xml = """<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>101</PMID>
+    <Article>
+      <ArticleTitle>Test</ArticleTitle>
+    </Article>
+  </MedlineCitation>
+  <PubmedData>
+    <ArticleIdList>
+      <ArticleId IdType="doi">10.1234/fallback-doi</ArticleId>
+    </ArticleIdList>
+  </PubmedData>
+</PubmedArticle>
+</PubmedArticleSet>"""
+
+        result = parse_xml(xml)
+        assert result[0]["doi"] == "10.1234/fallback-doi"
+
+    def test_doi_from_elocationid_only(self) -> None:
+        """When DOI only exists in ELocationID (no DOI in ArticleIdList), it is extracted."""
+        xml = """<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>102</PMID>
+    <Article>
+      <ArticleTitle>Test</ArticleTitle>
+      <ELocationID EIdType="doi" ValidYN="Y">10.1234/eloc-only</ELocationID>
+    </Article>
+  </MedlineCitation>
+  <PubmedData>
+    <ArticleIdList>
+      <ArticleId IdType="pubmed">102</ArticleId>
+    </ArticleIdList>
+  </PubmedData>
+</PubmedArticle>
+</PubmedArticleSet>"""
+
+        result = parse_xml(xml)
+        assert result[0]["doi"] == "10.1234/eloc-only"
+
+    def test_elocationid_invalid_validyn_ignored(self) -> None:
+        """ELocationID with ValidYN='N' is ignored, falls back to ArticleIdList."""
+        xml = """<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>103</PMID>
+    <Article>
+      <ArticleTitle>Test</ArticleTitle>
+      <ELocationID EIdType="doi" ValidYN="N">10.1234/invalid-doi</ELocationID>
+    </Article>
+  </MedlineCitation>
+  <PubmedData>
+    <ArticleIdList>
+      <ArticleId IdType="doi">10.1234/valid-fallback</ArticleId>
+    </ArticleIdList>
+  </PubmedData>
+</PubmedArticle>
+</PubmedArticleSet>"""
+
+        result = parse_xml(xml)
+        assert result[0]["doi"] == "10.1234/valid-fallback"
+
+
+# =============================================================================
 # Authors formatting
 # =============================================================================
 
