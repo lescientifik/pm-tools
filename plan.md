@@ -639,6 +639,16 @@ xml2 | grep -E 'relevant_patterns' | awk 'many_regex_patterns...'
 
 ---
 
+## Phase 8 — Bug fixes (#6, #7)
+
+- [x] **Issue #6**: DOI extracted from `Article/ELocationID` (canonical) first, falls back to `PubmedData/ArticleIdList`
+- [x] **Issue #7**: Authors stored as structured CSL-JSON dicts (`{"family": "Smith", "given": "John"}`) instead of flat strings
+  - Handles `CollectiveName` → `{"literal": "..."}` and `Suffix` → `{"suffix": "..."}`
+  - `pm parse` output now aligns with `pm cite` CSL-JSON format
+  - Filter `_matches_author` updated for dict authors (concatenated family/given search)
+
+---
+
 ## Ressources
 
 - DTD PubMed : https://dtd.nlm.nih.gov/ncbi/pubmed/

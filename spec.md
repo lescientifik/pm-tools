@@ -127,7 +127,10 @@ pm search --verbose "rare disease" 2>debug.log | pm fetch | pm parse
   {
     "pmid": "12345678",
     "title": "Article title",
-    "authors": ["Smith J", "Doe A"],
+    "authors": [
+      {"family": "Smith", "given": "J"},
+      {"family": "Doe", "given": "A"}
+    ],
     "journal": "Nature",
     "year": 2024,
     "doi": "10.1234/example",

@@ -21,7 +21,7 @@ from pm_tools.diff import diff_jsonl
 def _art(
     pmid: str = "1",
     title: str = "Title",
-    authors: list[str] | None = None,
+    authors: list[dict[str, str]] | None = None,
     journal: str = "Nature",
     year: int = 2024,
     doi: str = "10.1234/test",
@@ -31,7 +31,7 @@ def _art(
     d: dict = {
         "pmid": pmid,
         "title": title,
-        "authors": authors if authors is not None else ["Smith J"],
+        "authors": authors if authors is not None else [{"family": "Smith", "given": "J"}],
         "journal": journal,
         "year": year,
         "doi": doi,
