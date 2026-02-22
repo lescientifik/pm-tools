@@ -71,7 +71,7 @@ def convert_pmids(
 def pmc_lookup(pmcid: str) -> PmcResult | None:
     """Query PMC OA Service for PDF or tgz URL.
 
-    Prefers pdf over tgz when both are available.
+    Prefers tgz over pdf when both are available (tgz contains NXML + PDF).
     Returns PmcResult with url and format, or None if no link found.
     """
     client = get_http_client()
@@ -106,12 +106,12 @@ def pmc_lookup(pmcid: str) -> PmcResult | None:
             elif fmt == "tgz":
                 tgz_href = href
 
+        if tgz_href:
+            logger.debug("PMC lookup %s: found tgz link", pmcid)
+            return PmcResult(url=tgz_href, format="tgz")
         if pdf_href:
             logger.debug("PMC lookup %s: found pdf link", pmcid)
             return PmcResult(url=pdf_href, format="pdf")
-        if tgz_href:
-            logger.debug("PMC lookup %s: found tgz link (no pdf available)", pmcid)
-            return PmcResult(url=tgz_href, format="tgz")
     except ET.ParseError as e:
         logger.warning("PMC lookup %s: XML parse error: %s", pmcid, e)
 
@@ -151,6 +151,48 @@ def _extract_pdf_from_tgz(content: bytes, pmcid: str = "") -> bytes | None:
 
             # Among remaining, pick the largest (main article vs supplement)
             best = max(pdf_members, key=lambda m: m.size)
+            f = tar.extractfile(best)
+            if f is None:
+                return None
+            data = f.read()
+            return data if data else None
+    except (tarfile.TarError, OSError):
+        return None
+
+
+def _extract_nxml_from_tgz(content: bytes, pmcid: str = "") -> bytes | None:
+    """Extract the NXML file from a PMC tar.gz archive.
+
+    Uses extractfile() (memory-only, no disk writes) to avoid path traversal.
+    Skips members larger than MAX_PDF_MEMBER_SIZE to guard against
+    decompression bombs.
+
+    When multiple NXML files are present, prefers the one whose name contains
+    the PMCID. Otherwise returns the largest NXML.
+
+    Returns the NXML content, or None if no suitable NXML found.
+    """
+    try:
+        with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as tar:
+            nxml_members = [
+                m
+                for m in tar.getmembers()
+                if m.name.lower().endswith(".nxml")
+                and m.isfile()
+                and 0 < m.size <= MAX_PDF_MEMBER_SIZE
+            ]
+            if not nxml_members:
+                return None
+
+            # Prefer member whose name contains the PMCID
+            if pmcid:
+                pmcid_lower = pmcid.lower()
+                matching = [m for m in nxml_members if pmcid_lower in m.name.lower()]
+                if matching:
+                    nxml_members = matching
+
+            # Among remaining, pick the largest (main article vs supplement)
+            best = max(nxml_members, key=lambda m: m.size)
             f = tar.extractfile(best)
             if f is None:
                 return None

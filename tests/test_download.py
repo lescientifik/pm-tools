@@ -20,6 +20,7 @@ import pytest
 
 from pm_tools.download import (
     PmcResult,
+    _extract_nxml_from_tgz,
     _extract_pdf_from_tgz,
     download_pdfs,
     find_pdf_sources,
@@ -834,8 +835,8 @@ class TestPmcLookupReturnType:
         assert result.format == "tgz"
         assert "PMC9273392" in result.url
 
-    def test_both_formats_prefers_pdf(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """When both pdf and tgz are available, prefer pdf."""
+    def test_both_formats_prefers_tgz(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When both pdf and tgz are available, prefer tgz (contains NXML + PDF)."""
 
         def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(status_code=200, text=_PMC_OA_BOTH_FORMATS_XML)
@@ -845,7 +846,7 @@ class TestPmcLookupReturnType:
 
         result = pmc_lookup("PMC3531190")
         assert result is not None
-        assert result.format == "pdf"
+        assert result.format == "tgz"
 
     def test_no_links_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """pmc_lookup with no links returns None."""
@@ -2013,3 +2014,128 @@ class TestConcurrentDownload:
         result = download_pdfs(sources, output_dir, max_concurrent=4)
 
         assert result["downloaded"] == 10, "All 10 PDFs should be downloaded"
+
+
+# ---------------------------------------------------------------------------
+# Phase 10.0: _extract_nxml_from_tgz (pure function)
+# ---------------------------------------------------------------------------
+
+_FAKE_NXML = b'<?xml version="1.0"?>\n<article><body><p>Test</p></body></article>'
+
+
+class TestExtractNxmlFromTgz:
+    def test_extracts_nxml_from_subdirectory(self) -> None:
+        """NXML in a subdirectory (typical PMC structure) is found."""
+        archive = _make_tgz({"PMC12345/paper.nxml": _FAKE_NXML})
+        result = _extract_nxml_from_tgz(archive)
+        assert result == _FAKE_NXML
+
+    def test_prefers_nxml_matching_pmcid(self) -> None:
+        """When multiple NXML files exist, prefer the one matching PMCID."""
+        supplement = b"<article><body>supplement</body></article>"
+        main_nxml = b"<article><body>main article content is larger</body></article>"
+        archive = _make_tgz(
+            {
+                "PMC12345/supplement.nxml": supplement,
+                "PMC12345/PMC12345_article.nxml": main_nxml,
+            }
+        )
+        result = _extract_nxml_from_tgz(archive, pmcid="PMC12345")
+        assert result == main_nxml
+
+    def test_multiple_nxml_no_pmcid_returns_largest(self) -> None:
+        """Without PMCID hint, return the largest NXML."""
+        small = b"<article>small</article>"
+        large = b"<article>large article content with more data</article>" * 10
+        archive = _make_tgz(
+            {
+                "dir/small.nxml": small,
+                "dir/large.nxml": large,
+            }
+        )
+        result = _extract_nxml_from_tgz(archive)
+        assert result == large
+
+    def test_no_nxml_returns_none(self) -> None:
+        """Archive with only PDF/images returns None."""
+        archive = _make_tgz(
+            {
+                "PMC12345/paper.pdf": _FAKE_PDF,
+                "PMC12345/figure1.jpg": b"\xff\xd8\xff\xe0 fake jpg",
+            }
+        )
+        result = _extract_nxml_from_tgz(archive)
+        assert result is None
+
+    def test_invalid_data_returns_none(self) -> None:
+        """Random bytes (not a valid tgz) returns None."""
+        result = _extract_nxml_from_tgz(b"this is not a tar.gz file at all")
+        assert result is None
+
+    def test_empty_archive_returns_none(self) -> None:
+        """Empty tar.gz archive returns None."""
+        archive = _make_tgz({})
+        result = _extract_nxml_from_tgz(archive)
+        assert result is None
+
+    def test_empty_nxml_returns_none(self) -> None:
+        """A 0-byte NXML member returns None."""
+        archive = _make_tgz({"PMC12345/paper.nxml": b""})
+        result = _extract_nxml_from_tgz(archive)
+        assert result is None
+
+    def test_oversized_member_skipped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Members with size > MAX_PDF_MEMBER_SIZE are skipped."""
+        import pm_tools.download as dl
+
+        monkeypatch.setattr(dl, "MAX_PDF_MEMBER_SIZE", 5)
+
+        archive = _make_tgz({"PMC12345/paper.nxml": _FAKE_NXML})
+        result = _extract_nxml_from_tgz(archive)
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Phase 10.1a: pmc_lookup prefers tgz over pdf
+# ---------------------------------------------------------------------------
+
+
+class TestPmcLookupTgzPreference:
+    def test_both_formats_prefers_tgz(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When both pdf and tgz are available, prefer tgz (contains NXML + PDF)."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, text=_PMC_OA_BOTH_FORMATS_XML)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = pmc_lookup("PMC3531190")
+        assert result is not None
+        assert result.format == "tgz"
+
+    def test_tgz_only_still_returns_tgz(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """tgz-only response still returns tgz."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = pmc_lookup("PMC9273392")
+        assert result is not None
+        assert result.format == "tgz"
+
+    def test_pdf_only_still_returns_pdf(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """pdf-only response still returns pdf."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = pmc_lookup("PMC12345")
+        assert result is not None
+        assert result.format == "pdf"
