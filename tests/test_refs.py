@@ -5,9 +5,13 @@ RED phase: tests written before implementation to drive extract_refs().
 
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
+import pytest
+
 from pm_tools.refs import extract_refs
+from pm_tools.refs import main as refs_main
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 GOLDEN = FIXTURES / "golden"
@@ -174,3 +178,108 @@ class TestExtractRefs:
         expected = GOLDEN.joinpath("sample-refs-dois.txt").read_text().strip().splitlines()
         result = extract_refs(content, id_type="doi")
         assert result == expected
+
+
+# ---------------------------------------------------------------------------
+# TestRefsCli — pm refs CLI
+# ---------------------------------------------------------------------------
+
+
+class TestRefsCli:
+    """Tests for pm refs CLI entry point."""
+
+    def test_file_arg_prints_pmids(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """pm refs file.nxml reads file and prints PMIDs to stdout."""
+        exit_code = refs_main([str(SAMPLE_NXML)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        lines = captured.out.strip().splitlines()
+        assert lines == ["11111111", "22222222"]
+
+    def test_stdin_reads_nxml(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """pm refs with stdin reads NXML from stdin."""
+        content = SAMPLE_NXML.read_text()
+        monkeypatch.setattr("sys.stdin", io.StringIO(content))
+        # Simulate non-tty stdin
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        exit_code = refs_main([])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        lines = captured.out.strip().splitlines()
+        assert lines == ["11111111", "22222222"]
+
+    def test_multiple_files_deduplicated(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """pm refs *.nxml processes multiple files, output is union (deduplicated)."""
+        # File 1: PMIDs 11111111, 22222222
+        f1 = tmp_path / "a.nxml"
+        f1.write_text(SAMPLE_NXML.read_text())
+        # File 2: PMID 22222222 (duplicate) + 33333333
+        f2 = tmp_path / "b.nxml"
+        f2.write_text(
+            '<article><back><ref-list>'
+            '<ref><mixed-citation>'
+            '<pub-id pub-id-type="pmid">22222222</pub-id>'
+            '</mixed-citation></ref>'
+            '<ref><mixed-citation>'
+            '<pub-id pub-id-type="pmid">33333333</pub-id>'
+            '</mixed-citation></ref>'
+            '</ref-list></back></article>'
+        )
+        exit_code = refs_main([str(f1), str(f2)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        lines = captured.out.strip().splitlines()
+        assert lines == ["11111111", "22222222", "33333333"]
+
+    def test_doi_flag(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """pm refs --doi file.nxml prints DOIs instead."""
+        exit_code = refs_main(["--doi", str(SAMPLE_NXML)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        lines = captured.out.strip().splitlines()
+        assert lines == ["10.1038/example", "10.1000/other"]
+
+    def test_help(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """pm refs --help prints help text."""
+        exit_code = refs_main(["--help"])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "pm refs" in captured.out
+        assert "--doi" in captured.out
+
+    def test_nonexistent_file_error(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """pm refs nonexistent.nxml prints error to stderr, exit 1."""
+        exit_code = refs_main(["/nonexistent/path/file.nxml"])
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        assert "Error" in captured.err
+
+    def test_no_input_no_tty_error(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """pm refs with no args and stdin is tty shows error."""
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+        exit_code = refs_main([])
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        assert "Error" in captured.err
+
+    def test_output_lines_are_pmids(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """pm refs output lines are all-digit PMIDs (pipeable to pm fetch)."""
+        exit_code = refs_main([str(SAMPLE_NXML)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        for line in captured.out.strip().splitlines():
+            assert line.isdigit(), f"Expected all-digit PMID, got: {line!r}"

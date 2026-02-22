@@ -1,12 +1,12 @@
 """CLI entry point for pm-tools.
 
 The `pm` command provides a unified interface with subcommands:
-  pm search, pm fetch, pm parse, pm filter, pm cite, pm download, pm diff, pm collect
+  pm search, pm fetch, pm parse, pm filter, pm cite, pm download, pm diff, pm refs, pm collect
 """
 
 import sys
 
-from pm_tools import audit, cite, diff, download, fetch, filter, init, parse, search
+from pm_tools import audit, cite, diff, download, fetch, filter, init, parse, refs, search
 
 
 def collect_main(argv: list[str] | None = None) -> int:
@@ -131,6 +131,7 @@ SUBCOMMANDS = {
     "filter": filter.main,
     "cite": cite.main,
     "download": download.main,
+    "refs": refs.main,
     "diff": diff.main,
     "audit": audit.main,
     "collect": collect_main,
@@ -152,7 +153,8 @@ All commands:
   parse       Parse PubMed XML to JSONL
   filter      Filter JSONL articles by field patterns
   cite        Fetch CSL-JSON citations
-  download    Download full-text PDFs
+  download    Download full-text articles (NXML or PDF)
+  refs        Extract cited PMIDs/DOIs from NXML files
   diff        Compare two JSONL files by PMID
   audit       View audit trail and PRISMA report
   init        Initialize audit trail and cache (.pm/)
