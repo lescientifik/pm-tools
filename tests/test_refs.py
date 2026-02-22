@@ -194,9 +194,7 @@ class TestExtractRefs:
 class TestRefsCli:
     """Tests for pm refs CLI entry point."""
 
-    def test_file_arg_prints_pmids(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_file_arg_prints_pmids(self, capsys: pytest.CaptureFixture[str]) -> None:
         """pm refs file.nxml reads file and prints PMIDs to stdout."""
         exit_code = refs_main([str(SAMPLE_NXML)])
         assert exit_code == 0
@@ -228,14 +226,14 @@ class TestRefsCli:
         # File 2: PMID 22222222 (duplicate) + 33333333
         f2 = tmp_path / "b.nxml"
         f2.write_text(
-            '<article><back><ref-list>'
-            '<ref><mixed-citation>'
+            "<article><back><ref-list>"
+            "<ref><mixed-citation>"
             '<pub-id pub-id-type="pmid">22222222</pub-id>'
-            '</mixed-citation></ref>'
-            '<ref><mixed-citation>'
+            "</mixed-citation></ref>"
+            "<ref><mixed-citation>"
             '<pub-id pub-id-type="pmid">33333333</pub-id>'
-            '</mixed-citation></ref>'
-            '</ref-list></back></article>'
+            "</mixed-citation></ref>"
+            "</ref-list></back></article>"
         )
         exit_code = refs_main([str(f1), str(f2)])
         assert exit_code == 0
@@ -243,9 +241,7 @@ class TestRefsCli:
         lines = captured.out.strip().splitlines()
         assert lines == ["11111111", "22222222", "33333333"]
 
-    def test_doi_flag(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_doi_flag(self, capsys: pytest.CaptureFixture[str]) -> None:
         """pm refs --doi file.nxml prints DOIs instead."""
         exit_code = refs_main(["--doi", str(SAMPLE_NXML)])
         assert exit_code == 0
@@ -261,9 +257,7 @@ class TestRefsCli:
         assert "pm refs" in captured.out
         assert "--doi" in captured.out
 
-    def test_nonexistent_file_error(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_nonexistent_file_error(self, capsys: pytest.CaptureFixture[str]) -> None:
         """pm refs nonexistent.nxml prints error to stderr, exit 1."""
         exit_code = refs_main(["/nonexistent/path/file.nxml"])
         assert exit_code == 1
@@ -280,9 +274,7 @@ class TestRefsCli:
         captured = capsys.readouterr()
         assert "Error" in captured.err
 
-    def test_output_lines_are_pmids(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_output_lines_are_pmids(self, capsys: pytest.CaptureFixture[str]) -> None:
         """pm refs output lines are all-digit PMIDs (pipeable to pm fetch)."""
         exit_code = refs_main([str(SAMPLE_NXML)])
         assert exit_code == 0
@@ -338,16 +330,20 @@ class TestIntegrationDownloadRefs:
     """E2E tests composing pm download + pm refs."""
 
     def test_e2e_tgz_nxml_then_refs(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """tgz with NXML+PDF → download (default) → .nxml → pm refs → PMIDs."""
         output_dir = tmp_path / "articles"
         nxml_content = SAMPLE_NXML.read_text()
-        tgz = _make_tgz({
-            "PMC9273392/article.nxml": nxml_content.encode(),
-            "PMC9273392/article.pdf": _FAKE_PDF,
-        })
+        tgz = _make_tgz(
+            {
+                "PMC9273392/article.nxml": nxml_content.encode(),
+                "PMC9273392/article.pdf": _FAKE_PDF,
+            }
+        )
 
         def _handler(request: httpx.Request) -> httpx.Response:
             url = str(request.url)
@@ -375,7 +371,9 @@ class TestIntegrationDownloadRefs:
         assert "22222222" in lines
 
     def test_e2e_tgz_pdf_only_fallback(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """tgz with only PDF (no NXML) → download → falls back to .pdf."""
         output_dir = tmp_path / "articles"
@@ -399,15 +397,19 @@ class TestIntegrationDownloadRefs:
         assert not (output_dir / "1.nxml").exists()
 
     def test_e2e_pdf_flag_saves_pdf(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """pm download --pdf + tgz with NXML → saves .pdf, not .nxml."""
         output_dir = tmp_path / "articles"
         nxml_content = SAMPLE_NXML.read_text()
-        tgz = _make_tgz({
-            "PMC9273392/article.nxml": nxml_content.encode(),
-            "PMC9273392/article.pdf": _FAKE_PDF,
-        })
+        tgz = _make_tgz(
+            {
+                "PMC9273392/article.nxml": nxml_content.encode(),
+                "PMC9273392/article.pdf": _FAKE_PDF,
+            }
+        )
 
         def _handler(request: httpx.Request) -> httpx.Response:
             url = str(request.url)
@@ -427,28 +429,28 @@ class TestIntegrationDownloadRefs:
         assert not (output_dir / "1.nxml").exists()
 
     def test_e2e_mixed_sources(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Mixed sources (tgz + direct PDF) → correct file types."""
         output_dir = tmp_path / "articles"
         nxml_content = SAMPLE_NXML.read_text()
-        tgz = _make_tgz({
-            "PMC9273392/article.nxml": nxml_content.encode(),
-            "PMC9273392/article.pdf": _FAKE_PDF,
-        })
+        tgz = _make_tgz(
+            {
+                "PMC9273392/article.nxml": nxml_content.encode(),
+                "PMC9273392/article.pdf": _FAKE_PDF,
+            }
+        )
         direct_pdf = b"%PDF-1.4 direct download"
 
         def _handler(request: httpx.Request) -> httpx.Response:
             url = str(request.url)
             if "pmc/utils/oa" in url:
                 if "PMC12345" in url:
-                    return httpx.Response(
-                        status_code=200, text=_PMC_OA_PDF_ONLY_XML
-                    )
+                    return httpx.Response(status_code=200, text=_PMC_OA_PDF_ONLY_XML)
                 if "PMC9273392" in url:
-                    return httpx.Response(
-                        status_code=200, text=_PMC_OA_TGZ_ONLY_XML
-                    )
+                    return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
             if "oa_pdf" in url:
                 return httpx.Response(status_code=200, content=direct_pdf)
             if "oa_package" in url:

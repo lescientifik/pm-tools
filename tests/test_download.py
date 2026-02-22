@@ -1343,8 +1343,13 @@ class TestDownloadPdfsTgz:
         }
         with caplog.at_level(logging.WARNING, logger="pm_tools.download"):
             status, _ = _download_one(
-                source, output_dir, overwrite=False,
-                timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=True,
+                source,
+                output_dir,
+                overwrite=False,
+                timeout=30,
+                verify_pdf=False,
+                progress_callback=None,
+                prefer_pdf=True,
             )
 
         assert status == "failed"
@@ -1501,8 +1506,13 @@ class TestDownloadPdfsTgz:
             "pmc_format": "tgz",
         }
         _download_one(
-            source, output_dir, overwrite=False,
-            timeout=30, verify_pdf=False, progress_callback=events.append, prefer_pdf=True,
+            source,
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=False,
+            progress_callback=events.append,
+            prefer_pdf=True,
         )
 
         assert len(events) == 1
@@ -2249,8 +2259,13 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         status, src = _download_one(
-            self._tgz_source(), output_dir, overwrite=False,
-            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+            self._tgz_source(),
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=False,
+            progress_callback=None,
+            prefer_pdf=False,
         )
         assert status == "downloaded"
         assert (output_dir / "1.nxml").exists()
@@ -2272,8 +2287,13 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         status, _ = _download_one(
-            self._tgz_source(), output_dir, overwrite=False,
-            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+            self._tgz_source(),
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=False,
+            progress_callback=None,
+            prefer_pdf=False,
         )
         assert status == "downloaded"
         assert (output_dir / "1.nxml").exists()
@@ -2294,8 +2314,13 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         status, _ = _download_one(
-            self._tgz_source(), output_dir, overwrite=False,
-            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+            self._tgz_source(),
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=False,
+            progress_callback=None,
+            prefer_pdf=False,
         )
         assert status == "downloaded"
         assert (output_dir / "1.pdf").exists()
@@ -2316,8 +2341,13 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         status, _ = _download_one(
-            self._tgz_source(), output_dir, overwrite=False,
-            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+            self._tgz_source(),
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=False,
+            progress_callback=None,
+            prefer_pdf=False,
         )
         assert status == "failed"
 
@@ -2337,8 +2367,13 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         status, _ = _download_one(
-            self._tgz_source(), output_dir, overwrite=False,
-            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=True,
+            self._tgz_source(),
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=False,
+            progress_callback=None,
+            prefer_pdf=True,
         )
         assert status == "downloaded"
         assert (output_dir / "1.pdf").exists()
@@ -2360,8 +2395,13 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         status, _ = _download_one(
-            self._tgz_source(), output_dir, overwrite=False,
-            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=True,
+            self._tgz_source(),
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=False,
+            progress_callback=None,
+            prefer_pdf=True,
         )
         assert status == "failed"
 
@@ -2379,13 +2419,20 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         source = {
-            "pmid": "1", "source": "pmc",
+            "pmid": "1",
+            "source": "pmc",
             "url": "https://example.com/paper.pdf",
-            "pmcid": "PMC12345", "pmc_format": "pdf",
+            "pmcid": "PMC12345",
+            "pmc_format": "pdf",
         }
         status, _ = _download_one(
-            source, output_dir, overwrite=False,
-            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+            source,
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=False,
+            progress_callback=None,
+            prefer_pdf=False,
         )
         assert status == "downloaded"
         assert (output_dir / "1.pdf").exists()
@@ -2405,8 +2452,13 @@ class TestDownloadOneNxml:
 
         source = {"pmid": "1", "source": "unpaywall", "url": "https://example.com/paper.pdf"}
         status, _ = _download_one(
-            source, output_dir, overwrite=False,
-            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+            source,
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=False,
+            progress_callback=None,
+            prefer_pdf=False,
         )
         assert status == "downloaded"
         assert (output_dir / "1.pdf").exists()
@@ -2427,8 +2479,13 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         status, _ = _download_one(
-            self._tgz_source(), output_dir, overwrite=False,
-            timeout=30, verify_pdf=True, progress_callback=None, prefer_pdf=False,
+            self._tgz_source(),
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=True,
+            progress_callback=None,
+            prefer_pdf=False,
         )
         assert status == "downloaded"
         assert (output_dir / "1.nxml").exists()
@@ -2450,8 +2507,13 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         status, _ = _download_one(
-            self._tgz_source(), output_dir, overwrite=False,
-            timeout=30, verify_pdf=True, progress_callback=None, prefer_pdf=False,
+            self._tgz_source(),
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=True,
+            progress_callback=None,
+            prefer_pdf=False,
         )
         assert status == "failed"
 
@@ -2472,15 +2534,18 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         _download_one(
-            self._tgz_source(), output_dir, overwrite=False,
-            timeout=30, verify_pdf=False, progress_callback=events.append, prefer_pdf=False,
+            self._tgz_source(),
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=False,
+            progress_callback=events.append,
+            prefer_pdf=False,
         )
         assert len(events) == 1
         assert events[0]["status"] == "downloaded"
 
-    def test_existing_nxml_skipped(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_existing_nxml_skipped(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Existing {PMID}.nxml file is skipped when overwrite=False."""
         output_dir = tmp_path / "out"
         output_dir.mkdir()
@@ -2495,8 +2560,13 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         status, _ = _download_one(
-            self._tgz_source(), output_dir, overwrite=False,
-            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+            self._tgz_source(),
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=False,
+            progress_callback=None,
+            prefer_pdf=False,
         )
         assert status == "skipped"
         # Content unchanged
@@ -2519,8 +2589,13 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         status, _ = _download_one(
-            self._tgz_source(), output_dir, overwrite=False,
-            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+            self._tgz_source(),
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=False,
+            progress_callback=None,
+            prefer_pdf=False,
         )
         assert status == "downloaded"
         assert (output_dir / "1.nxml").exists()
@@ -2543,8 +2618,13 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         _, src = _download_one(
-            self._tgz_source(), output_dir, overwrite=False,
-            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+            self._tgz_source(),
+            output_dir,
+            overwrite=False,
+            timeout=30,
+            verify_pdf=False,
+            progress_callback=None,
+            prefer_pdf=False,
         )
         assert src.get("output_ext") == ".nxml"
 
@@ -2572,8 +2652,13 @@ class TestDownloadPdfsPreferPdf:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [
-            {"pmid": "1", "source": "pmc", "url": "https://example.com/a.tar.gz",
-             "pmcid": "PMC12345", "pmc_format": "tgz"},
+            {
+                "pmid": "1",
+                "source": "pmc",
+                "url": "https://example.com/a.tar.gz",
+                "pmcid": "PMC12345",
+                "pmc_format": "tgz",
+            },
         ]
         result = download_pdfs(sources, output_dir, prefer_pdf=False)
         assert result["downloaded"] == 1
@@ -2595,8 +2680,13 @@ class TestDownloadPdfsPreferPdf:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [
-            {"pmid": "1", "source": "pmc", "url": "https://example.com/a.tar.gz",
-             "pmcid": "PMC12345", "pmc_format": "tgz"},
+            {
+                "pmid": "1",
+                "source": "pmc",
+                "url": "https://example.com/a.tar.gz",
+                "pmcid": "PMC12345",
+                "pmc_format": "tgz",
+            },
         ]
         result = download_pdfs(sources, output_dir, prefer_pdf=True)
         assert result["downloaded"] == 1
@@ -2618,8 +2708,13 @@ class TestDownloadPdfsPreferPdf:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [
-            {"pmid": str(i), "source": "pmc", "url": f"https://example.com/{i}.tar.gz",
-             "pmcid": "PMC12345", "pmc_format": "tgz"}
+            {
+                "pmid": str(i),
+                "source": "pmc",
+                "url": f"https://example.com/{i}.tar.gz",
+                "pmcid": "PMC12345",
+                "pmc_format": "tgz",
+            }
             for i in range(3)
         ]
         result = download_pdfs(sources, output_dir, max_concurrent=2, prefer_pdf=True)
@@ -2646,8 +2741,13 @@ class TestDownloadPdfsPreferPdf:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [
-            {"pmid": "1", "source": "pmc", "url": "https://example.com/a.tar.gz",
-             "pmcid": "PMC12345", "pmc_format": "tgz"},
+            {
+                "pmid": "1",
+                "source": "pmc",
+                "url": "https://example.com/a.tar.gz",
+                "pmcid": "PMC12345",
+                "pmc_format": "tgz",
+            },
         ]
         download_pdfs(sources, output_dir, manifest=True, prefer_pdf=False)
 
@@ -2673,8 +2773,13 @@ class TestDownloadPdfsPreferPdf:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [
-            {"pmid": "1", "source": "pmc", "url": "https://example.com/a.tar.gz",
-             "pmcid": "PMC12345", "pmc_format": "tgz"},
+            {
+                "pmid": "1",
+                "source": "pmc",
+                "url": "https://example.com/a.tar.gz",
+                "pmcid": "PMC12345",
+                "pmc_format": "tgz",
+            },
         ]
         download_pdfs(sources, output_dir, manifest=True, prefer_pdf=True)
 
