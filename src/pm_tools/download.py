@@ -1,4 +1,4 @@
-"""pm download: Download full-text PDFs from PubMed Central and Unpaywall."""
+"""pm download: Download full-text articles (NXML or PDF) from PubMed Central and Unpaywall."""
 
 from __future__ import annotations
 
@@ -475,12 +475,16 @@ def download_pdfs(
     max_concurrent: int = 1,
     manifest: bool = False,
     pm_dir: Path | None = None,
+    prefer_pdf: bool = False,
 ) -> dict[str, int]:
-    """Download PDFs from found sources.
+    """Download full-text articles from found sources.
+
+    By default, extracts NXML from tgz archives (falling back to PDF).
+    With prefer_pdf=True, extracts PDF only (original behavior).
 
     Args:
         sources: List of {pmid, source, url} dicts from find_pdf_sources.
-        output_dir: Directory to save PDFs.
+        output_dir: Directory to save files.
         overwrite: Whether to overwrite existing files.
         timeout: Download timeout in seconds.
         progress_callback: Optional callable(event_dict) called per source.
@@ -488,6 +492,7 @@ def download_pdfs(
         max_concurrent: Maximum number of concurrent downloads.
         manifest: Write a manifest.jsonl file listing downloaded files.
         pm_dir: Path to .pm/ directory for audit logging, or None.
+        prefer_pdf: Force PDF extraction from tgz archives.
 
     Returns:
         Dict with downloaded, skipped, failed counts.
@@ -509,7 +514,14 @@ def download_pdfs(
         with ThreadPoolExecutor(max_workers=max_concurrent) as pool:
             futures = [
                 pool.submit(
-                    _download_one, s, output_dir, overwrite, timeout, verify_pdf, progress_callback
+                    _download_one,
+                    s,
+                    output_dir,
+                    overwrite,
+                    timeout,
+                    verify_pdf,
+                    progress_callback,
+                    prefer_pdf,
                 )
                 for s in sources
             ]
@@ -520,7 +532,7 @@ def download_pdfs(
     else:
         for source in sources:
             outcome = _download_one(
-                source, output_dir, overwrite, timeout, verify_pdf, progress_callback
+                source, output_dir, overwrite, timeout, verify_pdf, progress_callback, prefer_pdf
             )
             outcomes.append(outcome)
             result[outcome[0]] += 1
@@ -531,10 +543,11 @@ def download_pdfs(
         for status, src in outcomes:
             if status == "downloaded":
                 pmid = src.get("pmid", "unknown")
+                ext = src.get("output_ext", ".pdf")
                 entry = {
                     "pmid": pmid,
                     "source": src.get("source"),
-                    "path": str(output_dir / f"{pmid}.pdf"),
+                    "path": str(output_dir / f"{pmid}{ext}"),
                 }
                 manifest_lines.append(json.dumps(entry))
         if manifest_lines:
@@ -555,11 +568,14 @@ def download_pdfs(
 
 
 HELP_TEXT = """\
-pm download - Download full-text PDFs from PubMed Central and Unpaywall
+pm download - Download full-text articles from PubMed Central and Unpaywall
 
 Usage:
   pm parse output | pm download [OPTIONS]
   pm download [OPTIONS] --input FILE
+
+By default, downloads NXML (structured text) from PMC tgz archives.
+Use --pdf to download PDF instead.
 
 Input Options:
   --input FILE         Read PMIDs from file (one per line)
@@ -570,6 +586,7 @@ Output Options:
   --dry-run            Show what would be downloaded, don't download
 
 Download Options:
+  --pdf                Download PDF instead of NXML from tgz archives
   --timeout SECS       Download timeout in seconds (default: 30)
   --email EMAIL        Email for Unpaywall API (required for Unpaywall)
 
@@ -582,12 +599,13 @@ General:
   -h, --help           Show this help message
 
 Exit Codes:
-  0 - All requested PDFs downloaded successfully
-  1 - Usage error or some PDFs failed
-  2 - No PDFs downloaded (no sources available)
+  0 - All requested articles downloaded successfully
+  1 - Usage error or some downloads failed
+  2 - No articles downloaded (no sources available)
 
 Examples:
-  pm search "CRISPR" | pm fetch | pm parse | pm download --output-dir ./pdfs/
+  pm search "CRISPR" | pm fetch | pm parse | pm download --output-dir ./articles/
+  pm download --pdf --output-dir ./pdfs/        # Force PDF download
   pm parse output.jsonl | pm download --dry-run
   pm download --input pmids.txt --email user@example.com"""
 
@@ -606,6 +624,7 @@ def main(args: list[str] | None = None) -> int:
     pmc_only = False
     unpaywall_only = False
     verbose = False
+    prefer_pdf = False
 
     i = 0
     while i < len(args):
@@ -631,6 +650,8 @@ def main(args: list[str] | None = None) -> int:
         elif arg == "--input":
             i += 1
             input_file = args[i]
+        elif arg == "--pdf":
+            prefer_pdf = True
         elif arg == "--pmc-only":
             pmc_only = True
         elif arg == "--unpaywall-only":
@@ -712,7 +733,13 @@ def main(args: list[str] | None = None) -> int:
 
     # Logger handles stderr output; no progress_callback needed in CLI
     result = download_pdfs(
-        sources, output_dir, overwrite, timeout, progress_callback=None, pm_dir=detected_pm_dir
+        sources,
+        output_dir,
+        overwrite,
+        timeout,
+        progress_callback=None,
+        pm_dir=detected_pm_dir,
+        prefer_pdf=prefer_pdf,
     )
 
     # User-facing summary — always printed (not a log message)

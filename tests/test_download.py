@@ -783,6 +783,16 @@ _PMC_OA_TGZ_ONLY_XML = (
     "</records></OA>"
 )
 
+_PMC_OA_TGZ_RESPONSE_XML = (
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    "<OA><records>"
+    '<record id="PMC12345" citation="Some Citation" license="CC BY">'
+    '<link format="tgz"'
+    ' href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/ab/cd/PMC12345.tar.gz" />'
+    "</record>"
+    "</records></OA>"
+)
+
 _PMC_OA_BOTH_FORMATS_XML = (
     '<?xml version="1.0" encoding="UTF-8"?>\n'
     "<OA><records>"
@@ -2537,3 +2547,208 @@ class TestDownloadOneNxml:
             timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
         )
         assert src.get("output_ext") == ".nxml"
+
+
+# ---------------------------------------------------------------------------
+# Phase 10.2: download_pdfs() prefer_pdf param + CLI --pdf flag
+# ---------------------------------------------------------------------------
+
+
+class TestDownloadPdfsPreferPdf:
+    """Tests for download_pdfs() prefer_pdf parameter propagation."""
+
+    def test_prefer_pdf_false_passes_to_download_one(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """download_pdfs(prefer_pdf=False) extracts NXML from tgz by default."""
+        output_dir = tmp_path / "out"
+        nxml = b"<article><body>content</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml, "PMC12345/paper.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {"pmid": "1", "source": "pmc", "url": "https://example.com/a.tar.gz",
+             "pmcid": "PMC12345", "pmc_format": "tgz"},
+        ]
+        result = download_pdfs(sources, output_dir, prefer_pdf=False)
+        assert result["downloaded"] == 1
+        assert (output_dir / "1.nxml").exists()
+        assert not (output_dir / "1.pdf").exists()
+
+    def test_prefer_pdf_true_passes_to_download_one(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """download_pdfs(prefer_pdf=True) extracts PDF from tgz."""
+        output_dir = tmp_path / "out"
+        nxml = b"<article><body>content</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml, "PMC12345/paper.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {"pmid": "1", "source": "pmc", "url": "https://example.com/a.tar.gz",
+             "pmcid": "PMC12345", "pmc_format": "tgz"},
+        ]
+        result = download_pdfs(sources, output_dir, prefer_pdf=True)
+        assert result["downloaded"] == 1
+        assert (output_dir / "1.pdf").exists()
+        assert not (output_dir / "1.nxml").exists()
+
+    def test_concurrent_passes_prefer_pdf(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ThreadPoolExecutor path also passes prefer_pdf to _download_one."""
+        output_dir = tmp_path / "out"
+        nxml = b"<article><body>content</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml, "PMC12345/paper.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {"pmid": str(i), "source": "pmc", "url": f"https://example.com/{i}.tar.gz",
+             "pmcid": "PMC12345", "pmc_format": "tgz"}
+            for i in range(3)
+        ]
+        result = download_pdfs(sources, output_dir, max_concurrent=2, prefer_pdf=True)
+        assert result["downloaded"] == 3
+        # All should be PDF (prefer_pdf=True)
+        for i in range(3):
+            assert (output_dir / f"{i}.pdf").exists()
+            assert not (output_dir / f"{i}.nxml").exists()
+
+    def test_manifest_uses_actual_nxml_extension(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Manifest entry uses .nxml when NXML was saved."""
+        import json
+
+        output_dir = tmp_path / "out"
+        nxml = b"<article><body>content</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {"pmid": "1", "source": "pmc", "url": "https://example.com/a.tar.gz",
+             "pmcid": "PMC12345", "pmc_format": "tgz"},
+        ]
+        download_pdfs(sources, output_dir, manifest=True, prefer_pdf=False)
+
+        manifest_path = output_dir / "manifest.jsonl"
+        assert manifest_path.exists()
+        entries = [json.loads(line) for line in manifest_path.read_text().splitlines()]
+        assert len(entries) == 1
+        assert entries[0]["path"].endswith(".nxml")
+
+    def test_manifest_uses_pdf_extension_for_pdf(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Manifest entry uses .pdf when PDF was saved (--pdf mode)."""
+        import json
+
+        output_dir = tmp_path / "out"
+        tgz = _make_tgz({"PMC12345/paper.nxml": b"<article/>", "PMC12345/paper.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        sources = [
+            {"pmid": "1", "source": "pmc", "url": "https://example.com/a.tar.gz",
+             "pmcid": "PMC12345", "pmc_format": "tgz"},
+        ]
+        download_pdfs(sources, output_dir, manifest=True, prefer_pdf=True)
+
+        manifest_path = output_dir / "manifest.jsonl"
+        entries = [json.loads(line) for line in manifest_path.read_text().splitlines()]
+        assert len(entries) == 1
+        assert entries[0]["path"].endswith(".pdf")
+
+
+class TestCliPdfFlag:
+    """Tests for --pdf CLI flag in pm download."""
+
+    def test_help_mentions_pdf_flag(self) -> None:
+        """--help output documents the --pdf flag."""
+        from pm_tools.download import HELP_TEXT
+
+        assert "--pdf" in HELP_TEXT
+
+    def test_pdf_flag_forces_pdf_extraction(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """CLI --pdf flag causes PDF extraction from tgz instead of NXML."""
+        import io
+
+        from pm_tools.download import main as download_main
+
+        output_dir = tmp_path / "out"
+        nxml = b"<article><body>content</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml, "PMC12345/paper.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_TGZ_RESPONSE_XML)
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
+        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
+
+        exit_code = download_main(["--output-dir", str(output_dir), "--pdf"])
+        assert exit_code == 0
+        assert (output_dir / "99999.pdf").exists()
+        assert not (output_dir / "99999.nxml").exists()
+
+    def test_default_no_pdf_flag_extracts_nxml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """CLI without --pdf flag extracts NXML by default."""
+        import io
+
+        from pm_tools.download import main as download_main
+
+        output_dir = tmp_path / "out"
+        nxml = b"<article><body>content</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml, "PMC12345/paper.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_TGZ_RESPONSE_XML)
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
+        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
+
+        exit_code = download_main(["--output-dir", str(output_dir)])
+        assert exit_code == 0
+        assert (output_dir / "99999.nxml").exists()
+        assert not (output_dir / "99999.pdf").exists()
