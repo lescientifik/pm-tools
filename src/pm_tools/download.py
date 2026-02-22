@@ -203,13 +203,13 @@ def unpaywall_lookup(doi: str, email: str) -> str | None:
     return best_loc.get("url_for_pdf") if best_loc else None
 
 
-def find_pdf_sources(
+def find_sources(
     articles: list[dict[str, Any]],
     email: str | None = None,
     pmc_only: bool = False,
     unpaywall_only: bool = False,
 ) -> list[dict[str, Any]]:
-    """Find PDF download sources for articles.
+    """Find download sources for articles (tgz containing NXML, or PDF).
 
     Args:
         articles: List of article dicts with pmid, pmcid, doi fields.
@@ -294,26 +294,25 @@ def _download_one(
     verify_pdf: bool,
     progress_callback: Any,
     prefer_pdf: bool = False,
-) -> tuple[str, dict[str, Any]]:
-    """Download a single article. Returns (status, source_dict).
+) -> tuple[str, dict[str, Any], str]:
+    """Download a single article. Returns (status, source_dict, output_ext).
 
     For tgz sources, extracts NXML by default (falling back to PDF).
     With prefer_pdf=True, extracts PDF only (original behavior).
     For non-tgz sources, always downloads PDF directly.
 
-    Note: On success, mutates ``source`` in-place by setting
-    ``source["output_ext"]`` to the actual file extension written
-    (e.g. ".nxml" or ".pdf"). Callers should treat the returned
-    source dict as the authoritative version.
+    The third element ``output_ext`` is the actual file extension written
+    (e.g. ".nxml" or ".pdf") on success, or ".pdf" as default for
+    non-downloaded outcomes. The input ``source`` dict is never mutated.
     """
     pmid = source.get("pmid", "unknown")
     url = source.get("url")
 
     if not url:
-        logger.warning("PMID %s: no PDF URL available", pmid)
+        logger.warning("PMID %s: no download URL available", pmid)
         if progress_callback:
             progress_callback({"pmid": pmid, "status": "failed", "reason": "no_url"})
-        return ("failed", source)
+        return ("failed", source, ".pdf")
 
     # For non-tgz sources, we know the extension upfront
     is_tgz = source.get("pmc_format") == "tgz"
@@ -322,7 +321,7 @@ def _download_one(
         if out_file.exists() and not overwrite:
             if progress_callback:
                 progress_callback({"pmid": pmid, "status": "skipped"})
-            return ("skipped", source)
+            return ("skipped", source, ".pdf")
 
     try:
         client = get_http_client()
@@ -346,14 +345,14 @@ def _download_one(
                         "url": url,
                     }
                 )
-            return ("failed", source)
+            return ("failed", source, ".pdf")
 
         content = response.content
         if not content:
             logger.warning("PMID %s: empty response from %s", pmid, url)
             if progress_callback:
                 progress_callback({"pmid": pmid, "status": "failed", "reason": "empty"})
-            return ("failed", source)
+            return ("failed", source, ".pdf")
 
         ext = ".pdf"
 
@@ -379,7 +378,7 @@ def _download_one(
                                 "url": url,
                             }
                         )
-                    return ("failed", source)
+                    return ("failed", source, ".pdf")
                 content = pdf_content
                 ext = ".pdf"
             else:
@@ -407,7 +406,7 @@ def _download_one(
                                     "url": url,
                                 }
                             )
-                        return ("failed", source)
+                        return ("failed", source, ".pdf")
                     content = pdf_content
                     ext = ".pdf"
 
@@ -416,19 +415,18 @@ def _download_one(
             if out_file.exists() and not overwrite:
                 if progress_callback:
                     progress_callback({"pmid": pmid, "status": "skipped"})
-                return ("skipped", source)
+                return ("skipped", source, ext)
 
         if verify_pdf and ext == ".pdf" and not content[:5].startswith(b"%PDF-"):
             logger.warning("PMID %s: content is not a valid PDF from %s", pmid, url)
             if progress_callback:
                 progress_callback({"pmid": pmid, "status": "failed", "reason": "not_pdf"})
-            return ("failed", source)
+            return ("failed", source, ext)
 
         out_file.write_bytes(content)
-        source["output_ext"] = ext
         if progress_callback:
             progress_callback({"pmid": pmid, "status": "downloaded"})
-        return ("downloaded", source)
+        return ("downloaded", source, ext)
     except (httpx.HTTPError, OSError) as e:
         logger.warning("PMID %s: %s from %s", pmid, e, url)
         if progress_callback:
@@ -440,10 +438,10 @@ def _download_one(
                     "url": url,
                 }
             )
-        return ("failed", source)
+        return ("failed", source, ".pdf")
 
 
-def download_pdfs(
+def download_articles(
     sources: list[dict[str, Any]],
     output_dir: Path,
     overwrite: bool = False,
@@ -462,7 +460,7 @@ def download_pdfs(
     With prefer_pdf=True, extracts PDF only (original behavior).
 
     Args:
-        sources: List of {pmid, source, url} dicts from find_pdf_sources.
+        sources: List of {pmid, source, url} dicts from find_sources.
         output_dir: Directory to save files.
         overwrite: Whether to overwrite existing files.
         timeout: Download timeout in seconds.
@@ -485,7 +483,7 @@ def download_pdfs(
             audit_log(pm_dir, {"op": "download", **result, "total": 0})
         return result
 
-    outcomes: list[tuple[str, dict[str, Any]]] = []
+    outcomes: list[tuple[str, dict[str, Any], str]] = []
 
     if max_concurrent > 1:
         from concurrent.futures import ThreadPoolExecutor
@@ -519,14 +517,13 @@ def download_pdfs(
     # Write manifest
     if manifest:
         manifest_lines: list[str] = []
-        for status, src in outcomes:
+        for status, src, output_ext in outcomes:
             if status == "downloaded":
                 pmid = src.get("pmid", "unknown")
-                ext = src.get("output_ext", ".pdf")
                 entry = {
                     "pmid": pmid,
                     "source": src.get("source"),
-                    "path": str(output_dir / f"{pmid}{ext}"),
+                    "path": str(output_dir / f"{pmid}{output_ext}"),
                 }
                 manifest_lines.append(json.dumps(entry))
         if manifest_lines:
@@ -684,7 +681,7 @@ def main(args: list[str] | None = None) -> int:
                 }
             )
 
-    sources = find_pdf_sources(articles, email, pmc_only, unpaywall_only)
+    sources = find_sources(articles, email, pmc_only, unpaywall_only)
 
     if dry_run:
         available = sum(1 for s in sources if s.get("url"))
@@ -711,7 +708,7 @@ def main(args: list[str] | None = None) -> int:
     detected_pm_dir = find_pm_dir()
 
     # Logger handles stderr output; no progress_callback needed in CLI
-    result = download_pdfs(
+    result = download_articles(
         sources,
         output_dir,
         overwrite,

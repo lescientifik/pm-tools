@@ -23,8 +23,8 @@ from pm_tools.download import (
     _download_one,
     _extract_nxml_from_tgz,
     _extract_pdf_from_tgz,
-    download_pdfs,
-    find_pdf_sources,
+    download_articles,
+    find_sources,
     pmc_lookup,
     unpaywall_lookup,
 )
@@ -189,19 +189,19 @@ class TestExtractPdfFromTgz:
 
 
 # ---------------------------------------------------------------------------
-# find_pdf_sources
+# find_sources
 # ---------------------------------------------------------------------------
 
 
 class TestFindPdfSourcesEmpty:
     def test_empty_input_returns_empty(self) -> None:
-        result = find_pdf_sources([])
+        result = find_sources([])
         assert result == []
 
     def test_no_identifiers_reports_no_source(self) -> None:
         """Article with neither pmcid nor doi -> no source found."""
         articles = [_art(pmid="1")]
-        result = find_pdf_sources(articles)
+        result = find_sources(articles)
         no_source = [r for r in result if r.get("source") is None]
         assert len(no_source) == 1
         assert no_source[0]["pmid"] == "1"
@@ -220,7 +220,7 @@ class TestFindPdfSourcesPMC:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         articles = [_art(pmid="1", pmcid="PMC12345")]
-        result = find_pdf_sources(articles)
+        result = find_sources(articles)
 
         pmc_sources = [r for r in result if r.get("source") == "pmc"]
         assert len(pmc_sources) == 1
@@ -240,7 +240,7 @@ class TestFindPdfSourcesUnpaywall:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         articles = [_art(pmid="1", doi="10.1234/test")]
-        result = find_pdf_sources(articles, email="test@example.com")
+        result = find_sources(articles, email="test@example.com")
 
         unpaywall = [r for r in result if r.get("source") == "unpaywall"]
         assert len(unpaywall) == 1
@@ -248,7 +248,7 @@ class TestFindPdfSourcesUnpaywall:
 
 
 # ---------------------------------------------------------------------------
-# download_pdfs
+# download_articles
 # ---------------------------------------------------------------------------
 
 
@@ -258,7 +258,7 @@ class TestDownloadPdfs:
         assert not output_dir.exists()
 
         sources: list[dict] = []
-        result = download_pdfs(sources, output_dir)
+        result = download_articles(sources, output_dir)
 
         assert output_dir.exists()
         assert result["downloaded"] == 0
@@ -284,7 +284,7 @@ class TestDownloadPdfs:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
-        result = download_pdfs(sources, output_dir, overwrite=False)
+        result = download_articles(sources, output_dir, overwrite=False)
 
         assert result["skipped"] == 1
         assert result["downloaded"] == 0
@@ -304,7 +304,7 @@ class TestDownloadPdfs:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [{"pmid": "99999", "source": "unpaywall", "url": "https://example.com/99.pdf"}]
-        result = download_pdfs(sources, output_dir)
+        result = download_articles(sources, output_dir)
 
         assert result["downloaded"] == 1
         saved = output_dir / "99999.pdf"
@@ -329,7 +329,7 @@ class TestDownloadPdfs:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [{"pmid": "12345678", "source": "pmc", "url": "https://example.com/paper.pdf"}]
-        result = download_pdfs(sources, output_dir, overwrite=True)
+        result = download_articles(sources, output_dir, overwrite=True)
 
         assert result["downloaded"] == 1
         assert result["skipped"] == 0
@@ -343,8 +343,8 @@ class TestDownloadPdfs:
 
 class TestDownloadErrors:
     def test_no_input_raises_or_returns_empty(self) -> None:
-        """find_pdf_sources with empty list should return empty, not crash."""
-        result = find_pdf_sources([])
+        """find_sources with empty list should return empty, not crash."""
+        result = find_sources([])
         assert result == []
 
     def test_http_error_counted_as_failed(
@@ -360,7 +360,7 @@ class TestDownloadErrors:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [{"pmid": "1", "source": "pmc", "url": "https://example.com/fail.pdf"}]
-        result = download_pdfs(sources, output_dir)
+        result = download_articles(sources, output_dir)
 
         assert result["failed"] == 1
         assert result["downloaded"] == 0
@@ -383,7 +383,7 @@ class TestDownloadErrors:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [{"pmid": "1", "source": "pmc", "url": "https://example.com/retry.pdf"}]
-        result = download_pdfs(sources, output_dir)
+        result = download_articles(sources, output_dir)
 
         assert result["downloaded"] == 1, "Should succeed after retrying transient 503"
         assert attempt_count == 3, "Should have made 3 attempts (2 retries + 1 success)"
@@ -685,7 +685,7 @@ class TestUnpaywallLookupLogging:
 
 
 # ---------------------------------------------------------------------------
-# find_pdf_sources error resilience
+# find_sources error resilience
 # ---------------------------------------------------------------------------
 
 
@@ -708,7 +708,7 @@ class TestFindPdfSourcesErrorResilience:
             _art(pmid="1", pmcid="PMC11111"),
             _art(pmid="2", pmcid="PMC12345"),
         ]
-        result = find_pdf_sources(articles)
+        result = find_sources(articles)
 
         # First should fail gracefully, second should succeed
         sources_by_pmid = {r["pmid"]: r for r in result}
@@ -718,7 +718,7 @@ class TestFindPdfSourcesErrorResilience:
 
 
 # ---------------------------------------------------------------------------
-# Phase 8.3: find_pdf_sources logging
+# Phase 8.3: find_sources logging
 # ---------------------------------------------------------------------------
 
 
@@ -726,7 +726,7 @@ class TestFindPdfSourcesLogging:
     def test_logs_warning_on_exception(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """find_pdf_sources logs WARNING when an unexpected exception occurs."""
+        """find_sources logs WARNING when an unexpected exception occurs."""
 
         def _boom(pmcid: str) -> str | None:
             raise RuntimeError("unexpected crash")
@@ -735,7 +735,7 @@ class TestFindPdfSourcesLogging:
 
         articles = [_art(pmid="1", pmcid="PMC11111")]
         with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            result = find_pdf_sources(articles)
+            result = find_sources(articles)
 
         # Should not crash — returns source: None
         assert result[0]["source"] is None
@@ -747,11 +747,11 @@ class TestFindPdfSourcesLogging:
     def test_logs_debug_reason_no_source(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """find_pdf_sources logs DEBUG explaining why no source was found."""
+        """find_sources logs DEBUG explaining why no source was found."""
         # Article with no pmcid and no doi — should log the reason
         articles = [_art(pmid="42")]
         with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            find_pdf_sources(articles, pmc_only=True)
+            find_sources(articles, pmc_only=True)
 
         debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
         assert any("42" in r.message for r in debug_msgs)
@@ -908,7 +908,7 @@ class TestPmcLookupReturnType:
 
 
 # ---------------------------------------------------------------------------
-# Phase 9.0c: find_pdf_sources propagates pmc_format
+# Phase 9.0c: find_sources propagates pmc_format
 # ---------------------------------------------------------------------------
 
 
@@ -925,7 +925,7 @@ class TestFindPdfSourcesPmcFormat:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         articles = [_art(pmid="1", pmcid="PMC12345")]
-        result = find_pdf_sources(articles)
+        result = find_sources(articles)
 
         pmc = [r for r in result if r["source"] == "pmc"]
         assert len(pmc) == 1
@@ -943,7 +943,7 @@ class TestFindPdfSourcesPmcFormat:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         articles = [_art(pmid="1", pmcid="PMC9273392")]
-        result = find_pdf_sources(articles)
+        result = find_sources(articles)
 
         pmc = [r for r in result if r["source"] == "pmc"]
         assert len(pmc) == 1
@@ -961,7 +961,7 @@ class TestFindPdfSourcesPmcFormat:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         articles = [_art(pmid="1", doi="10.1234/test")]
-        result = find_pdf_sources(articles, email="test@example.com")
+        result = find_sources(articles, email="test@example.com")
 
         unpaywall = [r for r in result if r["source"] == "unpaywall"]
         assert len(unpaywall) == 1
@@ -970,7 +970,7 @@ class TestFindPdfSourcesPmcFormat:
     def test_no_pmc_format_for_no_source(self) -> None:
         """Articles with no source don't have pmc_format key."""
         articles = [_art(pmid="1")]
-        result = find_pdf_sources(articles)
+        result = find_sources(articles)
 
         no_source = [r for r in result if r["source"] is None]
         assert len(no_source) == 1
@@ -1238,7 +1238,7 @@ class TestDownloadProgress:
             {"pmid": "1", "source": "pmc", "url": "https://example.com/1.pdf"},
             {"pmid": "2", "source": "pmc", "url": "https://example.com/2.pdf"},
         ]
-        download_pdfs(sources, output_dir, progress_callback=on_progress)
+        download_articles(sources, output_dir, progress_callback=on_progress)
 
         assert len(progress_events) == 2, "Should call progress_callback for each source"
         assert progress_events[0]["pmid"] == "1"
@@ -1246,7 +1246,7 @@ class TestDownloadProgress:
 
 
 # ---------------------------------------------------------------------------
-# Phase 9.2: download_pdfs tgz extraction
+# Phase 9.2: download_articles tgz extraction
 # ---------------------------------------------------------------------------
 
 
@@ -1273,7 +1273,7 @@ class TestDownloadPdfsTgz:
                 "pmc_format": "tgz",
             }
         ]
-        result = download_pdfs(sources, output_dir)
+        result = download_articles(sources, output_dir)
 
         assert result["downloaded"] == 1
         saved = output_dir / "1.pdf"
@@ -1303,7 +1303,7 @@ class TestDownloadPdfsTgz:
                 "pmc_format": "tgz",
             }
         ]
-        result = download_pdfs(sources, output_dir)
+        result = download_articles(sources, output_dir)
 
         assert result["downloaded"] == 1
         assert (output_dir / "1.nxml").exists()
@@ -1331,7 +1331,7 @@ class TestDownloadPdfsTgz:
             "pmc_format": "tgz",
         }
         with caplog.at_level(logging.WARNING, logger="pm_tools.download"):
-            status, _ = _download_one(
+            status, _, _ = _download_one(
                 source,
                 output_dir,
                 overwrite=False,
@@ -1370,7 +1370,7 @@ class TestDownloadPdfsTgz:
             }
         ]
         with caplog.at_level(logging.WARNING, logger="pm_tools.download"):
-            result = download_pdfs(sources, output_dir)
+            result = download_articles(sources, output_dir)
 
         assert result["failed"] == 1
 
@@ -1394,7 +1394,7 @@ class TestDownloadPdfsTgz:
                 "pmc_format": "pdf",
             }
         ]
-        result = download_pdfs(sources, output_dir)
+        result = download_articles(sources, output_dir)
 
         assert result["downloaded"] == 1
         assert (output_dir / "1.pdf").read_bytes() == pdf_content
@@ -1411,7 +1411,7 @@ class TestDownloadPdfsTgz:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [{"pmid": "1", "source": "unpaywall", "url": "https://example.com/paper.pdf"}]
-        result = download_pdfs(sources, output_dir)
+        result = download_articles(sources, output_dir)
 
         assert result["downloaded"] == 1
         assert (output_dir / "1.pdf").read_bytes() == pdf_content
@@ -1439,7 +1439,7 @@ class TestDownloadPdfsTgz:
             }
         ]
         with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            download_pdfs(sources, output_dir)
+            download_articles(sources, output_dir)
 
         debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
         assert any("tgz" in r.message.lower() for r in debug_msgs)
@@ -1467,7 +1467,7 @@ class TestDownloadPdfsTgz:
                 "pmc_format": "tgz",
             }
         ]
-        download_pdfs(sources, output_dir, progress_callback=events.append)
+        download_articles(sources, output_dir, progress_callback=events.append)
 
         assert len(events) == 1
         assert events[0]["status"] == "downloaded"
@@ -1531,14 +1531,14 @@ class TestDownloadPdfsTgz:
                 "pmc_format": "tgz",
             }
         ]
-        download_pdfs(sources, output_dir, progress_callback=events.append)
+        download_articles(sources, output_dir, progress_callback=events.append)
 
         assert len(events) == 1
         assert events[0]["status"] == "downloaded"
 
 
 # ---------------------------------------------------------------------------
-# Phase 8.4: download_pdfs logging
+# Phase 8.4: download_articles logging
 # ---------------------------------------------------------------------------
 
 
@@ -1546,7 +1546,7 @@ class TestDownloadPdfsLogging:
     def test_logs_warning_with_http_status_code(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """download_pdfs logs WARNING with actual HTTP status code on failure."""
+        """download_articles logs WARNING with actual HTTP status code on failure."""
         output_dir = tmp_path / "pdfs"
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -1557,7 +1557,7 @@ class TestDownloadPdfsLogging:
 
         sources = [{"pmid": "123", "source": "pmc", "url": "https://example.com/1.pdf"}]
         with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            download_pdfs(sources, output_dir)
+            download_articles(sources, output_dir)
 
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert len(warnings) >= 1
@@ -1567,7 +1567,7 @@ class TestDownloadPdfsLogging:
     def test_logs_warning_with_url_and_pmid(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """download_pdfs logs WARNING with URL and PMID for each failure."""
+        """download_articles logs WARNING with URL and PMID for each failure."""
         output_dir = tmp_path / "pdfs"
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -1578,7 +1578,7 @@ class TestDownloadPdfsLogging:
 
         sources = [{"pmid": "456", "source": "pmc", "url": "https://example.com/paper.pdf"}]
         with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            download_pdfs(sources, output_dir)
+            download_articles(sources, output_dir)
 
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert len(warnings) >= 1
@@ -1588,7 +1588,7 @@ class TestDownloadPdfsLogging:
     def test_logs_warning_on_exception(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """download_pdfs logs WARNING with exception message on HTTPError/OSError."""
+        """download_articles logs WARNING with exception message on HTTPError/OSError."""
         output_dir = tmp_path / "pdfs"
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -1599,7 +1599,7 @@ class TestDownloadPdfsLogging:
 
         sources = [{"pmid": "789", "source": "pmc", "url": "https://example.com/1.pdf"}]
         with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            download_pdfs(sources, output_dir)
+            download_articles(sources, output_dir)
 
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert len(warnings) >= 1
@@ -1608,7 +1608,7 @@ class TestDownloadPdfsLogging:
     def test_logs_warning_on_empty_response(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """download_pdfs logs WARNING when response body is empty."""
+        """download_articles logs WARNING when response body is empty."""
         output_dir = tmp_path / "pdfs"
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -1619,7 +1619,7 @@ class TestDownloadPdfsLogging:
 
         sources = [{"pmid": "321", "source": "pmc", "url": "https://example.com/empty.pdf"}]
         with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            download_pdfs(sources, output_dir)
+            download_articles(sources, output_dir)
 
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert len(warnings) >= 1
@@ -1629,7 +1629,7 @@ class TestDownloadPdfsLogging:
     def test_logs_warning_on_retry_exhaustion(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """download_pdfs logs WARNING when all retries are exhausted (3x 503)."""
+        """download_articles logs WARNING when all retries are exhausted (3x 503)."""
         output_dir = tmp_path / "pdfs"
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -1640,7 +1640,7 @@ class TestDownloadPdfsLogging:
 
         sources = [{"pmid": "654", "source": "pmc", "url": "https://example.com/retry.pdf"}]
         with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            download_pdfs(sources, output_dir)
+            download_articles(sources, output_dir)
 
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert len(warnings) >= 1
@@ -1661,7 +1661,7 @@ class TestDownloadPdfsLogging:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [{"pmid": "1", "source": "pmc", "url": "https://example.com/1.pdf"}]
-        download_pdfs(sources, output_dir, progress_callback=events.append)
+        download_articles(sources, output_dir, progress_callback=events.append)
 
         assert len(events) == 1
         assert events[0]["status"] == "failed"
@@ -1672,12 +1672,12 @@ class TestDownloadPdfsLogging:
         assert events[0]["reason"] == "http_error"
 
     def test_logs_warning_no_url(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
-        """download_pdfs logs WARNING when source has no URL."""
+        """download_articles logs WARNING when source has no URL."""
         output_dir = tmp_path / "pdfs"
 
         sources = [{"pmid": "999", "source": None, "url": None}]
         with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            download_pdfs(sources, output_dir)
+            download_articles(sources, output_dir)
 
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert len(warnings) >= 1
@@ -1690,7 +1690,7 @@ class TestDownloadPdfsLogging:
 
 
 class TestTgzEndToEnd:
-    """Full pipeline: JSONL → find_pdf_sources → download_pdfs with tgz."""
+    """Full pipeline: JSONL → find_sources → download_articles with tgz."""
 
     def test_tgz_only_article_downloaded(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1711,8 +1711,8 @@ class TestTgzEndToEnd:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         articles = [_art(pmid="1", pmcid="PMC9273392")]
-        sources = find_pdf_sources(articles)
-        result = download_pdfs(sources, output_dir)
+        sources = find_sources(articles)
+        result = download_articles(sources, output_dir)
 
         assert result["downloaded"] == 1
         assert (output_dir / "1.pdf").read_bytes() == _FAKE_PDF
@@ -1744,8 +1744,8 @@ class TestTgzEndToEnd:
             _art(pmid="1", pmcid="PMC12345"),
             _art(pmid="2", pmcid="PMC9273392"),
         ]
-        sources = find_pdf_sources(articles)
-        result = download_pdfs(sources, output_dir)
+        sources = find_sources(articles)
+        result = download_articles(sources, output_dir)
 
         assert result["downloaded"] == 2
         assert (output_dir / "1.pdf").read_bytes() == direct_pdf
@@ -1769,8 +1769,8 @@ class TestTgzEndToEnd:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         articles = [_art(pmid="1", pmcid="PMC9273392")]
-        sources = find_pdf_sources(articles)
-        result = download_pdfs(sources, output_dir)
+        sources = find_sources(articles)
+        result = download_articles(sources, output_dir)
 
         assert result["failed"] == 1
         assert result["downloaded"] == 0
@@ -1824,8 +1824,8 @@ class TestTgzEndToEnd:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         articles = [_art(pmid="1", pmcid="PMC9273392")]
-        sources = find_pdf_sources(articles)
-        result = download_pdfs(sources, output_dir)
+        sources = find_sources(articles)
+        result = download_articles(sources, output_dir)
 
         assert result["downloaded"] == 1
         assert result["failed"] == 0
@@ -1839,7 +1839,7 @@ class TestTgzEndToEnd:
 
 class TestFindSourcesMixed:
     def test_accepts_articles_with_pmid_pmcid_doi(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """find_pdf_sources should handle a mix of identifier types."""
+        """find_sources should handle a mix of identifier types."""
 
         def _handler(request: httpx.Request) -> httpx.Response:
             url = str(request.url)
@@ -1857,7 +1857,7 @@ class TestFindSourcesMixed:
             _art(pmid="2", doi="10.1234/test"),
             _art(pmid="3"),
         ]
-        result = find_pdf_sources(articles, email="test@example.com")
+        result = find_sources(articles, email="test@example.com")
 
         assert len(result) == 3
         sources_by_pmid = {r["pmid"]: r for r in result}
@@ -1882,7 +1882,7 @@ def _make_pm_dir(tmp_path: Path) -> Path:
 
 
 class TestDownloadAudit:
-    """download_pdfs() logs to audit.jsonl when pm_dir is provided."""
+    """download_articles() logs to audit.jsonl when pm_dir is provided."""
 
     def test_logs_download_event(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         pm_dir = _make_pm_dir(tmp_path)
@@ -1906,7 +1906,7 @@ class TestDownloadAudit:
                 "url": "https://example.com/2.pdf",
             },
         ]
-        download_pdfs(sources, output_dir, pm_dir=pm_dir)
+        download_articles(sources, output_dir, pm_dir=pm_dir)
 
         lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
         assert len(lines) == 1
@@ -1943,7 +1943,7 @@ class TestDownloadAudit:
                 "url": "https://example.com/2.pdf",
             },
         ]
-        download_pdfs(sources, output_dir, pm_dir=pm_dir)
+        download_articles(sources, output_dir, pm_dir=pm_dir)
 
         event = json.loads((pm_dir / "audit.jsonl").read_text().strip().splitlines()[0])
         assert event["downloaded"] == 1
@@ -1966,7 +1966,7 @@ class TestDownloadAudit:
                 "url": "https://example.com/1.pdf",
             },
         ]
-        result = download_pdfs(sources, output_dir)
+        result = download_articles(sources, output_dir)
         assert result["downloaded"] == 1
 
 
@@ -1998,7 +1998,7 @@ class TestLoggerSetup:
 
 
 class TestDownloadManifest:
-    """download_pdfs should produce a manifest JSONL file listing all downloaded files.
+    """download_articles should produce a manifest JSONL file listing all downloaded files.
 
     Not yet implemented -- drives adding download tracking.
     """
@@ -2018,7 +2018,7 @@ class TestDownloadManifest:
             {"pmid": "1", "source": "pmc", "url": "https://example.com/1.pdf"},
             {"pmid": "2", "source": "unpaywall", "url": "https://example.com/2.pdf"},
         ]
-        download_pdfs(sources, output_dir, manifest=True)
+        download_articles(sources, output_dir, manifest=True)
 
         manifest_path = output_dir / "manifest.jsonl"
         assert manifest_path.exists(), "Should create manifest.jsonl in output directory"
@@ -2031,7 +2031,7 @@ class TestDownloadManifest:
 
 
 class TestDownloadVerify:
-    """download_pdfs should verify downloaded files are valid PDFs.
+    """download_articles should verify downloaded files are valid PDFs.
 
     Not yet implemented -- drives adding content verification.
     """
@@ -2053,7 +2053,7 @@ class TestDownloadVerify:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         sources = [{"pmid": "1", "source": "pmc", "url": "https://example.com/1.pdf"}]
-        result = download_pdfs(sources, output_dir, verify_pdf=True)
+        result = download_articles(sources, output_dir, verify_pdf=True)
 
         assert result["failed"] == 1, (
             "HTML response should be detected as non-PDF and counted as failed"
@@ -2064,7 +2064,7 @@ class TestDownloadVerify:
 
 
 class TestConcurrentDownload:
-    """download_pdfs should support concurrent downloads with max_concurrent parameter.
+    """download_articles should support concurrent downloads with max_concurrent parameter.
 
     Not yet implemented -- drives adding async/concurrent download support.
     """
@@ -2082,7 +2082,7 @@ class TestConcurrentDownload:
             {"pmid": str(i), "source": "pmc", "url": f"https://example.com/{i}.pdf"}
             for i in range(10)
         ]
-        result = download_pdfs(sources, output_dir, max_concurrent=4)
+        result = download_articles(sources, output_dir, max_concurrent=4)
 
         assert result["downloaded"] == 10, "All 10 PDFs should be downloaded"
 
@@ -2247,7 +2247,7 @@ class TestDownloadOneNxml:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
-        status, src = _download_one(
+        status, src, _ = _download_one(
             self._tgz_source(),
             output_dir,
             overwrite=False,
@@ -2275,7 +2275,7 @@ class TestDownloadOneNxml:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
-        status, _ = _download_one(
+        status, _, _ = _download_one(
             self._tgz_source(),
             output_dir,
             overwrite=False,
@@ -2302,7 +2302,7 @@ class TestDownloadOneNxml:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
-        status, _ = _download_one(
+        status, _, _ = _download_one(
             self._tgz_source(),
             output_dir,
             overwrite=False,
@@ -2329,7 +2329,7 @@ class TestDownloadOneNxml:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
-        status, _ = _download_one(
+        status, _, _ = _download_one(
             self._tgz_source(),
             output_dir,
             overwrite=False,
@@ -2355,7 +2355,7 @@ class TestDownloadOneNxml:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
-        status, _ = _download_one(
+        status, _, _ = _download_one(
             self._tgz_source(),
             output_dir,
             overwrite=False,
@@ -2383,7 +2383,7 @@ class TestDownloadOneNxml:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
-        status, _ = _download_one(
+        status, _, _ = _download_one(
             self._tgz_source(),
             output_dir,
             overwrite=False,
@@ -2414,7 +2414,7 @@ class TestDownloadOneNxml:
             "pmcid": "PMC12345",
             "pmc_format": "pdf",
         }
-        status, _ = _download_one(
+        status, _, _ = _download_one(
             source,
             output_dir,
             overwrite=False,
@@ -2440,7 +2440,7 @@ class TestDownloadOneNxml:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         source = {"pmid": "1", "source": "unpaywall", "url": "https://example.com/paper.pdf"}
-        status, _ = _download_one(
+        status, _, _ = _download_one(
             source,
             output_dir,
             overwrite=False,
@@ -2467,7 +2467,7 @@ class TestDownloadOneNxml:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
-        status, _ = _download_one(
+        status, _, _ = _download_one(
             self._tgz_source(),
             output_dir,
             overwrite=False,
@@ -2495,7 +2495,7 @@ class TestDownloadOneNxml:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
-        status, _ = _download_one(
+        status, _, _ = _download_one(
             self._tgz_source(),
             output_dir,
             overwrite=False,
@@ -2548,7 +2548,7 @@ class TestDownloadOneNxml:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
-        status, _ = _download_one(
+        status, _, _ = _download_one(
             self._tgz_source(),
             output_dir,
             overwrite=False,
@@ -2577,7 +2577,7 @@ class TestDownloadOneNxml:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
-        status, _ = _download_one(
+        status, _, _ = _download_one(
             self._tgz_source(),
             output_dir,
             overwrite=False,
@@ -2591,10 +2591,10 @@ class TestDownloadOneNxml:
         # Old PDF untouched
         assert (output_dir / "1.pdf").read_bytes() == _FAKE_PDF
 
-    def test_output_ext_set_on_source_dict(
+    def test_output_ext_returned_in_tuple(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """_download_one sets output_ext key on returned source dict."""
+        """_download_one returns output_ext as third tuple element."""
         output_dir = tmp_path / "out"
         output_dir.mkdir()
         nxml = b"<article><body>text</body></article>"
@@ -2606,7 +2606,7 @@ class TestDownloadOneNxml:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
-        _, src = _download_one(
+        _, _, output_ext = _download_one(
             self._tgz_source(),
             output_dir,
             overwrite=False,
@@ -2615,21 +2615,21 @@ class TestDownloadOneNxml:
             progress_callback=None,
             prefer_pdf=False,
         )
-        assert src.get("output_ext") == ".nxml"
+        assert output_ext == ".nxml"
 
 
 # ---------------------------------------------------------------------------
-# Phase 10.2: download_pdfs() prefer_pdf param + CLI --pdf flag
+# Phase 10.2: download_articles() prefer_pdf param + CLI --pdf flag
 # ---------------------------------------------------------------------------
 
 
 class TestDownloadPdfsPreferPdf:
-    """Tests for download_pdfs() prefer_pdf parameter propagation."""
+    """Tests for download_articles() prefer_pdf parameter propagation."""
 
     def test_prefer_pdf_false_passes_to_download_one(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """download_pdfs(prefer_pdf=False) extracts NXML from tgz by default."""
+        """download_articles(prefer_pdf=False) extracts NXML from tgz by default."""
         output_dir = tmp_path / "out"
         nxml = b"<article><body>content</body></article>"
         tgz = _make_tgz({"PMC12345/paper.nxml": nxml, "PMC12345/paper.pdf": _FAKE_PDF})
@@ -2649,7 +2649,7 @@ class TestDownloadPdfsPreferPdf:
                 "pmc_format": "tgz",
             },
         ]
-        result = download_pdfs(sources, output_dir, prefer_pdf=False)
+        result = download_articles(sources, output_dir, prefer_pdf=False)
         assert result["downloaded"] == 1
         assert (output_dir / "1.nxml").exists()
         assert not (output_dir / "1.pdf").exists()
@@ -2657,7 +2657,7 @@ class TestDownloadPdfsPreferPdf:
     def test_prefer_pdf_true_passes_to_download_one(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """download_pdfs(prefer_pdf=True) extracts PDF from tgz."""
+        """download_articles(prefer_pdf=True) extracts PDF from tgz."""
         output_dir = tmp_path / "out"
         nxml = b"<article><body>content</body></article>"
         tgz = _make_tgz({"PMC12345/paper.nxml": nxml, "PMC12345/paper.pdf": _FAKE_PDF})
@@ -2677,7 +2677,7 @@ class TestDownloadPdfsPreferPdf:
                 "pmc_format": "tgz",
             },
         ]
-        result = download_pdfs(sources, output_dir, prefer_pdf=True)
+        result = download_articles(sources, output_dir, prefer_pdf=True)
         assert result["downloaded"] == 1
         assert (output_dir / "1.pdf").exists()
         assert not (output_dir / "1.nxml").exists()
@@ -2706,7 +2706,7 @@ class TestDownloadPdfsPreferPdf:
             }
             for i in range(3)
         ]
-        result = download_pdfs(sources, output_dir, max_concurrent=2, prefer_pdf=True)
+        result = download_articles(sources, output_dir, max_concurrent=2, prefer_pdf=True)
         assert result["downloaded"] == 3
         # All should be PDF (prefer_pdf=True)
         for i in range(3):
@@ -2738,7 +2738,7 @@ class TestDownloadPdfsPreferPdf:
                 "pmc_format": "tgz",
             },
         ]
-        download_pdfs(sources, output_dir, manifest=True, prefer_pdf=False)
+        download_articles(sources, output_dir, manifest=True, prefer_pdf=False)
 
         manifest_path = output_dir / "manifest.jsonl"
         assert manifest_path.exists()
@@ -2770,7 +2770,7 @@ class TestDownloadPdfsPreferPdf:
                 "pmc_format": "tgz",
             },
         ]
-        download_pdfs(sources, output_dir, manifest=True, prefer_pdf=True)
+        download_articles(sources, output_dir, manifest=True, prefer_pdf=True)
 
         manifest_path = output_dir / "manifest.jsonl"
         entries = [json.loads(line) for line in manifest_path.read_text().splitlines()]

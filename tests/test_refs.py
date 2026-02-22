@@ -12,8 +12,8 @@ import httpx
 import pytest
 
 from pm_tools.download import (
-    download_pdfs,
-    find_pdf_sources,
+    download_articles,
+    find_sources,
 )
 from pm_tools.refs import extract_refs
 from pm_tools.refs import main as refs_main
@@ -431,8 +431,8 @@ class TestIntegrationDownloadRefs:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         articles = [{"pmid": "1", "pmcid": "PMC9273392"}]
-        sources = find_pdf_sources(articles)
-        result = download_pdfs(sources, output_dir)
+        sources = find_sources(articles)
+        result = download_articles(sources, output_dir)
 
         assert result["downloaded"] == 1
         nxml_path = output_dir / "1.nxml"
@@ -465,8 +465,8 @@ class TestIntegrationDownloadRefs:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         articles = [{"pmid": "1", "pmcid": "PMC9273392"}]
-        sources = find_pdf_sources(articles)
-        result = download_pdfs(sources, output_dir)
+        sources = find_sources(articles)
+        result = download_articles(sources, output_dir)
 
         assert result["downloaded"] == 1
         assert (output_dir / "1.pdf").exists()
@@ -497,8 +497,8 @@ class TestIntegrationDownloadRefs:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         articles = [{"pmid": "1", "pmcid": "PMC9273392"}]
-        sources = find_pdf_sources(articles)
-        result = download_pdfs(sources, output_dir, prefer_pdf=True)
+        sources = find_sources(articles)
+        result = download_articles(sources, output_dir, prefer_pdf=True)
 
         assert result["downloaded"] == 1
         assert (output_dir / "1.pdf").exists()
@@ -540,8 +540,8 @@ class TestIntegrationDownloadRefs:
             {"pmid": "1", "pmcid": "PMC12345"},
             {"pmid": "2", "pmcid": "PMC9273392"},
         ]
-        sources = find_pdf_sources(articles)
-        result = download_pdfs(sources, output_dir)
+        sources = find_sources(articles)
+        result = download_articles(sources, output_dir)
 
         assert result["downloaded"] == 2
         # Article 1: direct PDF → .pdf
