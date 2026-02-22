@@ -6,7 +6,6 @@ RED phase: tests written before implementation to drive extract_refs().
 from __future__ import annotations
 
 import io
-import tarfile
 from pathlib import Path
 
 import httpx
@@ -18,6 +17,7 @@ from pm_tools.download import (
 )
 from pm_tools.refs import extract_refs
 from pm_tools.refs import main as refs_main
+from tests.conftest import make_tgz as _make_tgz
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 GOLDEN = FIXTURES / "golden"
@@ -107,6 +107,49 @@ _NXML_WHITESPACE_PMID = """\
 </article>
 """
 
+_NXML_PUBID_OUTSIDE_REFLIST = """\
+<article>
+  <front>
+    <article-meta>
+      <article-id pub-id-type="pmid">99999999</article-id>
+      <pub-id pub-id-type="pmid">88888888</pub-id>
+    </article-meta>
+  </front>
+  <back>
+    <ref-list>
+      <ref id="R1">
+        <mixed-citation>
+          <pub-id pub-id-type="pmid">11111111</pub-id>
+        </mixed-citation>
+      </ref>
+    </ref-list>
+  </back>
+</article>
+"""
+
+_NXML_NESTED_REFLIST = """\
+<article>
+  <back>
+    <ref-list>
+      <title>Main References</title>
+      <ref id="R1">
+        <mixed-citation>
+          <pub-id pub-id-type="pmid">11111111</pub-id>
+        </mixed-citation>
+      </ref>
+      <ref-list>
+        <title>Supplementary References</title>
+        <ref id="S1">
+          <mixed-citation>
+            <pub-id pub-id-type="pmid">22222222</pub-id>
+          </mixed-citation>
+        </ref>
+      </ref-list>
+    </ref-list>
+  </back>
+</article>
+"""
+
 
 # ---------------------------------------------------------------------------
 # TestExtractRefs — core function
@@ -170,6 +213,32 @@ class TestExtractRefs:
         """Whitespace-only PMID text is skipped, not emitted."""
         result = extract_refs(_NXML_WHITESPACE_PMID)
         assert result == ["33333333"]
+
+    def test_pubid_outside_reflist_ignored(self) -> None:
+        """<pub-id> in <front> or <article-meta> is NOT extracted — only <ref-list>."""
+        result = extract_refs(_NXML_PUBID_OUTSIDE_REFLIST)
+        assert result == ["11111111"]
+        assert "88888888" not in result
+        assert "99999999" not in result
+
+    def test_nested_reflist(self) -> None:
+        """Nested <ref-list> elements — PMIDs from both levels are extracted."""
+        result = extract_refs(_NXML_NESTED_REFLIST)
+        assert result == ["11111111", "22222222"]
+
+    def test_doctype_xxe_safe(self) -> None:
+        """XML with DOCTYPE declaration doesn't crash (ET rejects external entities)."""
+        malicious = (
+            '<?xml version="1.0"?>'
+            '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+            "<article><back><ref-list>"
+            '<ref><mixed-citation><pub-id pub-id-type="pmid">&xxe;</pub-id>'
+            "</mixed-citation></ref>"
+            "</ref-list></back></article>"
+        )
+        # ET.fromstring rejects DTDs with external entities → ParseError → empty list
+        result = extract_refs(malicious)
+        assert result == []
 
     def test_golden_pmids(self) -> None:
         """Golden file sample-refs-pmids.txt matches extract_refs(sample.nxml)."""
@@ -274,6 +343,24 @@ class TestRefsCli:
         captured = capsys.readouterr()
         assert "Error" in captured.err
 
+    def test_multifile_continues_on_error(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Multi-file: bad file doesn't discard already-collected refs; exit 1."""
+        good = tmp_path / "good.nxml"
+        good.write_text(SAMPLE_NXML.read_text())
+        bad = tmp_path / "missing.nxml"  # does not exist
+
+        exit_code = refs_main([str(good), str(bad)])
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        # Refs from the good file should still be printed
+        lines = captured.out.strip().splitlines()
+        assert "11111111" in lines
+        assert "22222222" in lines
+        # Error about the bad file on stderr
+        assert "Error" in captured.err
+
     def test_output_lines_are_pmids(self, capsys: pytest.CaptureFixture[str]) -> None:
         """pm refs output lines are all-digit PMIDs (pipeable to pm fetch)."""
         exit_code = refs_main([str(SAMPLE_NXML)])
@@ -288,17 +375,6 @@ class TestRefsCli:
 # ---------------------------------------------------------------------------
 
 _FAKE_PDF = b"%PDF-1.4 test content"
-
-
-def _make_tgz(files: dict[str, bytes]) -> bytes:
-    """Create an in-memory tgz archive."""
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-        for name, data in files.items():
-            info = tarfile.TarInfo(name=name)
-            info.size = len(data)
-            tar.addfile(info, io.BytesIO(data))
-    return buf.getvalue()
 
 
 def _make_transport(handler) -> httpx.MockTransport:

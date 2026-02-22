@@ -12,7 +12,6 @@ from __future__ import annotations
 import io
 import json
 import logging
-import tarfile
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +28,7 @@ from pm_tools.download import (
     pmc_lookup,
     unpaywall_lookup,
 )
+from tests.conftest import make_tgz as _make_tgz
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -51,17 +51,6 @@ def _art(
 
 
 _FAKE_PDF = b"%PDF-1.4 fake pdf content for testing"
-
-
-def _make_tgz(files: dict[str, bytes]) -> bytes:
-    """Create an in-memory tar.gz archive from {name: content} dict."""
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-        for name, data in files.items():
-            info = tarfile.TarInfo(name=name)
-            info.size = len(data)
-            tar.addfile(info, io.BytesIO(data))
-    return buf.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -187,11 +176,11 @@ class TestExtractPdfFromTgz:
         assert result is None
 
     def test_oversized_member_skipped(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Members with size > MAX_PDF_MEMBER_SIZE are skipped."""
+        """Members with size > MAX_MEMBER_SIZE are skipped."""
         import pm_tools.download as dl
 
         # Temporarily lower the limit so our test PDF exceeds it
-        monkeypatch.setattr(dl, "MAX_PDF_MEMBER_SIZE", 5)
+        monkeypatch.setattr(dl, "MAX_MEMBER_SIZE", 5)
 
         archive = _make_tgz({"PMC12345/paper.pdf": _FAKE_PDF})
         result = _extract_pdf_from_tgz(archive)
@@ -2167,10 +2156,10 @@ class TestExtractNxmlFromTgz:
         assert result is None
 
     def test_oversized_member_skipped(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Members with size > MAX_PDF_MEMBER_SIZE are skipped."""
+        """Members with size > MAX_MEMBER_SIZE are skipped."""
         import pm_tools.download as dl
 
-        monkeypatch.setattr(dl, "MAX_PDF_MEMBER_SIZE", 5)
+        monkeypatch.setattr(dl, "MAX_MEMBER_SIZE", 5)
 
         archive = _make_tgz({"PMC12345/paper.nxml": _FAKE_NXML})
         result = _extract_nxml_from_tgz(archive)

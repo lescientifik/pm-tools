@@ -1,5 +1,7 @@
 """Shared fixtures for pm-tools test suite."""
 
+import io
+import tarfile
 from pathlib import Path
 
 import pytest
@@ -163,6 +165,20 @@ def mock_esearch_empty_response() -> str:
     <IdList>
     </IdList>
 </eSearchResult>"""
+
+
+def make_tgz(files: dict[str, bytes]) -> bytes:
+    """Create an in-memory tar.gz archive from {name: content} dict.
+
+    Shared test helper used by test_download.py and test_refs.py.
+    """
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for name, data in files.items():
+            info = tarfile.TarInfo(name=name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
 
 
 @pytest.fixture

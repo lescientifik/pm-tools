@@ -26,11 +26,12 @@ def extract_refs(nxml_content: str, id_type: str = "pmid") -> list[str]:
         return []
 
     refs: list[str] = []
-    for pub_id in root.iter("pub-id"):
-        if pub_id.get("pub-id-type") == id_type:
-            text = pub_id.text
-            if text and text.strip():
-                refs.append(text.strip())
+    for ref_list in root.iter("ref-list"):
+        for pub_id in ref_list.iter("pub-id"):
+            if pub_id.get("pub-id-type") == id_type:
+                text = pub_id.text
+                if text and text.strip():
+                    refs.append(text.strip())
 
     # Deduplicate preserving order
     return list(dict.fromkeys(refs))
@@ -83,6 +84,7 @@ def main(args: list[str] | None = None) -> int:
 
     # Collect all refs across files, deduplicated
     all_refs: list[str] = []
+    had_error = False
 
     if files:
         for filepath in files:
@@ -91,7 +93,8 @@ def main(args: list[str] | None = None) -> int:
                     content = f.read()
             except OSError as e:
                 print(f"Error: {e}", file=sys.stderr)
-                return 1
+                had_error = True
+                continue
             refs = extract_refs(content, id_type=id_type)
             all_refs.extend(refs)
     elif not sys.stdin.isatty():
@@ -110,4 +113,4 @@ def main(args: list[str] | None = None) -> int:
     for ref in unique_refs:
         print(ref)
 
-    return 0
+    return 1 if had_error else 0

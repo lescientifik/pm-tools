@@ -30,7 +30,7 @@ class PmcResult:
 
 BATCH_SIZE = 200
 RATE_LIMIT_DELAY = 0.34
-MAX_PDF_MEMBER_SIZE = 200 * 1024 * 1024  # 200 MB guard against decompression bombs
+MAX_MEMBER_SIZE = 200 * 1024 * 1024  # 200 MB guard against decompression bombs
 
 # Module-level HTTP client factory (allows monkeypatching in tests)
 _http_client: httpx.Client | None = None
@@ -118,39 +118,45 @@ def pmc_lookup(pmcid: str) -> PmcResult | None:
     return None
 
 
-def _extract_pdf_from_tgz(content: bytes, pmcid: str = "") -> bytes | None:
-    """Extract the PDF file from a PMC tar.gz archive.
+def _extract_member_from_tgz(content: bytes, extension: str, pmcid: str = "") -> bytes | None:
+    """Extract a file by extension from a PMC tar.gz archive.
 
     Uses extractfile() (memory-only, no disk writes) to avoid path traversal.
-    Skips members larger than MAX_PDF_MEMBER_SIZE to guard against
+    Skips members larger than MAX_MEMBER_SIZE to guard against
     decompression bombs.
 
-    When multiple PDFs are present, prefers the one whose name contains
-    the PMCID. Otherwise returns the largest PDF.
+    When multiple matches exist, prefers the one whose name contains
+    the PMCID. Among remaining, picks the largest (main article vs supplement).
 
-    Returns the PDF content, or None if no suitable PDF found.
+    Args:
+        content: Raw tgz archive bytes.
+        extension: File extension to match, e.g. ".pdf" or ".nxml".
+        pmcid: Optional PMCID to prefer in member name matching.
+
+    Returns the extracted file content, or None if no suitable member found.
     """
+    ext_lower = extension.lower()
     try:
         with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as tar:
-            pdf_members = [
+            candidates = [
                 m
                 for m in tar.getmembers()
-                if m.name.lower().endswith(".pdf")
+                if m.name.lower().endswith(ext_lower)
                 and m.isfile()
-                and 0 < m.size <= MAX_PDF_MEMBER_SIZE
+                and 0 < m.size <= MAX_MEMBER_SIZE
             ]
-            if not pdf_members:
+            if not candidates:
                 return None
 
             # Prefer member whose name contains the PMCID
             if pmcid:
                 pmcid_lower = pmcid.lower()
-                matching = [m for m in pdf_members if pmcid_lower in m.name.lower()]
+                matching = [m for m in candidates if pmcid_lower in m.name.lower()]
                 if matching:
-                    pdf_members = matching
+                    candidates = matching
 
             # Among remaining, pick the largest (main article vs supplement)
-            best = max(pdf_members, key=lambda m: m.size)
+            best = max(candidates, key=lambda m: m.size)
             f = tar.extractfile(best)
             if f is None:
                 return None
@@ -158,48 +164,16 @@ def _extract_pdf_from_tgz(content: bytes, pmcid: str = "") -> bytes | None:
             return data if data else None
     except (tarfile.TarError, OSError):
         return None
+
+
+def _extract_pdf_from_tgz(content: bytes, pmcid: str = "") -> bytes | None:
+    """Extract the PDF file from a PMC tar.gz archive."""
+    return _extract_member_from_tgz(content, ".pdf", pmcid)
 
 
 def _extract_nxml_from_tgz(content: bytes, pmcid: str = "") -> bytes | None:
-    """Extract the NXML file from a PMC tar.gz archive.
-
-    Uses extractfile() (memory-only, no disk writes) to avoid path traversal.
-    Skips members larger than MAX_PDF_MEMBER_SIZE to guard against
-    decompression bombs.
-
-    When multiple NXML files are present, prefers the one whose name contains
-    the PMCID. Otherwise returns the largest NXML.
-
-    Returns the NXML content, or None if no suitable NXML found.
-    """
-    try:
-        with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as tar:
-            nxml_members = [
-                m
-                for m in tar.getmembers()
-                if m.name.lower().endswith(".nxml")
-                and m.isfile()
-                and 0 < m.size <= MAX_PDF_MEMBER_SIZE
-            ]
-            if not nxml_members:
-                return None
-
-            # Prefer member whose name contains the PMCID
-            if pmcid:
-                pmcid_lower = pmcid.lower()
-                matching = [m for m in nxml_members if pmcid_lower in m.name.lower()]
-                if matching:
-                    nxml_members = matching
-
-            # Among remaining, pick the largest (main article vs supplement)
-            best = max(nxml_members, key=lambda m: m.size)
-            f = tar.extractfile(best)
-            if f is None:
-                return None
-            data = f.read()
-            return data if data else None
-    except (tarfile.TarError, OSError):
-        return None
+    """Extract the NXML file from a PMC tar.gz archive."""
+    return _extract_member_from_tgz(content, ".nxml", pmcid)
 
 
 def unpaywall_lookup(doi: str, email: str) -> str | None:
@@ -326,6 +300,11 @@ def _download_one(
     For tgz sources, extracts NXML by default (falling back to PDF).
     With prefer_pdf=True, extracts PDF only (original behavior).
     For non-tgz sources, always downloads PDF directly.
+
+    Note: On success, mutates ``source`` in-place by setting
+    ``source["output_ext"]`` to the actual file extension written
+    (e.g. ".nxml" or ".pdf"). Callers should treat the returned
+    source dict as the authoritative version.
     """
     pmid = source.get("pmid", "unknown")
     url = source.get("url")
