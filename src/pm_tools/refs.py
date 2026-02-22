@@ -58,7 +58,7 @@ Examples:
   pm refs article.nxml
   pm refs *.nxml | sort -u | pm fetch | pm parse
   pm refs --doi article.nxml
-  pm download | pm refs ./articles/*.nxml"""
+  pm refs ./articles/*.nxml"""
 
 
 def main(args: list[str] | None = None) -> int:

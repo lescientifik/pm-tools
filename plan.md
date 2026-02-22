@@ -659,6 +659,28 @@ xml2 | grep -E 'relevant_patterns' | awk 'many_regex_patterns...'
 
 ---
 
+## Phase 10 — NXML preference + `pm refs` (issue #9)
+
+See `docs/nxml-refs-plan.md` for detailed implementation plan.
+
+### Feature A: NXML-first download
+
+- [x] **10.0**: `_extract_nxml_from_tgz()` pure function (parallel to `_extract_pdf_from_tgz`)
+- [x] **10.1**: `_download_one()` NXML preference — extract NXML by default, fallback PDF
+- [x] **10.2**: `download_pdfs()` + CLI `--pdf` flag to force PDF extraction
+
+### Feature B: `pm refs` command
+
+- [x] **10.3**: `extract_refs()` core function in `refs.py` — extract PMIDs from NXML ref-list
+- [x] **10.4**: `pm refs` CLI — file args, stdin, `--doi` flag, register in cli.py
+
+### Integration & quality
+
+- [x] **10.5**: End-to-end integration tests (download NXML → `pm refs` → PMIDs)
+- [x] **10.6**: Quality gate + review
+
+---
+
 ## Ressources
 
 - DTD PubMed : https://dtd.nlm.nih.gov/ncbi/pubmed/

@@ -1793,7 +1793,7 @@ class TestTgzEndToEnd:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """Dry-run shows 'PDF available via pmc' for tgz sources too."""
+        """Dry-run shows 'available via pmc' for tgz sources too."""
         from pm_tools.download import main as download_main
 
         output_dir = tmp_path / "pdfs"
@@ -1813,7 +1813,7 @@ class TestTgzEndToEnd:
         exit_code = download_main(["--output-dir", str(output_dir), "--dry-run", "--pmc-only"])
 
         captured = capsys.readouterr()
-        assert "PDF available via pmc" in captured.out
+        assert "available via pmc" in captured.out
         assert exit_code == 0
 
     def test_tgz_summary_counts_correctly(

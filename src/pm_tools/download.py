@@ -713,7 +713,7 @@ def main(args: list[str] | None = None) -> int:
         for source in sources:
             pmid = source["pmid"]
             if source.get("url"):
-                print(f"PMID {pmid}: PDF available via {source['source']}")
+                print(f"PMID {pmid}: available via {source['source']}")
             else:
                 print(f"PMID {pmid}: No source available")
         print(f"\nSummary: {available} available, {unavailable} not available")
