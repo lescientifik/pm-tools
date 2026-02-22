@@ -319,8 +319,14 @@ def _download_one(
     timeout: int,
     verify_pdf: bool,
     progress_callback: Any,
+    prefer_pdf: bool = False,
 ) -> tuple[str, dict[str, Any]]:
-    """Download a single PDF. Returns (status, source_dict)."""
+    """Download a single article. Returns (status, source_dict).
+
+    For tgz sources, extracts NXML by default (falling back to PDF).
+    With prefer_pdf=True, extracts PDF only (original behavior).
+    For non-tgz sources, always downloads PDF directly.
+    """
     pmid = source.get("pmid", "unknown")
     url = source.get("url")
 
@@ -330,12 +336,14 @@ def _download_one(
             progress_callback({"pmid": pmid, "status": "failed", "reason": "no_url"})
         return ("failed", source)
 
-    out_file = output_dir / f"{pmid}.pdf"
-
-    if out_file.exists() and not overwrite:
-        if progress_callback:
-            progress_callback({"pmid": pmid, "status": "skipped"})
-        return ("skipped", source)
+    # For non-tgz sources, we know the extension upfront
+    is_tgz = source.get("pmc_format") == "tgz"
+    if not is_tgz:
+        out_file = output_dir / f"{pmid}.pdf"
+        if out_file.exists() and not overwrite:
+            if progress_callback:
+                progress_callback({"pmid": pmid, "status": "skipped"})
+            return ("skipped", source)
 
     try:
         client = get_http_client()
@@ -368,35 +376,77 @@ def _download_one(
                 progress_callback({"pmid": pmid, "status": "failed", "reason": "empty"})
             return ("failed", source)
 
-        # Handle tgz archives: extract PDF from archive
-        if source.get("pmc_format") == "tgz":
-            logger.debug("PMID %s: extracting PDF from tgz archive", pmid)
-            pdf_content = _extract_pdf_from_tgz(content, source.get("pmcid", ""))
-            if not pdf_content:
-                logger.warning(
-                    "PMID %s: no PDF found in tgz archive from %s",
-                    pmid,
-                    url,
-                )
-                if progress_callback:
-                    progress_callback(
-                        {
-                            "pmid": pmid,
-                            "status": "failed",
-                            "reason": "tgz_no_pdf",
-                            "url": url,
-                        }
-                    )
-                return ("failed", source)
-            content = pdf_content
+        ext = ".pdf"
 
-        if verify_pdf and not content[:5].startswith(b"%PDF-"):
+        # Handle tgz archives
+        if is_tgz:
+            pmcid = source.get("pmcid", "")
+            if prefer_pdf:
+                # Original behavior: extract PDF only
+                logger.debug("PMID %s: extracting PDF from tgz archive", pmid)
+                pdf_content = _extract_pdf_from_tgz(content, pmcid)
+                if not pdf_content:
+                    logger.warning(
+                        "PMID %s: no PDF found in tgz archive from %s",
+                        pmid,
+                        url,
+                    )
+                    if progress_callback:
+                        progress_callback(
+                            {
+                                "pmid": pmid,
+                                "status": "failed",
+                                "reason": "tgz_no_pdf",
+                                "url": url,
+                            }
+                        )
+                    return ("failed", source)
+                content = pdf_content
+                ext = ".pdf"
+            else:
+                # Default: try NXML first, fall back to PDF
+                logger.debug("PMID %s: extracting NXML from tgz archive", pmid)
+                nxml_content = _extract_nxml_from_tgz(content, pmcid)
+                if nxml_content:
+                    content = nxml_content
+                    ext = ".nxml"
+                else:
+                    logger.debug("PMID %s: no NXML found, falling back to PDF", pmid)
+                    pdf_content = _extract_pdf_from_tgz(content, pmcid)
+                    if not pdf_content:
+                        logger.warning(
+                            "PMID %s: no NXML or PDF found in tgz archive from %s",
+                            pmid,
+                            url,
+                        )
+                        if progress_callback:
+                            progress_callback(
+                                {
+                                    "pmid": pmid,
+                                    "status": "failed",
+                                    "reason": "tgz_no_pdf",
+                                    "url": url,
+                                }
+                            )
+                        return ("failed", source)
+                    content = pdf_content
+                    ext = ".pdf"
+
+            # Overwrite check for tgz (extension determined after extraction)
+            out_file = output_dir / f"{pmid}{ext}"
+            if out_file.exists() and not overwrite:
+                if progress_callback:
+                    progress_callback({"pmid": pmid, "status": "skipped"})
+                return ("skipped", source)
+
+        if verify_pdf and ext == ".pdf" and not content[:5].startswith(b"%PDF-"):
             logger.warning("PMID %s: content is not a valid PDF from %s", pmid, url)
             if progress_callback:
                 progress_callback({"pmid": pmid, "status": "failed", "reason": "not_pdf"})
             return ("failed", source)
 
         out_file.write_bytes(content)
+        source["output_ext"] = ext
         if progress_callback:
             progress_callback({"pmid": pmid, "status": "downloaded"})
         return ("downloaded", source)

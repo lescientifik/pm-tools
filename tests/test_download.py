@@ -14,12 +14,14 @@ import json
 import logging
 import tarfile
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
 
 from pm_tools.download import (
     PmcResult,
+    _download_one,
     _extract_nxml_from_tgz,
     _extract_pdf_from_tgz,
     download_pdfs,
@@ -1279,12 +1281,13 @@ class TestDownloadPdfsTgz:
         assert saved.exists()
         assert saved.read_bytes() == _FAKE_PDF
 
-    def test_tgz_source_no_pdf_counted_as_failed(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    def test_tgz_nxml_only_extracts_nxml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """tgz archive without PDF → failed + WARNING."""
+        """tgz archive with only NXML (no PDF) → extracts NXML by default."""
         output_dir = tmp_path / "pdfs"
-        tgz_content = _make_tgz({"PMC12345/paper.nxml": b"<article/>"})
+        nxml_content = b"<article><body>content</body></article>"
+        tgz_content = _make_tgz({"PMC12345/paper.nxml": nxml_content})
 
         def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(status_code=200, content=tgz_content)
@@ -1301,11 +1304,40 @@ class TestDownloadPdfsTgz:
                 "pmc_format": "tgz",
             }
         ]
-        with caplog.at_level(logging.WARNING, logger="pm_tools.download"):
-            result = download_pdfs(sources, output_dir)
+        result = download_pdfs(sources, output_dir)
 
-        assert result["failed"] == 1
-        assert result["downloaded"] == 0
+        assert result["downloaded"] == 1
+        assert (output_dir / "1.nxml").exists()
+        assert (output_dir / "1.nxml").read_bytes() == nxml_content
+
+    def test_tgz_nxml_only_prefer_pdf_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """tgz archive with only NXML + prefer_pdf=True → failed."""
+        output_dir = tmp_path / "pdfs"
+        output_dir.mkdir()
+        tgz_content = _make_tgz({"PMC12345/paper.nxml": b"<article/>"})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz_content)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        source = {
+            "pmid": "1",
+            "source": "pmc",
+            "url": "https://example.com/archive.tar.gz",
+            "pmcid": "PMC12345",
+            "pmc_format": "tgz",
+        }
+        with caplog.at_level(logging.WARNING, logger="pm_tools.download"):
+            status, _ = _download_one(
+                source, output_dir, overwrite=False,
+                timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=True,
+            )
+
+        assert status == "failed"
         warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert any("no PDF found in tgz" in r.message for r in warnings)
 
@@ -1408,12 +1440,12 @@ class TestDownloadPdfsTgz:
         debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
         assert any("tgz" in r.message.lower() for r in debug_msgs)
 
-    def test_tgz_failure_progress_callback(
+    def test_tgz_nxml_only_progress_downloaded(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """progress_callback receives tgz_no_pdf reason on extraction failure."""
+        """progress_callback receives 'downloaded' for NXML extraction (default)."""
         output_dir = tmp_path / "pdfs"
-        tgz_content = _make_tgz({"PMC12345/paper.nxml": b"<article/>"})
+        tgz_content = _make_tgz({"PMC12345/paper.nxml": b"<article>content</article>"})
         events: list[dict] = []
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -1432,6 +1464,36 @@ class TestDownloadPdfsTgz:
             }
         ]
         download_pdfs(sources, output_dir, progress_callback=events.append)
+
+        assert len(events) == 1
+        assert events[0]["status"] == "downloaded"
+
+    def test_tgz_nxml_only_prefer_pdf_progress_failed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """progress_callback receives tgz_no_pdf reason with prefer_pdf=True."""
+        output_dir = tmp_path / "pdfs"
+        output_dir.mkdir()
+        tgz_content = _make_tgz({"PMC12345/paper.nxml": b"<article/>"})
+        events: list[dict] = []
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz_content)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        source = {
+            "pmid": "1",
+            "source": "pmc",
+            "url": "https://example.com/archive.tar.gz",
+            "pmcid": "PMC12345",
+            "pmc_format": "tgz",
+        }
+        _download_one(
+            source, output_dir, overwrite=False,
+            timeout=30, verify_pdf=False, progress_callback=events.append, prefer_pdf=True,
+        )
 
         assert len(events) == 1
         assert events[0]["status"] == "failed"
@@ -2139,3 +2201,339 @@ class TestPmcLookupTgzPreference:
         result = pmc_lookup("PMC12345")
         assert result is not None
         assert result.format == "pdf"
+
+
+# ---------------------------------------------------------------------------
+# Phase 10.1b: _download_one NXML preference
+# ---------------------------------------------------------------------------
+
+
+class TestDownloadOneNxml:
+    """Tests for _download_one with prefer_pdf parameter."""
+
+    def _tgz_source(self, **overrides: Any) -> dict[str, Any]:
+        """Helper: typical tgz source dict."""
+        d: dict[str, Any] = {
+            "pmid": "1",
+            "source": "pmc",
+            "url": "https://example.com/archive.tar.gz",
+            "pmcid": "PMC12345",
+            "pmc_format": "tgz",
+        }
+        d.update(overrides)
+        return d
+
+    def test_tgz_default_extracts_nxml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """tgz source, default (prefer_pdf=False), archive has NXML → saves {PMID}.nxml."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        nxml = b"<article><body>content</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        status, src = _download_one(
+            self._tgz_source(), output_dir, overwrite=False,
+            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+        )
+        assert status == "downloaded"
+        assert (output_dir / "1.nxml").exists()
+        assert (output_dir / "1.nxml").read_bytes() == nxml
+
+    def test_tgz_default_nxml_plus_pdf_saves_nxml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """tgz with both NXML + PDF, default → saves NXML (not PDF)."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        nxml = b"<article><body>article text</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml, "PMC12345/paper.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        status, _ = _download_one(
+            self._tgz_source(), output_dir, overwrite=False,
+            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+        )
+        assert status == "downloaded"
+        assert (output_dir / "1.nxml").exists()
+        assert not (output_dir / "1.pdf").exists()
+
+    def test_tgz_default_only_pdf_falls_back(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """tgz with only PDF (no NXML), default → falls back to {PMID}.pdf."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        tgz = _make_tgz({"PMC12345/paper.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        status, _ = _download_one(
+            self._tgz_source(), output_dir, overwrite=False,
+            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+        )
+        assert status == "downloaded"
+        assert (output_dir / "1.pdf").exists()
+        assert (output_dir / "1.pdf").read_bytes() == _FAKE_PDF
+
+    def test_tgz_default_neither_nxml_nor_pdf_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """tgz with neither NXML nor PDF → failed."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        tgz = _make_tgz({"PMC12345/figure.jpg": b"\xff\xd8 jpeg"})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        status, _ = _download_one(
+            self._tgz_source(), output_dir, overwrite=False,
+            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+        )
+        assert status == "failed"
+
+    def test_tgz_prefer_pdf_extracts_pdf(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """tgz source, prefer_pdf=True → extracts PDF, saves {PMID}.pdf."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        nxml = b"<article><body>text</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml, "PMC12345/paper.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        status, _ = _download_one(
+            self._tgz_source(), output_dir, overwrite=False,
+            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=True,
+        )
+        assert status == "downloaded"
+        assert (output_dir / "1.pdf").exists()
+        assert (output_dir / "1.pdf").read_bytes() == _FAKE_PDF
+        assert not (output_dir / "1.nxml").exists()
+
+    def test_tgz_prefer_pdf_only_nxml_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """tgz source, prefer_pdf=True, only NXML available → failed."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        tgz = _make_tgz({"PMC12345/paper.nxml": b"<article/>"})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        status, _ = _download_one(
+            self._tgz_source(), output_dir, overwrite=False,
+            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=True,
+        )
+        assert status == "failed"
+
+    def test_pdf_direct_source_saves_pdf(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """pdf direct source → saves {PMID}.pdf regardless of prefer_pdf."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=_FAKE_PDF)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        source = {
+            "pmid": "1", "source": "pmc",
+            "url": "https://example.com/paper.pdf",
+            "pmcid": "PMC12345", "pmc_format": "pdf",
+        }
+        status, _ = _download_one(
+            source, output_dir, overwrite=False,
+            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+        )
+        assert status == "downloaded"
+        assert (output_dir / "1.pdf").exists()
+
+    def test_unpaywall_source_saves_pdf(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """unpaywall source → saves {PMID}.pdf regardless of prefer_pdf."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=_FAKE_PDF)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        source = {"pmid": "1", "source": "unpaywall", "url": "https://example.com/paper.pdf"}
+        status, _ = _download_one(
+            source, output_dir, overwrite=False,
+            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+        )
+        assert status == "downloaded"
+        assert (output_dir / "1.pdf").exists()
+
+    def test_verify_pdf_skipped_for_nxml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """verify_pdf=True does not reject NXML content (only applies to PDF)."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        nxml = b"<article><body>text</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        status, _ = _download_one(
+            self._tgz_source(), output_dir, overwrite=False,
+            timeout=30, verify_pdf=True, progress_callback=None, prefer_pdf=False,
+        )
+        assert status == "downloaded"
+        assert (output_dir / "1.nxml").exists()
+
+    def test_verify_pdf_applied_on_fallback_to_pdf(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """verify_pdf=True applied when NXML not found and fallback to PDF."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        # PDF that fails verification (no %PDF- header)
+        bad_pdf = b"not a real pdf"
+        tgz = _make_tgz({"PMC12345/paper.pdf": bad_pdf})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        status, _ = _download_one(
+            self._tgz_source(), output_dir, overwrite=False,
+            timeout=30, verify_pdf=True, progress_callback=None, prefer_pdf=False,
+        )
+        assert status == "failed"
+
+    def test_progress_callback_downloaded_for_nxml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """progress_callback reports 'downloaded' for NXML extraction."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        nxml = b"<article><body>text</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml})
+        events: list[dict[str, Any]] = []
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        _download_one(
+            self._tgz_source(), output_dir, overwrite=False,
+            timeout=30, verify_pdf=False, progress_callback=events.append, prefer_pdf=False,
+        )
+        assert len(events) == 1
+        assert events[0]["status"] == "downloaded"
+
+    def test_existing_nxml_skipped(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Existing {PMID}.nxml file is skipped when overwrite=False."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        (output_dir / "1.nxml").write_bytes(b"<article>old</article>")
+        nxml = b"<article><body>new</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        status, _ = _download_one(
+            self._tgz_source(), output_dir, overwrite=False,
+            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+        )
+        assert status == "skipped"
+        # Content unchanged
+        assert (output_dir / "1.nxml").read_bytes() == b"<article>old</article>"
+
+    def test_existing_pdf_does_not_block_nxml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Existing {PMID}.pdf does NOT block {PMID}.nxml write (different filename)."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        (output_dir / "1.pdf").write_bytes(_FAKE_PDF)
+        nxml = b"<article><body>text</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        status, _ = _download_one(
+            self._tgz_source(), output_dir, overwrite=False,
+            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+        )
+        assert status == "downloaded"
+        assert (output_dir / "1.nxml").exists()
+        # Old PDF untouched
+        assert (output_dir / "1.pdf").read_bytes() == _FAKE_PDF
+
+    def test_output_ext_set_on_source_dict(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """_download_one sets output_ext key on returned source dict."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        nxml = b"<article><body>text</body></article>"
+        tgz = _make_tgz({"PMC12345/paper.nxml": nxml})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        _, src = _download_one(
+            self._tgz_source(), output_dir, overwrite=False,
+            timeout=30, verify_pdf=False, progress_callback=None, prefer_pdf=False,
+        )
+        assert src.get("output_ext") == ".nxml"
