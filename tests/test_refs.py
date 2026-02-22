@@ -6,10 +6,16 @@ RED phase: tests written before implementation to drive extract_refs().
 from __future__ import annotations
 
 import io
+import tarfile
 from pathlib import Path
 
+import httpx
 import pytest
 
+from pm_tools.download import (
+    download_pdfs,
+    find_pdf_sources,
+)
 from pm_tools.refs import extract_refs
 from pm_tools.refs import main as refs_main
 
@@ -283,3 +289,196 @@ class TestRefsCli:
         captured = capsys.readouterr()
         for line in captured.out.strip().splitlines():
             assert line.isdigit(), f"Expected all-digit PMID, got: {line!r}"
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — compose download + refs
+# ---------------------------------------------------------------------------
+
+_FAKE_PDF = b"%PDF-1.4 test content"
+
+
+def _make_tgz(files: dict[str, bytes]) -> bytes:
+    """Create an in-memory tgz archive."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for name, data in files.items():
+            info = tarfile.TarInfo(name=name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
+
+
+def _make_transport(handler) -> httpx.MockTransport:
+    return httpx.MockTransport(handler)
+
+
+_PMC_OA_TGZ_ONLY_XML = (
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    "<OA><records>"
+    '<record id="PMC9273392" citation="X" license="CC BY">'
+    '<link format="tgz"'
+    ' href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_package/46/ea/PMC9273392.tar.gz" />'
+    "</record>"
+    "</records></OA>"
+)
+
+_PMC_OA_PDF_ONLY_XML = (
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    "<OA><records>"
+    '<record id="PMC12345" citation="X" license="CC BY">'
+    '<link format="pdf"'
+    ' href="ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_pdf/ab/cd/PMC12345.pdf" />'
+    "</record>"
+    "</records></OA>"
+)
+
+
+class TestIntegrationDownloadRefs:
+    """E2E tests composing pm download + pm refs."""
+
+    def test_e2e_tgz_nxml_then_refs(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """tgz with NXML+PDF → download (default) → .nxml → pm refs → PMIDs."""
+        output_dir = tmp_path / "articles"
+        nxml_content = SAMPLE_NXML.read_text()
+        tgz = _make_tgz({
+            "PMC9273392/article.nxml": nxml_content.encode(),
+            "PMC9273392/article.pdf": _FAKE_PDF,
+        })
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        articles = [{"pmid": "1", "pmcid": "PMC9273392"}]
+        sources = find_pdf_sources(articles)
+        result = download_pdfs(sources, output_dir)
+
+        assert result["downloaded"] == 1
+        nxml_path = output_dir / "1.nxml"
+        assert nxml_path.exists()
+
+        # Now run pm refs on the downloaded NXML
+        exit_code = refs_main([str(nxml_path)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        lines = captured.out.strip().splitlines()
+        assert "11111111" in lines
+        assert "22222222" in lines
+
+    def test_e2e_tgz_pdf_only_fallback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """tgz with only PDF (no NXML) → download → falls back to .pdf."""
+        output_dir = tmp_path / "articles"
+        tgz = _make_tgz({"PMC9273392/article.pdf": _FAKE_PDF})
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        articles = [{"pmid": "1", "pmcid": "PMC9273392"}]
+        sources = find_pdf_sources(articles)
+        result = download_pdfs(sources, output_dir)
+
+        assert result["downloaded"] == 1
+        assert (output_dir / "1.pdf").exists()
+        assert not (output_dir / "1.nxml").exists()
+
+    def test_e2e_pdf_flag_saves_pdf(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """pm download --pdf + tgz with NXML → saves .pdf, not .nxml."""
+        output_dir = tmp_path / "articles"
+        nxml_content = SAMPLE_NXML.read_text()
+        tgz = _make_tgz({
+            "PMC9273392/article.nxml": nxml_content.encode(),
+            "PMC9273392/article.pdf": _FAKE_PDF,
+        })
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
+            return httpx.Response(status_code=200, content=tgz)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        articles = [{"pmid": "1", "pmcid": "PMC9273392"}]
+        sources = find_pdf_sources(articles)
+        result = download_pdfs(sources, output_dir, prefer_pdf=True)
+
+        assert result["downloaded"] == 1
+        assert (output_dir / "1.pdf").exists()
+        assert not (output_dir / "1.nxml").exists()
+
+    def test_e2e_mixed_sources(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Mixed sources (tgz + direct PDF) → correct file types."""
+        output_dir = tmp_path / "articles"
+        nxml_content = SAMPLE_NXML.read_text()
+        tgz = _make_tgz({
+            "PMC9273392/article.nxml": nxml_content.encode(),
+            "PMC9273392/article.pdf": _FAKE_PDF,
+        })
+        direct_pdf = b"%PDF-1.4 direct download"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                if "PMC12345" in url:
+                    return httpx.Response(
+                        status_code=200, text=_PMC_OA_PDF_ONLY_XML
+                    )
+                if "PMC9273392" in url:
+                    return httpx.Response(
+                        status_code=200, text=_PMC_OA_TGZ_ONLY_XML
+                    )
+            if "oa_pdf" in url:
+                return httpx.Response(status_code=200, content=direct_pdf)
+            if "oa_package" in url:
+                return httpx.Response(status_code=200, content=tgz)
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        articles = [
+            {"pmid": "1", "pmcid": "PMC12345"},
+            {"pmid": "2", "pmcid": "PMC9273392"},
+        ]
+        sources = find_pdf_sources(articles)
+        result = download_pdfs(sources, output_dir)
+
+        assert result["downloaded"] == 2
+        # Article 1: direct PDF → .pdf
+        assert (output_dir / "1.pdf").exists()
+        # Article 2: tgz → NXML extracted
+        assert (output_dir / "2.nxml").exists()
+
+    def test_refs_on_pdf_returns_empty(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """pm refs on a PDF file → empty output (no crash, exit 0)."""
+        pdf_file = tmp_path / "article.pdf"
+        pdf_file.write_bytes(_FAKE_PDF)
+
+        exit_code = refs_main([str(pdf_file)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert captured.out.strip() == ""
