@@ -270,6 +270,108 @@ MAX_RETRIES = 3
 RETRYABLE_STATUS_CODES = {503, 429}
 
 
+def _download_one(
+    source: dict[str, Any],
+    output_dir: Path,
+    overwrite: bool,
+    timeout: int,
+    verify_pdf: bool,
+    progress_callback: Any,
+) -> tuple[str, dict[str, Any]]:
+    """Download a single PDF. Returns (status, source_dict)."""
+    pmid = source.get("pmid", "unknown")
+    url = source.get("url")
+
+    if not url:
+        logger.warning("PMID %s: no PDF URL available", pmid)
+        if progress_callback:
+            progress_callback({"pmid": pmid, "status": "failed", "reason": "no_url"})
+        return ("failed", source)
+
+    out_file = output_dir / f"{pmid}.pdf"
+
+    if out_file.exists() and not overwrite:
+        if progress_callback:
+            progress_callback({"pmid": pmid, "status": "skipped"})
+        return ("skipped", source)
+
+    try:
+        client = get_http_client()
+        response = None
+        for attempt in range(MAX_RETRIES):
+            response = client.get(url, timeout=timeout)
+            if response.status_code not in RETRYABLE_STATUS_CODES:
+                break
+            time.sleep(0.1 * (attempt + 1))
+
+        if response is None or response.status_code not in (200, 226):
+            status_code = response.status_code if response is not None else 0
+            logger.warning("PMID %s: HTTP %d from %s", pmid, status_code, url)
+            if progress_callback:
+                progress_callback(
+                    {
+                        "pmid": pmid,
+                        "status": "failed",
+                        "reason": "http_error",
+                        "status_code": status_code,
+                        "url": url,
+                    }
+                )
+            return ("failed", source)
+
+        content = response.content
+        if not content:
+            logger.warning("PMID %s: empty response from %s", pmid, url)
+            if progress_callback:
+                progress_callback({"pmid": pmid, "status": "failed", "reason": "empty"})
+            return ("failed", source)
+
+        # Handle tgz archives: extract PDF from archive
+        if source.get("pmc_format") == "tgz":
+            logger.debug("PMID %s: extracting PDF from tgz archive", pmid)
+            pdf_content = _extract_pdf_from_tgz(content, source.get("pmcid", ""))
+            if not pdf_content:
+                logger.warning(
+                    "PMID %s: no PDF found in tgz archive from %s",
+                    pmid,
+                    url,
+                )
+                if progress_callback:
+                    progress_callback(
+                        {
+                            "pmid": pmid,
+                            "status": "failed",
+                            "reason": "tgz_no_pdf",
+                            "url": url,
+                        }
+                    )
+                return ("failed", source)
+            content = pdf_content
+
+        if verify_pdf and not content[:5].startswith(b"%PDF-"):
+            logger.warning("PMID %s: content is not a valid PDF from %s", pmid, url)
+            if progress_callback:
+                progress_callback({"pmid": pmid, "status": "failed", "reason": "not_pdf"})
+            return ("failed", source)
+
+        out_file.write_bytes(content)
+        if progress_callback:
+            progress_callback({"pmid": pmid, "status": "downloaded"})
+        return ("downloaded", source)
+    except (httpx.HTTPError, OSError) as e:
+        logger.warning("PMID %s: %s from %s", pmid, e, url)
+        if progress_callback:
+            progress_callback(
+                {
+                    "pmid": pmid,
+                    "status": "failed",
+                    "reason": "exception",
+                    "url": url,
+                }
+            )
+        return ("failed", source)
+
+
 def download_pdfs(
     sources: list[dict[str, Any]],
     output_dir: Path,
@@ -277,6 +379,9 @@ def download_pdfs(
     timeout: int = 30,
     progress_callback: Any = None,
     *,
+    verify_pdf: bool = False,
+    max_concurrent: int = 1,
+    manifest: bool = False,
     pm_dir: Path | None = None,
 ) -> dict[str, int]:
     """Download PDFs from found sources.
@@ -287,6 +392,9 @@ def download_pdfs(
         overwrite: Whether to overwrite existing files.
         timeout: Download timeout in seconds.
         progress_callback: Optional callable(event_dict) called per source.
+        verify_pdf: Check that content starts with %PDF- magic bytes.
+        max_concurrent: Maximum number of concurrent downloads.
+        manifest: Write a manifest.jsonl file listing downloaded files.
         pm_dir: Path to .pm/ directory for audit logging, or None.
 
     Returns:
@@ -301,98 +409,44 @@ def download_pdfs(
             audit_log(pm_dir, {"op": "download", **result, "total": 0})
         return result
 
-    client = get_http_client()
+    outcomes: list[tuple[str, dict[str, Any]]] = []
 
-    for source in sources:
-        pmid = source.get("pmid", "unknown")
-        url = source.get("url")
+    if max_concurrent > 1:
+        from concurrent.futures import ThreadPoolExecutor
 
-        if not url:
-            logger.warning("PMID %s: no PDF URL available", pmid)
-            result["failed"] += 1
-            if progress_callback:
-                progress_callback({"pmid": pmid, "status": "failed", "reason": "no_url"})
-            continue
-
-        out_file = output_dir / f"{pmid}.pdf"
-
-        if out_file.exists() and not overwrite:
-            result["skipped"] += 1
-            if progress_callback:
-                progress_callback({"pmid": pmid, "status": "skipped"})
-            continue
-
-        try:
-            response = None
-            for attempt in range(MAX_RETRIES):
-                response = client.get(url, timeout=timeout)
-                if response.status_code not in RETRYABLE_STATUS_CODES:
-                    break
-                time.sleep(0.1 * (attempt + 1))
-
-            if response is None or response.status_code not in (200, 226):
-                status_code = response.status_code if response is not None else 0
-                logger.warning("PMID %s: HTTP %d from %s", pmid, status_code, url)
-                result["failed"] += 1
-                if progress_callback:
-                    progress_callback(
-                        {
-                            "pmid": pmid,
-                            "status": "failed",
-                            "reason": "http_error",
-                            "status_code": status_code,
-                            "url": url,
-                        }
-                    )
-                continue
-
-            content = response.content
-            if not content:
-                logger.warning("PMID %s: empty response from %s", pmid, url)
-                result["failed"] += 1
-                if progress_callback:
-                    progress_callback({"pmid": pmid, "status": "failed", "reason": "empty"})
-                continue
-
-            # Handle tgz archives: extract PDF from archive
-            if source.get("pmc_format") == "tgz":
-                logger.debug("PMID %s: extracting PDF from tgz archive", pmid)
-                pdf_content = _extract_pdf_from_tgz(content, source.get("pmcid", ""))
-                if not pdf_content:
-                    logger.warning(
-                        "PMID %s: no PDF found in tgz archive from %s",
-                        pmid,
-                        url,
-                    )
-                    result["failed"] += 1
-                    if progress_callback:
-                        progress_callback(
-                            {
-                                "pmid": pmid,
-                                "status": "failed",
-                                "reason": "tgz_no_pdf",
-                                "url": url,
-                            }
-                        )
-                    continue
-                content = pdf_content
-
-            out_file.write_bytes(content)
-            result["downloaded"] += 1
-            if progress_callback:
-                progress_callback({"pmid": pmid, "status": "downloaded"})
-        except (httpx.HTTPError, OSError) as e:
-            logger.warning("PMID %s: %s from %s", pmid, e, url)
-            result["failed"] += 1
-            if progress_callback:
-                progress_callback(
-                    {
-                        "pmid": pmid,
-                        "status": "failed",
-                        "reason": "exception",
-                        "url": url,
-                    }
+        with ThreadPoolExecutor(max_workers=max_concurrent) as pool:
+            futures = [
+                pool.submit(
+                    _download_one, s, output_dir, overwrite, timeout, verify_pdf, progress_callback
                 )
+                for s in sources
+            ]
+            for f in futures:
+                outcome = f.result()
+                outcomes.append(outcome)
+                result[outcome[0]] += 1
+    else:
+        for source in sources:
+            outcome = _download_one(
+                source, output_dir, overwrite, timeout, verify_pdf, progress_callback
+            )
+            outcomes.append(outcome)
+            result[outcome[0]] += 1
+
+    # Write manifest
+    if manifest:
+        manifest_lines: list[str] = []
+        for status, src in outcomes:
+            if status == "downloaded":
+                pmid = src.get("pmid", "unknown")
+                entry = {
+                    "pmid": pmid,
+                    "source": src.get("source"),
+                    "path": str(output_dir / f"{pmid}.pdf"),
+                }
+                manifest_lines.append(json.dumps(entry))
+        if manifest_lines:
+            (output_dir / "manifest.jsonl").write_text("\n".join(manifest_lines) + "\n")
 
     # Audit log
     if pm_dir is not None:
