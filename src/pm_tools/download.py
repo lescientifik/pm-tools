@@ -417,12 +417,14 @@ def _download_one(
                     progress_callback({"pmid": pmid, "status": "skipped"})
                 return ("skipped", source, ext)
 
-        if verify_pdf and ext == ".pdf" and not content[:5].startswith(b"%PDF-"):
+        if verify_pdf and ext == ".pdf" and not content.startswith(b"%PDF-"):
             logger.warning("PMID %s: content is not a valid PDF from %s", pmid, url)
             if progress_callback:
                 progress_callback({"pmid": pmid, "status": "failed", "reason": "not_pdf"})
             return ("failed", source, ext)
 
+        # Unified out_file assignment — always computed right before write
+        out_file = output_dir / f"{pmid}{ext}"
         out_file.write_bytes(content)
         if progress_callback:
             progress_callback({"pmid": pmid, "status": "downloaded"})
@@ -487,6 +489,10 @@ def download_articles(
 
     if max_concurrent > 1:
         from concurrent.futures import ThreadPoolExecutor
+
+        # Pre-initialize HTTP client before spawning threads to avoid
+        # race condition in lazy singleton init
+        get_http_client()
 
         with ThreadPoolExecutor(max_workers=max_concurrent) as pool:
             futures = [
