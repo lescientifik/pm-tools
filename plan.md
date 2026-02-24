@@ -681,6 +681,15 @@ See `docs/nxml-refs-plan.md` for detailed implementation plan.
 
 ---
 
+## Phase 11 — Document `parse_xml()` return types (issue #11)
+
+- [x] **11.1**: Structural conformance tests (`tests/test_types.py`) — TypedDict schema, required/optional keys, parse_xml() output conformance
+- [x] **11.2**: `types.py` with `AuthorName`, `AbstractSection`, `ArticleRecord` TypedDicts — re-export from `__init__.py`, update `parse.py` return annotations
+- [x] **11.3**: Enrich docstrings for `parse_article`/`parse_xml`/`parse_xml_stream` — update `HELP_TEXT` with `abstract_sections` and CSL-JSON authors
+- [x] **11.4**: Update `plan.md` with Phase 11
+
+---
+
 ## Ressources
 
 - DTD PubMed : https://dtd.nlm.nih.gov/ncbi/pubmed/

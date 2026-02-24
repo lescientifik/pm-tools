@@ -113,7 +113,30 @@ def _get_text(elem: ET.Element | None) -> str:
 
 
 def parse_article(article: ET.Element) -> ArticleRecord:
-    """Parse a single PubmedArticle element to dict."""
+    """Parse a single PubmedArticle element to an ArticleRecord dict.
+
+    Fields are omitted (not set to ``None``) when the source XML lacks the
+    corresponding element.  Only ``pmid`` is guaranteed.
+
+    Returns:
+        ArticleRecord with the following fields:
+
+        - **pmid** (str, required): PubMed identifier.
+        - **title** (str): Article title, with inline markup stripped.
+        - **authors** (list[AuthorName]): CSL-JSON author objects.  Each has
+          ``family``/``given``/``suffix`` for personal names, or ``literal``
+          for collective names.
+        - **journal** (str): Full journal title.
+        - **year** (int): Publication year.
+        - **date** (str): ISO 8601 date (``YYYY``, ``YYYY-MM``, or
+          ``YYYY-MM-DD``).  Derived from PubDate, Season, or MedlineDate.
+        - **abstract** (str): Plain-text abstract (sections joined by space).
+        - **abstract_sections** (list[AbstractSection]): Labeled abstract
+          sections, each with ``label`` and ``text``.  Only present when at
+          least one AbstractText has a Label attribute.
+        - **doi** (str): DOI, preferring ELocationID over ArticleIdList.
+        - **pmcid** (str): PMC identifier (e.g. ``PMC1234567``).
+    """
     result: dict[str, Any] = {}
 
     # MedlineCitation
@@ -239,11 +262,12 @@ def parse_xml(xml_input: str, verbose: bool = False) -> list[ArticleRecord]:
     """Parse PubMed XML string and return list of article dicts.
 
     Args:
-        xml_input: PubMed XML string.
+        xml_input: PubMed XML string (PubmedArticleSet or single PubmedArticle).
         verbose: If True, log progress to stderr.
 
     Returns:
-        List of article dictionaries.
+        List of ``ArticleRecord`` dicts.  See ``parse_article`` for the full
+        field schema.
     """
     if not xml_input or not xml_input.strip():
         return []
@@ -277,13 +301,12 @@ def parse_xml(xml_input: str, verbose: bool = False) -> list[ArticleRecord]:
 def parse_xml_stream(input_stream: IO[str] | IO[bytes]) -> Iterator[ArticleRecord]:
     """Parse PubMed XML from a stream, yielding article dicts.
 
-    Uses iterparse for memory-efficient streaming.
-
     Args:
         input_stream: File-like object with PubMed XML.
 
     Yields:
-        Article dictionaries.
+        ``ArticleRecord`` dicts.  See ``parse_article`` for the full field
+        schema.
     """
     # Read all content and parse
     # For large files, could use iterparse but ET.fromstring is simpler
@@ -307,7 +330,12 @@ Options:
 
 Output:
   One JSON object per line (JSONL format) with fields:
-    pmid, title, authors, journal, year, date, doi, pmcid, abstract
+    pmid, title, authors, journal, year, date, doi, pmcid,
+    abstract, abstract_sections
+
+  Only 'pmid' is guaranteed; other fields are omitted when absent.
+  'authors' are CSL-JSON objects ({family, given, suffix} or {literal}).
+  'abstract_sections' is a [{label, text}] array for structured abstracts.
 
 Examples:
   cat pubmed.xml | pm parse > articles.jsonl
