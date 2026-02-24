@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import get_type_hints
 
-from pm_tools.parse import parse_xml
+from pm_tools.parse import parse_xml, parse_xml_stream
 
 # =============================================================================
 # Import availability
@@ -35,9 +35,8 @@ class TestTypeImports:
         assert AbstractSection is not None
 
     def test_same_class_both_paths(self) -> None:
-        from pm_tools.types import ArticleRecord as ArticleRecordFromTypes
-
         from pm_tools import ArticleRecord
+        from pm_tools.types import ArticleRecord as ArticleRecordFromTypes
 
         assert ArticleRecord is ArticleRecordFromTypes
 
@@ -67,11 +66,6 @@ class TestArticleRecordSchema:
             "pmcid",
         }
         assert set(hints.keys()) == expected
-
-    def test_field_count(self) -> None:
-        from pm_tools.types import ArticleRecord
-
-        assert len(get_type_hints(ArticleRecord)) == 10
 
     def test_pmid_required(self) -> None:
         from pm_tools.types import ArticleRecord
@@ -170,9 +164,12 @@ class TestParseConformance:
         assert isinstance(art["pmid"], str)
         assert isinstance(art["title"], str)
         assert isinstance(art["year"], int)
+        assert isinstance(art["date"], str)
         assert isinstance(art["authors"], list)
         assert isinstance(art["journal"], str)
+        assert isinstance(art["abstract"], str)
         assert isinstance(art["doi"], str)
+        assert isinstance(art["pmcid"], str)
 
     def test_authors_conform_to_author_name(self, complete_article_xml: str) -> None:
         """Each author entry has only valid AuthorName keys."""
@@ -207,14 +204,51 @@ class TestParseConformance:
         arts1 = parse_xml(complete_article_xml)
         arts2 = parse_xml(structured_abstract_xml)
         union_keys = set(arts1[0].keys()) | set(arts2[0].keys())
-        assert union_keys == all_td_keys
+        missing = all_td_keys - union_keys
+        extra = union_keys - all_td_keys
+        assert union_keys == all_td_keys, (
+            f"Missing from fixtures: {missing}, Extra in fixtures: {extra}"
+        )
 
     def test_minimal_article_conforms(self, minimal_article_xml: str) -> None:
         """Minimal article (only pmid) is valid under total=False."""
+        articles = parse_xml(minimal_article_xml)
+        assert len(articles) == 1
+        assert set(articles[0].keys()) == {"pmid"}
+        assert articles[0]["pmid"] == "12345"
+
+    def test_suffix_and_literal_authors_conform(self) -> None:
+        """Authors with suffix or collective name conform to AuthorName."""
+        from pm_tools.types import AuthorName
+
+        valid_keys = set(get_type_hints(AuthorName).keys())
+        xml = """<PubmedArticleSet><PubmedArticle>
+          <MedlineCitation>
+            <PMID>99999</PMID>
+            <Article>
+              <AuthorList>
+                <Author><LastName>Smith</LastName><ForeName>John</ForeName>
+                        <Suffix>Jr</Suffix></Author>
+                <Author><CollectiveName>WHO Consortium</CollectiveName></Author>
+              </AuthorList>
+            </Article>
+          </MedlineCitation>
+        </PubmedArticle></PubmedArticleSet>"""
+        articles = parse_xml(xml)
+        authors = articles[0]["authors"]
+        assert len(authors) == 2
+        for author in authors:
+            assert set(author.keys()) <= valid_keys
+            assert "family" in author or "literal" in author
+
+    def test_stream_output_conforms(self, complete_article_xml: str) -> None:
+        """parse_xml_stream() output also conforms to ArticleRecord."""
+        import io
+
         from pm_tools.types import ArticleRecord
 
         valid_keys = set(get_type_hints(ArticleRecord).keys())
-        articles = parse_xml(minimal_article_xml)
-        assert len(articles) == 1
-        assert set(articles[0].keys()) <= valid_keys
-        assert articles[0]["pmid"] == "12345"
+        stream = io.StringIO(complete_article_xml)
+        for article in parse_xml_stream(stream):
+            assert set(article.keys()) <= valid_keys
+            assert isinstance(article["pmid"], str)

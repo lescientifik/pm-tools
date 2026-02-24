@@ -1,4 +1,5 @@
-# DO NOT add 'from __future__ import annotations' — PEP 563 breaks Required[] in TypedDict
+# DO NOT add 'from __future__ import annotations' — PEP 563 turns annotations into strings,
+# which breaks Required[] resolution: __required_keys__ becomes frozenset() at runtime.
 """TypedDict definitions for PubMed article records.
 
 These types document the structure returned by ``parse_xml()`` and related

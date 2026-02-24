@@ -116,7 +116,9 @@ def parse_article(article: ET.Element) -> ArticleRecord:
     """Parse a single PubmedArticle element to an ArticleRecord dict.
 
     Fields are omitted (not set to ``None``) when the source XML lacks the
-    corresponding element.  Only ``pmid`` is guaranteed.
+    corresponding element.  Only ``pmid`` is guaranteed on well-formed input.
+    Returns an empty dict if the element has no MedlineCitation or no PMID;
+    callers should check truthiness (``if parsed:``) before use.
 
     Returns:
         ArticleRecord with the following fields:

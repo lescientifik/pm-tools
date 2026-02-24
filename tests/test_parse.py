@@ -1,8 +1,8 @@
 """Tests for pm_tools.parse — PubMed XML to JSONL parser.
 
 Tests the parse functions at the Python module level:
-  - parse_xml(xml_input: str) -> list[dict]
-  - parse_xml_stream(input_stream) -> Iterator[dict]
+  - parse_xml(xml_input: str) -> list[ArticleRecord]
+  - parse_xml_stream(input_stream) -> Iterator[ArticleRecord]
 
 All tests are written RED-first: they MUST fail until the module is implemented.
 """
@@ -67,7 +67,7 @@ class TestParseMinimalArticle:
             assert parsed_back == article
 
     def test_returns_list_of_dicts(self, minimal_article_xml: str) -> None:
-        """Return type is list[dict]."""
+        """Return type is list[ArticleRecord]."""
         result = parse_xml(minimal_article_xml)
 
         assert isinstance(result, list)
