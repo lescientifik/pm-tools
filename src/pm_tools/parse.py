@@ -9,6 +9,8 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from typing import IO, Any
 
+from pm_tools.types import ArticleRecord
+
 
 def _month_to_num(month: str) -> str:
     """Convert month name or number to 2-digit string."""
@@ -110,7 +112,7 @@ def _get_text(elem: ET.Element | None) -> str:
     return "".join(elem.itertext()).strip()
 
 
-def parse_article(article: ET.Element) -> dict[str, Any]:
+def parse_article(article: ET.Element) -> ArticleRecord:
     """Parse a single PubmedArticle element to dict."""
     result: dict[str, Any] = {}
 
@@ -233,7 +235,7 @@ def parse_article(article: ET.Element) -> dict[str, Any]:
     return result
 
 
-def parse_xml(xml_input: str, verbose: bool = False) -> list[dict[str, Any]]:
+def parse_xml(xml_input: str, verbose: bool = False) -> list[ArticleRecord]:
     """Parse PubMed XML string and return list of article dicts.
 
     Args:
@@ -272,7 +274,7 @@ def parse_xml(xml_input: str, verbose: bool = False) -> list[dict[str, Any]]:
     return articles
 
 
-def parse_xml_stream(input_stream: IO[str] | IO[bytes]) -> Iterator[dict[str, Any]]:
+def parse_xml_stream(input_stream: IO[str] | IO[bytes]) -> Iterator[ArticleRecord]:
     """Parse PubMed XML from a stream, yielding article dicts.
 
     Uses iterparse for memory-efficient streaming.
