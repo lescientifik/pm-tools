@@ -11,28 +11,6 @@ pm search "CRISPR cancer therapy" | pm fetch | pm parse | \
   pm filter --year 2024- --has-abstract > filtered.jsonl
 ```
 
-## For AI Agents
-
-If you're an AI agent discovering this tool, here's how to get started:
-
-```bash
-# 1. Install
-uv tool install git+https://github.com/lescientifik/pm-tools.git
-
-# 2. Discover all commands and options
-pm --help
-
-# 3. Get help for any specific command
-pm collect --help
-pm search --help
-pm filter --help
-
-# 4. Run your first query
-pm collect "your research topic" --max 20 > results.jsonl
-```
-
-**Every command supports `--help`.** Run `pm --help` first to see all available commands, then `pm <command> --help` for detailed options and examples.
-
 ## Prerequisites
 
 - **[uv](https://docs.astral.sh/uv/)** (Python package manager)
@@ -59,6 +37,22 @@ uv sync
 
 With a development install, prefix all commands with `uv run` (e.g., `uv run pm search ...`).
 
+## Getting Started
+
+After installation, **run `--help`** to discover all commands and options:
+
+```bash
+# Show all available commands
+pm --help
+
+# Get help for any specific command
+pm collect --help
+pm search --help
+pm filter --help
+```
+
+**Every command supports `--help`.** This is the best way to learn what each command does, what options it accepts, and how to use it.
+
 ## Commands
 
 All commands are subcommands of `pm`. Run `pm --help` for the full list.
@@ -70,11 +64,11 @@ All commands are subcommands of `pm`. Run `pm --help` for the full list.
 | `pm fetch` | PMIDs (stdin) | XML | Fetch PubMed XML from NCBI API |
 | `pm parse` | XML (stdin) | JSONL | Parse PubMed XML to structured JSONL |
 | `pm filter` | JSONL (stdin) | JSONL | Filter by year/journal/author/abstract/DOI |
-| `pm cite` | PMIDs (stdin or args) | CSL-JSON | Generate bibliography citations |
+| `pm cite` | PMIDs (stdin or args) | JSONL (CSL-JSON) | Generate bibliography citations |
 | `pm download` | JSONL/PMIDs (stdin) | NXML/PDF files | Download full-text articles from PMC/Unpaywall |
 | `pm refs` | NXML files | PMIDs/DOIs | Extract cited identifiers from reference lists |
 | `pm diff` | Two JSONL files | JSONL | Compare article collections (added/removed/changed) |
-| `pm audit` | — | JSONL | View operation history and PRISMA reports |
+| `pm audit` | — | Text | View operation history and PRISMA reports |
 | `pm init` | — | `.pm/` directory | Initialize cache and audit trail |
 
 ## Quick Examples
@@ -131,7 +125,7 @@ pm filter --year 2024 -v        # Output: "15/50 articles passed filters"
 For interactive use when you just want results quickly:
 
 ```bash
-# Basic search (default up to 10000 results)
+# Basic search (default 100 results)
 pm collect "CRISPR cancer therapy"
 
 # Limit results
@@ -257,6 +251,22 @@ jq -s '.' citations.jsonl > bibliography.json
 pandoc paper.md --citeproc --bibliography=bibliography.json -o paper.pdf
 ```
 
+**Output format (CSL-JSON):**
+```json
+{
+  "id": "pmid:28012456",
+  "type": "article-journal",
+  "title": "Article title...",
+  "author": [{"family": "Smith", "given": "John"}],
+  "container-title": "Nature",
+  "issued": {"date-parts": [[2024, 3, 15]]},
+  "volume": "627",
+  "page": "123-130",
+  "PMID": "28012456",
+  "DOI": "10.1038/xxxxx"
+}
+```
+
 **pm cite vs pm parse:**
 | Feature | pm parse | pm cite |
 |---------|----------|---------|
@@ -285,6 +295,13 @@ if pm diff file1.jsonl file2.jsonl --quiet; then
 else
     echo "Files differ"
 fi
+```
+
+**Output format**: Streaming JSONL with one line per difference:
+```json
+{"pmid":"...","status":"added","article":{...}}
+{"pmid":"...","status":"removed","article":{...}}
+{"pmid":"...","status":"changed","old":{...},"new":{...}}
 ```
 
 **Exit codes**: 0 = identical, 1 = differences found, 2 = error
