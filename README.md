@@ -3,12 +3,35 @@
 Unix-style command-line tools for searching and parsing PubMed articles. Designed for researchers and AI agents who want quick access to publication data without leaving the terminal.
 
 ```bash
-# Search, parse, and filter
-pm search "CRISPR cancer therapy" | pm fetch | pm parse | jq '.title'
+# All-in-one: search, fetch, parse in a single command
+pm collect "CRISPR cancer therapy" --max 100 > results.jsonl
 
-# Full pipeline: search to PDF download
-pm search "CRISPR review" --max 5 | pm fetch | pm parse | pm download --output-dir ./pdfs/
+# Composable pipeline: search, fetch, parse, filter
+pm search "CRISPR cancer therapy" | pm fetch | pm parse | \
+  pm filter --year 2024- --has-abstract > filtered.jsonl
 ```
+
+## For AI Agents
+
+If you're an AI agent discovering this tool, here's how to get started:
+
+```bash
+# 1. Install
+uv tool install git+https://github.com/lescientifik/pm-tools.git
+
+# 2. Discover all commands and options
+pm --help
+
+# 3. Get help for any specific command
+pm collect --help
+pm search --help
+pm filter --help
+
+# 4. Run your first query
+pm collect "your research topic" --max 20 > results.jsonl
+```
+
+**Every command supports `--help`.** Run `pm --help` first to see all available commands, then `pm <command> --help` for detailed options and examples.
 
 ## Prerequisites
 
@@ -36,49 +59,29 @@ uv sync
 
 With a development install, prefix all commands with `uv run` (e.g., `uv run pm search ...`).
 
-## Getting Started
-
-After installation, **the first thing to do is run `--help`** to discover available commands and options:
-
-```bash
-# Show all available commands and general usage
-pm --help
-
-# Show detailed help for a specific command (options, input/output format, examples)
-pm search --help
-pm fetch --help
-pm parse --help
-pm filter --help
-pm download --help
-pm cite --help
-pm diff --help
-pm quick --help
-```
-
-**Every command supports `-h` / `--help`.** This is the best way to learn what each command does, what options it accepts, and how to use it. **When in doubt, always run `--help` first.**
-
 ## Commands
 
-All commands are subcommands of `pm`:
+All commands are subcommands of `pm`. Run `pm --help` for the full list.
 
 | Command | Input | Output | Purpose |
 |---------|-------|--------|---------|
-| `pm search` | Query string | PMIDs | Search PubMed |
-| `pm fetch` | PMIDs (stdin) | XML | Download article data |
-| `pm parse` | XML (stdin) | JSONL | Extract structured data |
-| `pm filter` | JSONL (stdin) | JSONL | Filter by year/journal/author |
-| `pm diff` | Two JSONL files | JSONL | Compare article collections |
-| `pm download` | JSONL/PMIDs | PDFs | Download Open Access PDFs |
-| `pm cite` | PMIDs (stdin) | CSL-JSON | Generate bibliography citations |
-| `pm quick` | Query string | JSONL | One-command search pipeline |
-
-Run `pm <command> --help` for detailed options, input/output formats, and examples for each command.
+| `pm collect` | Query string | JSONL | **Recommended**: search + fetch + parse in one command |
+| `pm search` | Query string | PMIDs | Search PubMed, one PMID per line |
+| `pm fetch` | PMIDs (stdin) | XML | Fetch PubMed XML from NCBI API |
+| `pm parse` | XML (stdin) | JSONL | Parse PubMed XML to structured JSONL |
+| `pm filter` | JSONL (stdin) | JSONL | Filter by year/journal/author/abstract/DOI |
+| `pm cite` | PMIDs (stdin or args) | CSL-JSON | Generate bibliography citations |
+| `pm download` | JSONL/PMIDs (stdin) | NXML/PDF files | Download full-text articles from PMC/Unpaywall |
+| `pm refs` | NXML files | PMIDs/DOIs | Extract cited identifiers from reference lists |
+| `pm diff` | Two JSONL files | JSONL | Compare article collections (added/removed/changed) |
+| `pm audit` | — | JSONL | View operation history and PRISMA reports |
+| `pm init` | — | `.pm/` directory | Initialize cache and audit trail |
 
 ## Quick Examples
 
 ```bash
 # Simplest: one command for quick results
-pm quick "CRISPR cancer therapy"
+pm collect "CRISPR cancer therapy" --max 50
 
 # Search and get titles
 pm search "machine learning diagnosis" --max 10 | pm fetch | pm parse | jq -r '.title'
@@ -123,22 +126,22 @@ pm filter --year 2023- --journal nature --has-abstract
 pm filter --year 2024 -v        # Output: "15/50 articles passed filters"
 ```
 
-## Quick Search with pm quick
+## Collecting Articles with pm collect
 
-For interactive use when you just want to see results quickly:
+For interactive use when you just want results quickly:
 
 ```bash
-# Basic quick search (default 100 results)
-pm quick "CRISPR cancer therapy"
+# Basic search (default up to 10000 results)
+pm collect "CRISPR cancer therapy"
 
 # Limit results
-pm quick --max 20 "machine learning diagnosis"
+pm collect --max 20 "machine learning diagnosis"
 
 # Verbose mode shows progress
-pm quick -v "protein folding"
+pm collect -v "protein folding"
 ```
 
-`pm quick` is a convenience wrapper that runs the full pipeline (`pm search | pm fetch | pm parse`) in one command. For programmatic use or custom filtering, use the individual commands.
+`pm collect` is a convenience wrapper that runs the full pipeline (`search | fetch | parse`) in one command. For custom filtering or step-by-step control, use the individual commands.
 
 ## Daily Research Workflows
 
@@ -200,26 +203,43 @@ pm search "Yamanaka induced pluripotent" --max 1 | pm fetch | pm parse | \
 echo "12345678" | pm cite | jq '.'
 ```
 
-### Download Open Access PDFs
+### Download Full-Text Articles
+
+`pm download` fetches articles from PMC Open Access (preferring structured NXML over PDF) with optional Unpaywall fallback.
 
 ```bash
 # Preview what would be downloaded (dry-run)
 pm search "CRISPR review" --max 10 | pm fetch | pm parse | \
   pm download --dry-run
 
-# Download PDFs to a directory
+# Download NXML (default) to a directory
 pm search "open access[filter] AND immunotherapy" --max 20 | \
   pm fetch | pm parse | pm download --output-dir ./papers/
+
+# Force PDF instead of NXML
+pm search "open access[filter] AND immunotherapy" --max 20 | \
+  pm fetch | pm parse | pm download --output-dir ./papers/ --pdf
 
 # Download with Unpaywall fallback (more coverage, requires email)
 pm search "machine learning radiology" --max 10 | pm fetch | pm parse | \
   pm download --output-dir ./pdfs/ --email you@university.edu
 
-# Download from PMID list (auto-converts to DOI/PMCID)
+# Download from PMID list
 cat pmids.txt | pm download --output-dir ./pdfs/
 ```
 
-**Sources**: `pm download` tries PMC Open Access first, then falls back to Unpaywall (if `--email` provided). Not all articles have free PDFs available.
+### Extract References from Downloaded Articles
+
+```bash
+# Extract cited PMIDs from NXML files
+pm refs ./papers/*.nxml
+
+# Extract DOIs instead
+pm refs --doi ./papers/*.nxml
+
+# Citation snowballing: find all papers cited by your results
+pm refs ./papers/*.nxml | sort -u | pm fetch | pm parse > cited_articles.jsonl
+```
 
 ### Generate Bibliography Citations
 
@@ -237,22 +257,6 @@ jq -s '.' citations.jsonl > bibliography.json
 pandoc paper.md --citeproc --bibliography=bibliography.json -o paper.pdf
 ```
 
-**Output format (CSL-JSON):**
-```json
-{
-  "id": "pmid:28012456",
-  "type": "article-journal",
-  "title": "Article title...",
-  "author": [{"family": "Smith", "given": "John"}],
-  "container-title": "Nature",
-  "issued": {"date-parts": [[2024, 3, 15]]},
-  "volume": "627",
-  "page": "123-130",
-  "PMID": "28012456",
-  "DOI": "10.1038/xxxxx"
-}
-```
-
 **pm cite vs pm parse:**
 | Feature | pm parse | pm cite |
 |---------|----------|---------|
@@ -262,6 +266,86 @@ pandoc paper.md --citeproc --bibliography=bibliography.json -o paper.pdf
 | Citation tools | Needs conversion | Direct (Zotero, Pandoc) |
 
 Use `pm cite` for generating bibliographies; `pm parse` for content analysis.
+
+### Comparing Article Collections
+
+```bash
+# Stream all differences as JSONL
+pm diff baseline_v1.jsonl baseline_v2.jsonl
+
+# Get list of new PMIDs
+pm diff old.jsonl new.jsonl | jq -r 'select(.status=="added") | .pmid'
+
+# Compare only metadata (ignore abstract changes)
+pm diff old.jsonl new.jsonl --ignore abstract
+
+# Quick check if files differ (for scripts)
+if pm diff file1.jsonl file2.jsonl --quiet; then
+    echo "Files are identical"
+else
+    echo "Files differ"
+fi
+```
+
+**Exit codes**: 0 = identical, 1 = differences found, 2 = error
+
+## Audit Trail and Caching
+
+`pm` automatically caches API responses and logs operations when a `.pm/` directory exists.
+
+```bash
+# Initialize cache and audit trail in current directory
+pm init
+
+# View operation history
+pm audit
+
+# Cache is per-query (search) and per-PMID (fetch, cite)
+# Use --refresh on search to bypass cache
+pm search "CRISPR" --refresh
+```
+
+## Output Format
+
+Each article is output as a JSON object (JSONL format, one per line):
+
+```json
+{
+  "pmid": "12345678",
+  "title": "Article title here",
+  "authors": [
+    {"family": "Smith", "given": "John"},
+    {"family": "Doe", "given": "Jane"}
+  ],
+  "journal": "Nature",
+  "year": 2024,
+  "date": "2024-03-15",
+  "doi": "10.1038/xxxxx",
+  "pmcid": "PMC1234567",
+  "abstract": "Full abstract text..."
+}
+```
+
+- **`pmid`** (string): always present
+- **`authors`**: array of CSL-JSON name objects (`family`/`given`, or `literal` for collective names)
+- **`year`** (integer): publication year
+- **`date`** (string): ISO 8601 date (YYYY, YYYY-MM, or YYYY-MM-DD)
+- Fields `doi`, `pmcid`, `date`, `abstract` are omitted when not available
+- Structured abstracts also include an `abstract_sections` array with `label`/`text` pairs
+
+## PubMed Query Syntax
+
+Use standard [PubMed search syntax](https://pubmed.ncbi.nlm.nih.gov/help/#search-tags):
+
+| Query | Meaning |
+|-------|---------|
+| `cancer AND therapy` | Both terms |
+| `"gene editing"` | Exact phrase |
+| `Smith J[author]` | Author search |
+| `Nature[journal]` | Journal filter |
+| `2024[dp]` | Publication date |
+| `review[pt]` | Publication type |
+| `2020:2024[dp]` | Date range |
 
 ## Advanced Patterns
 
@@ -285,31 +369,6 @@ jq 'select(.abstract | test("novel"; "i"))' my-field.jsonl
 # Papers per year for a topic
 pm search "microbiome gut brain" --max 500 | pm fetch | pm parse | \
   jq -r '.year' | sort | uniq -c | sort -k2
-
-# Output:
-#   12 2018
-#   34 2019
-#   67 2020
-#  145 2021
-#  203 2022
-```
-
-### Integration with Other Tools
-
-```bash
-# Desktop notification for new papers (Linux)
-pm search "your topic AND 2024[dp]" --max 5 | pm fetch | pm parse | \
-  jq -r '.title' | head -1 | xargs -I {} notify-send "New Paper" "{}"
-
-# Email yourself a digest
-pm search "CRISPR 2024" --max 10 | pm fetch | pm parse | \
-  jq -r '"- \(.title) (\(.journal))"' | \
-  mail -s "Daily PubMed Digest" you@email.com
-
-# Pipe to fzf for interactive selection
-pm search "protein folding" --max 50 | pm fetch | pm parse | \
-  jq -r '"\(.pmid)\t\(.title)"' | \
-  fzf --preview 'echo {} | cut -f1 | xargs -I {} curl -s "https://pubmed.ncbi.nlm.nih.gov/{}"'
 ```
 
 ### Working with Baseline Files
@@ -319,83 +378,15 @@ For bulk analysis, download PubMed baseline files directly:
 ```bash
 # Parse local baseline file (30,000 articles)
 zcat pubmed25n0001.xml.gz | pm parse > baseline.jsonl
-
-# Find all papers from a specific institution
-jq 'select(.authors[]? | test("Harvard"))' baseline.jsonl
 ```
-
-### Comparing Article Collections
-
-Use `pm diff` to compare two JSONL files and find added, removed, or changed articles:
-
-```bash
-# Stream all differences as JSONL
-pm diff baseline_v1.jsonl baseline_v2.jsonl
-
-# Get list of new PMIDs (for fetching updates)
-pm diff old.jsonl new.jsonl | jq -r 'select(.status=="added") | .pmid' | pm fetch | pm parse > new_articles.jsonl
-
-# Filter to just changed articles
-pm diff old.jsonl new.jsonl | jq 'select(.status=="changed")'
-
-# Summary counts by status
-pm diff old.jsonl new.jsonl | jq -s 'group_by(.status) | map({(.[0].status): length}) | add'
-
-# Compare only metadata (ignore abstract changes)
-pm diff old.jsonl new.jsonl --ignore abstract
-
-# Quick check if files differ (for scripts)
-if pm diff file1.jsonl file2.jsonl --quiet; then
-    echo "Files are identical"
-else
-    echo "Files differ"
-fi
-```
-
-**Output format**: Streaming JSONL with `{"pmid":"...","status":"added|removed|changed",...}`
-
-**Exit codes**: 0 = identical, 1 = differences found, 2 = error
-
-## Output Format
-
-Each article is output as a JSON object (JSONL format):
-
-```json
-{
-  "pmid": "12345678",
-  "title": "Article title here",
-  "authors": ["Smith John", "Doe Jane"],
-  "journal": "Nature",
-  "year": "2024",
-  "date": "2024-03-15",
-  "doi": "10.1038/xxxxx",
-  "pmcid": "PMC1234567",
-  "abstract": "Full abstract text..."
-}
-```
-
-Fields `doi`, `pmcid`, `date`, and `abstract` are omitted when not available.
-
-## PubMed Query Syntax
-
-Use standard [PubMed search syntax](https://pubmed.ncbi.nlm.nih.gov/help/#search-tags):
-
-| Query | Meaning |
-|-------|---------|
-| `cancer AND therapy` | Both terms |
-| `"gene editing"` | Exact phrase |
-| `Smith J[author]` | Author search |
-| `Nature[journal]` | Journal filter |
-| `2024[dp]` | Publication date |
-| `review[pt]` | Publication type |
-| `2020:2024[dp]` | Date range |
 
 ## Tips
 
 - **Rate Limits**: Tools respect NCBI's 3 requests/second limit automatically
 - **Batch Size**: `pm fetch` batches 200 PMIDs per request for efficiency
 - **Large Queries**: Use `--max` to limit results, or paginate with date ranges
-- **Verbose Mode**: Add `--verbose` to `pm parse` to see progress on large files
+- **Caching**: Run `pm init` to enable per-query caching and audit trail
+- **Verbose Mode**: Add `-v` / `--verbose` to see progress on long operations
 
 ## License
 
