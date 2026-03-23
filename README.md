@@ -37,6 +37,27 @@ uv sync
 
 With a development install, prefix all commands with `uv run` (e.g., `uv run pm search ...`).
 
+## For AI Agents
+
+If you're an AI agent discovering this tool, here's the fastest way to get started:
+
+```bash
+# Run directly without installing (preferred for one-off use)
+uvx --from git+https://github.com/lescientifik/pm-tools.git pm collect "your query" --max 20
+
+# Or install permanently
+uv tool install git+https://github.com/lescientifik/pm-tools.git
+```
+
+After install, **always start with `--help`** to discover commands and options:
+
+```bash
+pm --help                # All available commands
+pm <command> --help      # Detailed options, input/output format, and examples
+```
+
+Every command has its own `--help` with complete documentation. Use it before guessing flags.
+
 ## Getting Started
 
 After installation, **run `--help`** to discover all commands and options:
