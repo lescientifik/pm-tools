@@ -4,17 +4,48 @@ from __future__ import annotations
 
 import json
 import sys
-import time
 from pathlib import Path
 
 import httpx
 
-from pm_tools.cache import audit_log, cache_read, cache_write
+from pm_tools.cache import cached_batch_fetch
 from pm_tools.http import get_client as get_http_client
 
 API_URL = "https://pmc.ncbi.nlm.nih.gov/api/ctxp/v1/pubmed/"
 BATCH_SIZE = 200
 RATE_LIMIT_DELAY = 0.34
+
+
+def _make_cite_batch(batch_pmids: list[str]) -> list[tuple[str, str]]:
+    """Fetch a batch of CSL-JSON citations from the NCBI Citation Exporter API.
+
+    This is the ``fetch_batch`` callback for ``cached_batch_fetch()``.
+    Recovers from HTTP errors by returning an empty list for failed batches.
+
+    Args:
+        batch_pmids: List of PMID strings for one batch.
+
+    Returns:
+        List of (pmid, json_string) pairs.
+    """
+    client = get_http_client()
+    ids_param = ",".join(batch_pmids)
+    url = f"{API_URL}?format=csl&id={ids_param}"
+
+    try:
+        response = client.get(url)
+        response.raise_for_status()
+
+        data = response.json()
+        items = data if isinstance(data, list) else [data]
+        pairs: list[tuple[str, str]] = []
+        for item in items:
+            pmid = item.get("PMID", "")
+            if pmid:
+                pairs.append((pmid, json.dumps(item, ensure_ascii=False)))
+        return pairs
+    except (httpx.HTTPStatusError, httpx.HTTPError):
+        return []
 
 
 def cite(
@@ -44,6 +75,19 @@ def cite(
     if not pmids:
         return []
 
+    data = cached_batch_fetch(
+        ids=pmids,
+        pm_dir=pm_dir,
+        cache_category="cite",
+        cache_ext=".json",
+        fetch_batch=_make_cite_batch,
+        batch_size=batch_size,
+        rate_limit_delay=rate_limit_delay,
+        refresh=refresh,
+        verbose=verbose,
+        deduplicate=True,
+    )
+
     # Deduplicate while preserving order
     seen: set[str] = set()
     unique_pmids: list[str] = []
@@ -52,90 +96,15 @@ def cite(
             seen.add(pmid)
             unique_pmids.append(pmid)
 
-    # Smart-batch: check cache for each PMID
-    cached_results: dict[str, dict] = {}
-    uncached_pmids: list[str] = []
-
-    if pm_dir is not None and not refresh:
-        for pmid in unique_pmids:
-            cached = cache_read(pm_dir, "cite", f"{pmid}.json")
-            if cached is not None:
-                cached_results[pmid] = json.loads(cached)
-            else:
-                uncached_pmids.append(pmid)
-    else:
-        uncached_pmids = list(unique_pmids)
-
-    # Fetch only uncached PMIDs from API
-    fetched_results: dict[str, dict] = {}
-    flat_results: list[dict] = []
-    client = get_http_client()
-
-    for batch_num, i in enumerate(range(0, len(uncached_pmids), batch_size)):
-        if batch_num > 0 and rate_limit_delay > 0:
-            time.sleep(rate_limit_delay)
-
-        batch = uncached_pmids[i : i + batch_size]
-        ids_param = ",".join(batch)
-
-        if verbose:
-            print(
-                f"Fetching batch {batch_num + 1}: {ids_param[:50]}...",
-                file=sys.stderr,
-            )
-
-        url = f"{API_URL}?format=csl&id={ids_param}"
-
-        try:
-            response = client.get(url)
-            response.raise_for_status()
-
-            data = response.json()
-            items = data if isinstance(data, list) else [data]
-            for item in items:
-                flat_results.append(item)
-                pmid = item.get("PMID", "")
-                if pmid:
-                    fetched_results[pmid] = item
-                    if pm_dir is not None:
-                        cache_write(
-                            pm_dir,
-                            "cite",
-                            f"{pmid}.json",
-                            json.dumps(item, ensure_ascii=False),
-                        )
-        except (httpx.HTTPStatusError, httpx.HTTPError):
-            if verbose:
-                print(
-                    f"Batch {batch_num + 1} failed, skipping...",
-                    file=sys.stderr,
-                )
-            continue
-
-    # Audit log
-    if pm_dir is not None:
-        audit_log(
-            pm_dir,
-            {
-                "op": "cite",
-                "requested": len(unique_pmids),
-                "cached": len(cached_results),
-                "fetched": len(fetched_results),
-                "refreshed": refresh,
-            },
-        )
-
-    # No cache involved: return flat list (preserves old behavior)
-    if not cached_results:
-        return flat_results
-
-    # Reassemble in original order (cached + fetched)
+    # Build result list: parse JSON strings back to dicts, in original order
     results: list[dict] = []
     for pmid in unique_pmids:
-        if pmid in cached_results:
-            results.append(cached_results[pmid])
-        elif pmid in fetched_results:
-            results.append(fetched_results[pmid])
+        if pmid in data:
+            results.append(json.loads(data[pmid]))
+    # Include any extra PMIDs from responses not in the input list
+    for pmid, val in data.items():
+        if pmid not in seen:
+            results.append(json.loads(val))
 
     return results
 

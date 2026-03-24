@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import sys
-import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import httpx
 
-from pm_tools.cache import audit_log, cache_read, cache_write
+from pm_tools.cache import cached_batch_fetch
 from pm_tools.http import get_client
 
 EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
@@ -90,6 +89,26 @@ def _reassemble_xml(fragments: list[str]) -> str:
     return f"{XML_HEADER}{XML_DOCTYPE}<PubmedArticleSet>\n{articles_xml}\n</PubmedArticleSet>"
 
 
+def _make_efetch_batch(batch_pmids: list[str]) -> list[tuple[str, str]]:
+    """Fetch a batch of PMIDs from E-utilities and split into per-PMID fragments.
+
+    This is the ``fetch_batch`` callback for ``cached_batch_fetch()``.
+
+    Args:
+        batch_pmids: List of PMID strings for one batch.
+
+    Returns:
+        List of (pmid, xml_fragment) pairs.
+    """
+    ids_param = ",".join(batch_pmids)
+    url = f"{EFETCH_URL}?db=pubmed&id={ids_param}&rettype=abstract&retmode=xml"
+    response = get_client().get(url)
+    response.raise_for_status()
+
+    fragments = split_xml_articles(response.text)
+    return list(fragments.items())
+
+
 def fetch(
     pmids: list[str],
     batch_size: int = BATCH_SIZE,
@@ -120,90 +139,26 @@ def fetch(
     if not pmids:
         return ""
 
-    # Smart-batch: check cache for each PMID
-    cached_fragments: dict[str, str] = {}
-    uncached_pmids: list[str] = []
+    data = cached_batch_fetch(
+        ids=pmids,
+        pm_dir=pm_dir,
+        cache_category="fetch",
+        cache_ext=".xml",
+        fetch_batch=_make_efetch_batch,
+        batch_size=batch_size,
+        rate_limit_delay=rate_limit_delay,
+        refresh=refresh,
+        verbose=verbose,
+    )
 
-    if pm_dir is not None and not refresh:
-        for pmid in pmids:
-            cached = cache_read(pm_dir, "fetch", f"{pmid}.xml")
-            if cached is not None:
-                cached_fragments[pmid] = cached
-            else:
-                uncached_pmids.append(pmid)
-    else:
-        uncached_pmids = list(pmids)
-
-    # Fetch only uncached PMIDs from API
-    fetched_fragments: dict[str, str] = {}
-    if uncached_pmids:
-        responses: list[str] = []
-
-        for batch_num, i in enumerate(range(0, len(uncached_pmids), batch_size)):
-            if batch_num > 0 and rate_limit_delay > 0:
-                time.sleep(rate_limit_delay)
-
-            batch = uncached_pmids[i : i + batch_size]
-            ids_param = ",".join(batch)
-
-            if verbose:
-                print(
-                    f"Fetching batch {batch_num + 1} ({len(batch)} PMIDs)...",
-                    file=sys.stderr,
-                )
-
-            url = f"{EFETCH_URL}?db=pubmed&id={ids_param}&rettype=abstract&retmode=xml"
-            response = get_client().get(url)
-            response.raise_for_status()
-            responses.append(response.text)
-
-        merged = _merge_xml_responses(responses)
-
-        # No cache: return merged XML directly (skip split/reassemble)
-        if pm_dir is None and not cached_fragments:
-            if pm_dir is not None:
-                audit_log(
-                    pm_dir,
-                    {
-                        "op": "fetch",
-                        "db": "pubmed",
-                        "requested": len(pmids),
-                        "cached": 0,
-                        "fetched": len(pmids),
-                        "refreshed": refresh,
-                    },
-                )
-            return merged
-
-        # Split fetched XML into per-PMID fragments and cache them
-        if merged:
-            fetched_fragments = split_xml_articles(merged)
-            for pmid, fragment in fetched_fragments.items():
-                cache_write(pm_dir, "fetch", f"{pmid}.xml", fragment)
-
-    # Audit log
-    if pm_dir is not None:
-        audit_log(
-            pm_dir,
-            {
-                "op": "fetch",
-                "db": "pubmed",
-                "requested": len(pmids),
-                "cached": len(cached_fragments),
-                "fetched": len(fetched_fragments),
-                "refreshed": refresh,
-            },
-        )
-
-    # Reassemble all fragments (cached + fetched) in original order
-    all_fragments: list[str] = []
-    for pmid in pmids:
-        if pmid in cached_fragments:
-            all_fragments.append(cached_fragments[pmid])
-        elif pmid in fetched_fragments:
-            all_fragments.append(fetched_fragments[pmid])
-
-    return _reassemble_xml(all_fragments)
+    # Reassemble fragments in original PMID order
+    fragments = [data[p] for p in pmids if p in data]
+    # Include any fragments whose IDs weren't in the requested list
+    seen = set(pmids)
+    for p, frag in data.items():
+        if p not in seen:
+            fragments.append(frag)
+    return _reassemble_xml(fragments)
 
 
 HELP_TEXT = """\

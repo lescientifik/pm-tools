@@ -5,8 +5,11 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import sys
 import tempfile
+import time
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -114,7 +117,7 @@ def audit_log(pm_dir: Path | None, event: dict) -> None:
     if pm_dir is None:
         return
 
-    event["ts"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    event = {**event, "ts": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}
     line = json.dumps(event, ensure_ascii=False) + "\n"
     data = line.encode("utf-8")
 
@@ -124,3 +127,121 @@ def audit_log(pm_dir: Path | None, event: dict) -> None:
         os.write(fd, data)
     finally:
         os.close(fd)
+
+
+# =============================================================================
+# Generic cache-aware batch fetcher
+# =============================================================================
+
+
+def cached_batch_fetch(
+    ids: list[str],
+    *,
+    pm_dir: Path | None,
+    cache_category: str,
+    cache_ext: str,
+    fetch_batch: Callable[[list[str]], list[tuple[str, str]]],
+    batch_size: int = 200,
+    rate_limit_delay: float = 0.34,
+    refresh: bool = False,
+    verbose: bool = False,
+    deduplicate: bool = False,
+) -> dict[str, str]:
+    """Fetch data for IDs with caching, batching, rate limiting, and audit logging.
+
+    This is the shared core used by fetch() and cite(). The actual HTTP call
+    and response parsing is delegated to the ``fetch_batch`` callback.
+
+    Args:
+        ids: List of ID strings to fetch.
+        pm_dir: Path to .pm/ directory for caching/audit, or None.
+        cache_category: Cache subdirectory name (e.g. "fetch", "cite").
+        cache_ext: File extension for cache files (e.g. ".xml", ".json").
+        fetch_batch: Callback that takes a list of IDs and returns
+            ``list[tuple[str, str]]`` of (id, data) pairs.
+        batch_size: Max IDs per fetch_batch call.
+        rate_limit_delay: Seconds to sleep between batches.
+        refresh: If True, bypass cache and re-fetch everything.
+        verbose: If True, print progress to stderr.
+        deduplicate: If True, remove duplicate IDs before processing.
+
+    Returns:
+        Dict mapping each ID to its data string (from cache or fetch).
+    """
+    if not ids:
+        return {}
+
+    # Deduplicate if requested
+    if deduplicate:
+        seen: set[str] = set()
+        unique: list[str] = []
+        for id_ in ids:
+            if id_ not in seen:
+                seen.add(id_)
+                unique.append(id_)
+        ids = unique
+
+    # Split into cached / uncached
+    cached: dict[str, str] = {}
+    uncached: list[str] = []
+
+    if pm_dir is not None and not refresh:
+        for id_ in ids:
+            hit = cache_read(pm_dir, cache_category, f"{id_}{cache_ext}")
+            if hit is not None:
+                cached[id_] = hit
+            else:
+                uncached.append(id_)
+    else:
+        uncached = list(ids)
+
+    # Batch-fetch uncached IDs
+    fetched: dict[str, str] = {}
+    for batch_num, i in enumerate(range(0, max(len(uncached), 1), batch_size)):
+        if i >= len(uncached):
+            break
+        batch = uncached[i : i + batch_size]
+        if not batch:
+            break
+
+        if batch_num > 0 and rate_limit_delay > 0:
+            time.sleep(rate_limit_delay)
+
+        if verbose:
+            print(
+                f"Fetching batch {batch_num + 1} ({len(batch)} IDs)...",
+                file=sys.stderr,
+            )
+
+        pairs = fetch_batch(batch)
+        for id_, data in pairs:
+            fetched[id_] = data
+            cache_write(pm_dir, cache_category, f"{id_}{cache_ext}", data)
+
+    # Audit log
+    audit_log(
+        pm_dir,
+        {
+            "op": cache_category,
+            "requested": len(ids),
+            "cached": len(cached),
+            "fetched": len(fetched),
+            "refreshed": refresh,
+        },
+    )
+
+    # Merge cached + fetched, preserving original ID order.
+    # Also include any fetched IDs not in the original list (e.g. when the
+    # fetch_batch callback discovers IDs from the response payload).
+    result: dict[str, str] = {}
+    for id_ in ids:
+        if id_ in cached:
+            result[id_] = cached[id_]
+        elif id_ in fetched:
+            result[id_] = fetched[id_]
+    # Append any extra IDs returned by fetch_batch but not in the input list
+    for id_, data in fetched.items():
+        if id_ not in result:
+            result[id_] = data
+
+    return result
