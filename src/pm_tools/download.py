@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import io
 import json
 import logging
@@ -532,47 +533,49 @@ def download_articles(
     return result
 
 
-HELP_TEXT = """\
-pm download - Download full-text articles from PubMed Central and Unpaywall
-
-Usage:
-  pm parse output | pm download [OPTIONS]
-  pm download [OPTIONS] --input FILE
-
-By default, downloads NXML (structured text) from PMC tgz archives.
-Use --pdf to download PDF instead.
-
-Input Options:
-  --input FILE         Read PMIDs from file (one per line)
-
-Output Options:
-  --output-dir DIR     Output directory (default: current directory)
-  --overwrite          Overwrite existing files
-  --dry-run            Show what would be downloaded, don't download
-
-Download Options:
-  --pdf                Download PDF instead of NXML from tgz archives
-  --timeout SECS       Download timeout in seconds (default: 30)
-  --email EMAIL        Email for Unpaywall API (required for Unpaywall)
-
-Source Options:
-  --pmc-only           Only use PMC (skip Unpaywall)
-  --unpaywall-only     Only use Unpaywall (skip PMC)
-
-General:
-  -v, --verbose        Show progress on stderr
-  -h, --help           Show this help message
-
-Exit Codes:
-  0 - All requested articles downloaded successfully
-  1 - Usage error or some downloads failed
-  2 - No articles downloaded (no sources available)
-
-Examples:
-  pm search "CRISPR" | pm fetch | pm parse | pm download --output-dir ./articles/
-  pm download --pdf --output-dir ./pdfs/        # Force PDF download
-  pm parse output.jsonl | pm download --dry-run
-  pm download --input pmids.txt --email user@example.com"""
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser for pm download."""
+    parser = argparse.ArgumentParser(
+        prog="pm download",
+        description=(
+            "Download full-text articles from PubMed Central and Unpaywall.\n\n"
+            "By default, downloads NXML (structured text) from PMC tgz archives.\n"
+            "Use --pdf to download PDF instead."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Exit Codes:\n"
+            "  0 - All requested articles downloaded successfully\n"
+            "  1 - Usage error or some downloads failed\n"
+            "  2 - No articles downloaded (no sources available)\n\n"
+            "Examples:\n"
+            '  pm search "CRISPR" | pm fetch | pm parse | pm download --output-dir ./articles/\n'
+            "  pm download --pdf --output-dir ./pdfs/\n"
+            "  pm parse output.jsonl | pm download --dry-run\n"
+            "  pm download --input pmids.txt --email user@example.com"
+        ),
+    )
+    parser.add_argument("--input", dest="input_file", metavar="FILE",
+                        help="Read PMIDs from file (one per line)")
+    parser.add_argument("--output-dir", type=Path, default=Path("."), metavar="DIR",
+                        help="Output directory (default: current directory)")
+    parser.add_argument("--overwrite", action="store_true",
+                        help="Overwrite existing files")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Show what would be downloaded, don't download")
+    parser.add_argument("--pdf", action="store_true",
+                        help="Download PDF instead of NXML from tgz archives")
+    parser.add_argument("--timeout", type=int, default=30, metavar="SECS",
+                        help="Download timeout in seconds (default: 30)")
+    parser.add_argument("--email", metavar="EMAIL",
+                        help="Email for Unpaywall API (required for Unpaywall)")
+    parser.add_argument("--pmc-only", action="store_true",
+                        help="Only use PMC (skip Unpaywall)")
+    parser.add_argument("--unpaywall-only", action="store_true",
+                        help="Only use Unpaywall (skip PMC)")
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help="Show progress on stderr")
+    return parser
 
 
 def main(args: list[str] | None = None) -> int:
@@ -580,54 +583,23 @@ def main(args: list[str] | None = None) -> int:
     if args is None:
         args = sys.argv[1:]
 
-    output_dir = Path(".")
-    dry_run = False
-    overwrite = False
-    timeout = 30
-    email: str | None = None
-    input_file: str | None = None
-    pmc_only = False
-    unpaywall_only = False
-    verbose = False
-    prefer_pdf = False
+    parser = _build_parser()
+    try:
+        parsed = parser.parse_args(args)
+    except SystemExit as exc:
+        # argparse calls sys.exit on --help or errors; convert to return code.
+        return int(exc.code) if exc.code is not None else 0
 
-    i = 0
-    while i < len(args):
-        arg = args[i]
-        if arg in ("--help", "-h"):
-            print(HELP_TEXT)
-            return 0
-        elif arg in ("--verbose", "-v"):
-            verbose = True
-        elif arg == "--dry-run":
-            dry_run = True
-        elif arg == "--overwrite":
-            overwrite = True
-        elif arg == "--output-dir":
-            i += 1
-            output_dir = Path(args[i])
-        elif arg == "--timeout":
-            i += 1
-            timeout = int(args[i])
-        elif arg == "--email":
-            i += 1
-            email = args[i]
-        elif arg == "--input":
-            i += 1
-            input_file = args[i]
-        elif arg == "--pdf":
-            prefer_pdf = True
-        elif arg == "--pmc-only":
-            pmc_only = True
-        elif arg == "--unpaywall-only":
-            unpaywall_only = True
-        elif arg.startswith("-"):
-            print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            return 1
-        else:
-            print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            return 1
-        i += 1
+    output_dir: Path = parsed.output_dir
+    dry_run: bool = parsed.dry_run
+    overwrite: bool = parsed.overwrite
+    timeout: int = parsed.timeout
+    email: str | None = parsed.email
+    input_file: str | None = parsed.input_file
+    pmc_only: bool = parsed.pmc_only
+    unpaywall_only: bool = parsed.unpaywall_only
+    verbose: bool = parsed.verbose
+    prefer_pdf: bool = parsed.pdf
 
     # Read input
     lines: list[str] = []

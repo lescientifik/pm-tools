@@ -2788,9 +2788,9 @@ class TestCliPdfFlag:
 
     def test_help_mentions_pdf_flag(self) -> None:
         """--help output documents the --pdf flag."""
-        from pm_tools.download import HELP_TEXT
+        from pm_tools.download import _build_parser
 
-        assert "--pdf" in HELP_TEXT
+        assert "--pdf" in _build_parser().format_help()
 
     def test_pdf_flag_forces_pdf_extraction(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
