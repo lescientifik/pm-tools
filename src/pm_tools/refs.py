@@ -38,31 +38,6 @@ def extract_refs(nxml_content: str, id_type: str = "pmid") -> list[str]:
     return list(dict.fromkeys(refs))
 
 
-HELP_TEXT = """\
-pm refs - Extract cited PMIDs/DOIs from NXML files
-
-Usage:
-  pm refs [OPTIONS] FILE [FILE...]
-  cat article.nxml | pm refs
-
-Extracts cited identifiers from the JATS <ref-list> in NXML files.
-Output is one identifier per line, suitable for piping to pm fetch.
-
-Options:
-  --doi            Extract DOIs instead of PMIDs
-  -h, --help       Show this help message
-
-Exit Codes:
-  0 - Success (even if no refs found)
-  1 - Error (file not found, invalid input)
-
-Examples:
-  pm refs article.nxml
-  pm refs *.nxml | sort -u | pm fetch | pm parse
-  pm refs --doi article.nxml
-  pm refs ./articles/*.nxml"""
-
-
 def _build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for pm refs."""
     parser = argparse.ArgumentParser(

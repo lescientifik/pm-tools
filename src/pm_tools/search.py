@@ -132,7 +132,10 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Search PubMed and return PMIDs.",
     )
     parser.add_argument(
-        "--max", type=int, default=DEFAULT_MAX, dest="max_results",
+        "--max",
+        type=int,
+        default=DEFAULT_MAX,
+        dest="max_results",
         help="Maximum results (default: 10000)",
     )
     parser.add_argument("--refresh", action="store_true", help="Bypass cache and re-fetch")

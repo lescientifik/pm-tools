@@ -84,9 +84,7 @@ class TestAllCached:
 
         # Pre-populate cache
         for id_ in ("A", "B"):
-            (pm_dir / "cache" / "test" / f"{id_}.txt").parent.mkdir(
-                parents=True, exist_ok=True
-            )
+            (pm_dir / "cache" / "test" / f"{id_}.txt").parent.mkdir(parents=True, exist_ok=True)
             (pm_dir / "cache" / "test" / f"{id_}.txt").write_text(f"cached-{id_}")
 
         tracker = _CallTracker()
@@ -105,9 +103,7 @@ class TestAllCached:
         pm_dir = _make_pm_dir(tmp_path)
 
         for id_ in ("X", "Y"):
-            (pm_dir / "cache" / "test" / f"{id_}.txt").parent.mkdir(
-                parents=True, exist_ok=True
-            )
+            (pm_dir / "cache" / "test" / f"{id_}.txt").parent.mkdir(parents=True, exist_ok=True)
             (pm_dir / "cache" / "test" / f"{id_}.txt").write_text(f"val-{id_}")
 
         result = cached_batch_fetch(
@@ -388,9 +384,7 @@ class TestAuditLogging:
             fetch_batch=_fake_fetch_batch,
         )
 
-        event = json.loads(
-            (pm_dir / "audit.jsonl").read_text().strip().splitlines()[0]
-        )
+        event = json.loads((pm_dir / "audit.jsonl").read_text().strip().splitlines()[0])
         assert event["cached"] == 1
         assert event["fetched"] == 2
 

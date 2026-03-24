@@ -99,9 +99,7 @@ class TestParseArticleNewFields:
         """StartPage + EndPage used when no MedlinePgn."""
         xml = _make_xml(
             pagination_xml=(
-                "<Pagination>"
-                "<StartPage>200</StartPage><EndPage>210</EndPage>"
-                "</Pagination>"
+                "<Pagination><StartPage>200</StartPage><EndPage>210</EndPage></Pagination>"
             )
         )
         articles = parse_xml(xml)
@@ -109,9 +107,7 @@ class TestParseArticleNewFields:
 
     def test_extracts_page_from_start_page_only(self) -> None:
         """StartPage alone when no EndPage and no MedlinePgn."""
-        xml = _make_xml(
-            pagination_xml="<Pagination><StartPage>200</StartPage></Pagination>"
-        )
+        xml = _make_xml(pagination_xml="<Pagination><StartPage>200</StartPage></Pagination>")
         articles = parse_xml(xml)
         assert articles[0]["page"] == "200"
 
@@ -194,11 +190,7 @@ class TestParseArticleNewFields:
     def test_epub_date_partial_year_only(self) -> None:
         """epub_date with year only (no month, no day)."""
         xml = _make_xml(
-            article_date_xml=(
-                '<ArticleDate DateType="Electronic">'
-                "<Year>2024</Year>"
-                "</ArticleDate>"
-            )
+            article_date_xml=('<ArticleDate DateType="Electronic"><Year>2024</Year></ArticleDate>')
         )
         articles = parse_xml(xml)
         assert articles[0]["epub_date"] == "2024"
@@ -229,8 +221,14 @@ class TestParseArticleNewFields:
         articles = parse_xml(xml)
         art = articles[0]
         absent_fields = (
-            "volume", "issue", "page", "epub_date",
-            "publisher_place", "pub_status", "journal_abbrev", "issn",
+            "volume",
+            "issue",
+            "page",
+            "epub_date",
+            "publisher_place",
+            "pub_status",
+            "journal_abbrev",
+            "issn",
         )
         for field in absent_fields:
             assert field not in art, f"{field} should be absent"
@@ -422,8 +420,14 @@ class TestArticleToCsl:
         assert csl["source"] == "PubMed"
         # Optional fields should be absent, not None
         optional_keys = (
-            "title", "author", "container-title", "DOI",
-            "PMCID", "volume", "issue", "page",
+            "title",
+            "author",
+            "container-title",
+            "DOI",
+            "PMCID",
+            "volume",
+            "issue",
+            "page",
         )
         for key in optional_keys:
             assert key not in csl, f"{key} should be absent"
@@ -505,10 +509,20 @@ class TestLegacyFieldsFiltering:
         """pm parse (no --csl) emits only 10 legacy fields."""
         from pm_tools.parse import LEGACY_FIELDS
 
-        expected = frozenset({
-            "pmid", "title", "authors", "journal", "year", "date",
-            "abstract", "abstract_sections", "doi", "pmcid",
-        })
+        expected = frozenset(
+            {
+                "pmid",
+                "title",
+                "authors",
+                "journal",
+                "year",
+                "date",
+                "abstract",
+                "abstract_sections",
+                "doi",
+                "pmcid",
+            }
+        )
         assert expected == LEGACY_FIELDS
 
     def test_parse_main_filters_output(self) -> None:
@@ -528,6 +542,7 @@ class TestLegacyFieldsFiltering:
             sys.stdout = out
 
             from pm_tools.parse import main
+
             main([])
 
             output = out.getvalue().strip()
@@ -614,6 +629,7 @@ class TestParseCslFlag:
             sys.stdout = out
 
             from pm_tools.parse import main
+
             main(["--csl"])
 
             output = out.getvalue().strip()
@@ -641,6 +657,7 @@ class TestParseCslFlag:
             sys.stdout = out
 
             from pm_tools.parse import LEGACY_FIELDS, main
+
             main([])
 
             output = out.getvalue().strip()
@@ -664,6 +681,7 @@ class TestParseCslFlag:
             sys.stdout = out
 
             from pm_tools.parse import main
+
             result = main(["--csl"])
 
             assert result == 0
@@ -700,6 +718,7 @@ class TestParseCslFlag:
             sys.stdout = out
 
             from pm_tools.parse import main
+
             main(["--csl"])
 
             lines = out.getvalue().strip().split("\n")
@@ -860,9 +879,7 @@ def _strip_accessed(record: dict[str, Any]) -> dict[str, Any]:
 class TestCslGoldenFiles:
     """Validate pm parse --csl against golden files."""
 
-    def _find_xml_for_golden(
-        self, golden_path: Path, fixtures_dir: Path
-    ) -> Path:
+    def _find_xml_for_golden(self, golden_path: Path, fixtures_dir: Path) -> Path:
         """Map a golden .jsonl path back to the source .xml fixture."""
         # Golden: fixtures/expected/csl/random/pmid-3341.jsonl
         # Source: fixtures/random/pmid-3341.xml
@@ -881,34 +898,23 @@ class TestCslGoldenFiles:
         assert len(golden_files) > 0, "No golden files found"
 
         for golden_path in golden_files:
-            xml_path = self._find_xml_for_golden(
-                golden_path, Path(fixtures_dir)
-            )
+            xml_path = self._find_xml_for_golden(golden_path, Path(fixtures_dir))
             assert xml_path.exists(), f"Source XML not found: {xml_path}"
 
             xml = xml_path.read_text()
             articles = parse_xml(xml)
-            actual_csl = [
-                _strip_accessed(article_to_csl(a)) for a in articles
-            ]
+            actual_csl = [_strip_accessed(article_to_csl(a)) for a in articles]
 
             expected_lines = golden_path.read_text().strip().splitlines()
             expected_csl = [
-                _strip_accessed(json.loads(line))
-                for line in expected_lines
-                if line.strip()
+                _strip_accessed(json.loads(line)) for line in expected_lines if line.strip()
             ]
 
             assert len(actual_csl) == len(expected_csl), (
-                f"{golden_path.name}: "
-                f"expected {len(expected_csl)} records, got {len(actual_csl)}"
+                f"{golden_path.name}: expected {len(expected_csl)} records, got {len(actual_csl)}"
             )
-            for i, (actual, expected) in enumerate(
-                zip(actual_csl, expected_csl, strict=True)
-            ):
-                assert actual == expected, (
-                    f"{golden_path.name} record {i}: mismatch"
-                )
+            for i, (actual, expected) in enumerate(zip(actual_csl, expected_csl, strict=True)):
+                assert actual == expected, f"{golden_path.name} record {i}: mismatch"
 
     def test_csl_output_has_required_fields(self, fixtures_dir: Any) -> None:
         """Every CSL record from random fixtures has id, type, source, PMID."""

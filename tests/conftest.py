@@ -14,6 +14,7 @@ def _reset_http_singleton() -> None:
     """Reset the shared HTTP client singleton between tests."""
     _http_mod._client = None
 
+
 # Project root directory
 PROJECT_DIR = Path(__file__).parent.parent
 FIXTURES_DIR = PROJECT_DIR / "fixtures"
