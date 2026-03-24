@@ -121,22 +121,51 @@ pm search --verbose "rare disease" 2>debug.log | pm fetch | pm parse
 ### `pm parse`
 - **Entrée** : XML PubMed sur stdin
 - **Sortie** : JSONL (un objet JSON par article)
-- **Parser** : `xml2` + awk + jq
-- **Champs extraits** :
+- **Parser** : Python `xml.etree.ElementTree`
+- **Options** :
+  - `--csl` : produit du CSL-JSON au lieu d'ArticleRecord (incompatible avec `pm filter`/`pm diff`)
+  - `--verbose` : logs sur stderr
+- **Champs extraits (défaut — 10 champs ArticleRecord)** :
   ```json
   {
     "pmid": "12345678",
     "title": "Article title",
-    "authors": [
-      {"family": "Smith", "given": "J"},
-      {"family": "Doe", "given": "A"}
-    ],
+    "authors": [{"family": "Smith", "given": "J"}],
     "journal": "Nature",
     "year": 2024,
+    "date": "2024-03-15",
     "doi": "10.1234/example",
-    "abstract": "Full abstract text..."
+    "pmcid": "PMC1234567",
+    "abstract": "Full abstract text...",
+    "abstract_sections": [{"label": "BACKGROUND", "text": "..."}]
   }
   ```
+- **Champs extraits (--csl — 19 champs CSL-JSON)** :
+  ```json
+  {
+    "id": "pmid:12345678",
+    "type": "article-journal",
+    "source": "PubMed",
+    "PMID": "12345678",
+    "title": "Article title",
+    "author": [{"family": "Smith", "given": "J"}],
+    "container-title": "Nature",
+    "container-title-short": "Nat Med",
+    "DOI": "10.1234/example",
+    "PMCID": "PMC1234567",
+    "ISSN": "0300-9629",
+    "volume": "48",
+    "issue": "2",
+    "page": "100-105",
+    "issued": {"date-parts": [[2024, 3, 15]]},
+    "accessed": {"date-parts": [[2026, 3, 24]]},
+    "epub-date": {"date-parts": [[2024, 1, 15]]},
+    "publisher-place": "England",
+    "status": "ppublish"
+  }
+  ```
+- **Note** : `abstract` est exclu du CSL-JSON (parité API NCBI). `accessed` = date du jour.
+- **ArticleRecord enrichi** : en interne, `parse_article()` extrait 18 champs (10 legacy + 8 nouveaux : volume, issue, page, issn, journal_abbrev, epub_date, publisher_place, pub_status). La sortie par défaut filtre aux 10 legacy via `LEGACY_FIELDS`.
 
 ### `pm quick`
 - **Entrée** : requête PubMed (argument)

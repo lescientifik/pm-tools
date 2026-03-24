@@ -47,7 +47,7 @@ class TestTypeImports:
 
 
 class TestArticleRecordSchema:
-    """ArticleRecord has 10 fields, pmid required, rest optional."""
+    """ArticleRecord has 18 fields, pmid required, rest optional."""
 
     def test_expected_fields(self) -> None:
         from pm_tools.types import ArticleRecord
@@ -64,6 +64,15 @@ class TestArticleRecordSchema:
             "abstract_sections",
             "doi",
             "pmcid",
+            # New fields for CSL-JSON support
+            "volume",
+            "issue",
+            "page",
+            "issn",
+            "journal_abbrev",
+            "epub_date",
+            "publisher_place",
+            "pub_status",
         }
         assert set(hints.keys()) == expected
 
@@ -85,6 +94,14 @@ class TestArticleRecordSchema:
             "abstract_sections",
             "doi",
             "pmcid",
+            "volume",
+            "issue",
+            "page",
+            "issn",
+            "journal_abbrev",
+            "epub_date",
+            "publisher_place",
+            "pub_status",
         }
         assert ArticleRecord.__optional_keys__ == expected_optional
 

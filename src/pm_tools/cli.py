@@ -16,6 +16,7 @@ def collect_main(argv: list[str] | None = None) -> int:
     max_results = 100
     query = ""
     verbose = False
+    csl_mode = False
     i = 0
 
     while i < len(args):
@@ -25,6 +26,8 @@ def collect_main(argv: list[str] | None = None) -> int:
             sys.exit(0)
         elif arg in ("--verbose", "-v"):
             verbose = True
+        elif arg == "--csl":
+            csl_mode = True
         elif arg == "--max":
             i += 1
             if i >= len(args):
@@ -93,7 +96,12 @@ def collect_main(argv: list[str] | None = None) -> int:
 
         articles = parse.parse_xml(xml)
         for article in articles:
-            print(json.dumps(article, ensure_ascii=False))
+            if csl_mode:
+                output = parse.article_to_csl(article)
+            else:
+                # Filter to legacy fields by default (backward compatibility)
+                output = {k: v for k, v in article.items() if k in parse.LEGACY_FIELDS}
+            print(json.dumps(output, ensure_ascii=False))
         sys.exit(0)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -106,15 +114,18 @@ pm collect - Collect PubMed articles (search + fetch + parse → JSONL)
 Usage: pm collect [OPTIONS] "search query"
 
 Options:
+  --csl           Output CSL-JSON instead of ArticleRecord
   --max N         Maximum results (default: 100)
   -v, --verbose   Show progress on stderr
   -h, --help      Show this help message
 
 Output:
   JSONL to stdout (one article per line)
+  With --csl: CSL-JSON records (not compatible with pm filter/pm diff)
 
 Examples:
   pm collect "CRISPR cancer therapy" --max 100 > results.jsonl
+  pm collect "CRISPR cancer therapy" --csl > citations.jsonl
   pm collect --max 50 "machine learning diagnosis" > results.jsonl
 
 For advanced filtering, use the full pipeline:

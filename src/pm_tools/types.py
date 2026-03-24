@@ -39,6 +39,7 @@ class ArticleRecord(TypedDict, total=False):
     when the source XML lacks the corresponding element.
     """
 
+    # Legacy fields (emitted by default without --csl)
     pmid: Required[str]
     title: str
     authors: list[AuthorName]
@@ -49,3 +50,51 @@ class ArticleRecord(TypedDict, total=False):
     abstract_sections: list[AbstractSection]
     doi: str
     pmcid: str
+
+    # New fields (used by --csl, filtered out of default output)
+    volume: str
+    issue: str
+    page: str
+    issn: str
+    journal_abbrev: str
+    epub_date: str
+    publisher_place: str
+    pub_status: str
+
+
+# Functional TypedDict form is required because CSL-JSON field names contain
+# hyphens (container-title, publisher-place, etc.) which are not valid Python
+# identifiers.
+CslJsonRecord = TypedDict(
+    "CslJsonRecord",
+    {
+        "id": Required[str],
+        "type": Required[str],
+        "source": str,
+        "PMID": str,
+        "PMCID": str,
+        "title": str,
+        "author": list[AuthorName],
+        "container-title": str,
+        "container-title-short": str,
+        "issued": dict[str, list[list[int]]],
+        "accessed": dict[str, list[list[int]]],
+        "DOI": str,
+        "ISSN": str,
+        "volume": str,
+        "issue": str,
+        "page": str,
+        "publisher-place": str,
+        "status": str,
+        "epub-date": dict[str, list[list[int]]],
+    },
+    total=False,
+)
+CslJsonRecord.__doc__ = """CSL-JSON citation record produced by ``article_to_csl()``.
+
+Follows the CSL-JSON specification with NCBI extensions (PMID, PMCID,
+epub-date, status).  All fields except ``id`` and ``type`` are optional.
+
+Uses the functional TypedDict form because CSL-JSON field names contain
+hyphens (e.g. ``container-title``, ``publisher-place``).
+"""

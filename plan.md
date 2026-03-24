@@ -690,6 +690,17 @@ See `docs/nxml-refs-plan.md` for detailed implementation plan.
 
 ---
 
+## Phase 12 — CSL-JSON natif depuis pm parse (`--csl`)
+
+- [x] **12.1**: Enrichir ArticleRecord (8 nouveaux champs: volume, issue, page, issn, journal_abbrev, epub_date, publisher_place, pub_status) + `article_to_csl()` + `LEGACY_FIELDS` filtrage + mise à jour test_types.py
+- [x] **12.2**: Flag `--csl` sur pm parse CLI + `parse_xml_csl()` / `parse_xml_stream_csl()` wrappers + exports `__init__.py` (CslJsonRecord, article_to_csl, parse_xml_csl, parse_xml_stream_csl, LEGACY_FIELDS)
+- [x] **12.3**: Flag `--csl` sur pm collect + mise à jour COLLECT_HELP
+- [x] **12.4**: Golden files CSL-JSON (fixtures/expected/csl/) + tests de validation
+- [x] **12.5**: Documentation (spec.md, plan.md)
+- [ ] **12.6**: Gate — `/adversarial-review`
+
+---
+
 ## Ressources
 
 - DTD PubMed : https://dtd.nlm.nih.gov/ncbi/pubmed/

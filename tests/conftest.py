@@ -50,12 +50,17 @@ def complete_article_xml() -> str:
     <PMID>12345678</PMID>
     <Article>
       <Journal>
-        <JournalIssue>
+        <ISSN IssnType="Print">0300-9629</ISSN>
+        <JournalIssue CitedMedium="Print">
+          <Volume>30</Volume>
+          <Issue>3</Issue>
           <PubDate><Year>2024</Year><Month>Mar</Month><Day>15</Day></PubDate>
         </JournalIssue>
         <Title>Nature Medicine</Title>
+        <ISOAbbreviation>Nat Med</ISOAbbreviation>
       </Journal>
       <ArticleTitle>Test Article Title</ArticleTitle>
+      <Pagination><MedlinePgn>100-105</MedlinePgn></Pagination>
       <Abstract>
         <AbstractText>This is the abstract.</AbstractText>
       </Abstract>
@@ -63,10 +68,17 @@ def complete_article_xml() -> str:
         <Author><LastName>Smith</LastName><ForeName>John</ForeName></Author>
         <Author><LastName>Doe</LastName><ForeName>Jane</ForeName></Author>
       </AuthorList>
+      <ArticleDate DateType="Electronic">
+        <Year>2024</Year><Month>02</Month><Day>01</Day>
+      </ArticleDate>
       <ELocationID EIdType="doi" ValidYN="Y">10.1234/test</ELocationID>
     </Article>
+    <MedlineJournalInfo>
+      <Country>United States</Country>
+    </MedlineJournalInfo>
   </MedlineCitation>
   <PubmedData>
+    <PublicationStatus>ppublish</PublicationStatus>
     <ArticleIdList>
       <ArticleId IdType="pubmed">12345678</ArticleId>
       <ArticleId IdType="pmc">PMC1234567</ArticleId>
