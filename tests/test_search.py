@@ -309,7 +309,7 @@ def _make_pm_dir(tmp_path: Path) -> Path:
 
 
 class TestSearchCache:
-    """search() caches results in .pm/cache/search/ when cache_dir is given."""
+    """search() caches results in .pm/cache/search/ when pm_dir is given."""
 
     def test_caches_results(self, mock_esearch_response: str, tmp_path: Path) -> None:
         """First call caches, second returns from cache with 0 API calls."""
@@ -320,10 +320,10 @@ class TestSearchCache:
         mock_response.raise_for_status = MagicMock()
 
         with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
-            result1 = search("CRISPR cancer", cache_dir=pm_dir)
+            result1 = search("CRISPR cancer", pm_dir=pm_dir)
             assert mock_get.call_count == 1
 
-            result2 = search("CRISPR cancer", cache_dir=pm_dir)
+            result2 = search("CRISPR cancer", pm_dir=pm_dir)
             assert mock_get.call_count == 1  # no additional API call
 
         assert result1 == result2
@@ -338,8 +338,8 @@ class TestSearchCache:
         mock_response.raise_for_status = MagicMock()
 
         with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
-            search("CRISPR", cache_dir=pm_dir)
-            search("gene therapy", cache_dir=pm_dir)
+            search("CRISPR", pm_dir=pm_dir)
+            search("gene therapy", pm_dir=pm_dir)
             assert mock_get.call_count == 2  # both queries hit API
 
     def test_refresh_bypasses_cache(self, mock_esearch_response: str, tmp_path: Path) -> None:
@@ -350,12 +350,12 @@ class TestSearchCache:
         mock_response.raise_for_status = MagicMock()
 
         with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
-            search("CRISPR", cache_dir=pm_dir)
-            search("CRISPR", cache_dir=pm_dir, refresh=True)
+            search("CRISPR", pm_dir=pm_dir)
+            search("CRISPR", pm_dir=pm_dir, refresh=True)
             assert mock_get.call_count == 2  # refresh forces API call
 
-    def test_no_cache_without_cache_dir(self, mock_esearch_response: str) -> None:
-        """Without cache_dir, search works as before (no caching)."""
+    def test_no_cache_without_pm_dir(self, mock_esearch_response: str) -> None:
+        """Without pm_dir, search works as before (no caching)."""
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.text = mock_esearch_response
@@ -378,7 +378,7 @@ class TestSearchAudit:
         mock_response.raise_for_status = MagicMock()
 
         with patch("pm_tools.search.httpx.get", return_value=mock_response):
-            search("CRISPR cancer", cache_dir=pm_dir, pm_dir=pm_dir)
+            search("CRISPR cancer", pm_dir=pm_dir)
 
         lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
         assert len(lines) == 1
@@ -399,8 +399,8 @@ class TestSearchAudit:
         mock_response.raise_for_status = MagicMock()
 
         with patch("pm_tools.search.httpx.get", return_value=mock_response):
-            search("CRISPR", cache_dir=pm_dir, pm_dir=pm_dir)
-            search("CRISPR", cache_dir=pm_dir, pm_dir=pm_dir)
+            search("CRISPR", pm_dir=pm_dir)
+            search("CRISPR", pm_dir=pm_dir)
 
         lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
         assert len(lines) == 2

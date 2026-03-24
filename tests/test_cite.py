@@ -201,7 +201,7 @@ def _make_pm_dir(tmp_path: Path) -> Path:
 
 
 class TestCiteCache:
-    """cite() with cache_dir caches CSL-JSON per PMID."""
+    """cite() with pm_dir caches CSL-JSON per PMID."""
 
     def test_cite_with_cache_avoids_refetch(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -218,12 +218,12 @@ class TestCiteCache:
         monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
 
         # First call should fetch
-        result1 = cite(["12345678"], cache_dir=pm_dir)
+        result1 = cite(["12345678"], pm_dir=pm_dir)
         assert len(result1) == 1
         assert request_count == 1
 
         # Second call should use cache
-        result2 = cite(["12345678"], cache_dir=pm_dir)
+        result2 = cite(["12345678"], pm_dir=pm_dir)
         assert len(result2) == 1
         assert request_count == 1, "Second call should use cache"
 
@@ -238,13 +238,13 @@ class TestCiteCache:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
 
-        cite(["12345678"], cache_dir=pm_dir)
+        cite(["12345678"], pm_dir=pm_dir)
         cached = (pm_dir / "cache" / "cite" / "12345678.json").read_text()
         data = json.loads(cached)
         assert data["PMID"] == "12345678"
 
-    def test_no_cache_without_cache_dir(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Without cache_dir, cite works as before."""
+    def test_no_cache_without_pm_dir(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Without pm_dir, cite works as before."""
 
         def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(status_code=200, json=_CSL_SINGLE)
@@ -268,7 +268,7 @@ class TestCiteAudit:
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
 
-        cite(["11111111", "22222222"], cache_dir=pm_dir, pm_dir=pm_dir)
+        cite(["11111111", "22222222"], pm_dir=pm_dir)
 
         lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
         assert len(lines) == 1
@@ -290,7 +290,6 @@ class TestCiteAudit:
 
         cite(
             ["11111111", "22222222"],
-            cache_dir=pm_dir,
             pm_dir=pm_dir,
         )
 

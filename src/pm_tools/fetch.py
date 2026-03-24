@@ -95,7 +95,6 @@ def fetch(
     rate_limit_delay: float = RATE_LIMIT_DELAY,
     verbose: bool = False,
     *,
-    cache_dir: Path | None = None,
     pm_dir: Path | None = None,
     refresh: bool = False,
 ) -> str:
@@ -106,8 +105,7 @@ def fetch(
         batch_size: Number of PMIDs per API request.
         rate_limit_delay: Delay between requests in seconds.
         verbose: If True, log progress to stderr.
-        cache_dir: Path to .pm/ directory for caching, or None.
-        pm_dir: Path to .pm/ directory for audit logging, or None.
+        pm_dir: Path to .pm/ directory for caching and audit logging, or None.
         refresh: If True, bypass cache and re-fetch.
 
     Returns:
@@ -125,9 +123,9 @@ def fetch(
     cached_fragments: dict[str, str] = {}
     uncached_pmids: list[str] = []
 
-    if cache_dir is not None and not refresh:
+    if pm_dir is not None and not refresh:
         for pmid in pmids:
-            cached = cache_read(cache_dir, "fetch", f"{pmid}.xml")
+            cached = cache_read(pm_dir, "fetch", f"{pmid}.xml")
             if cached is not None:
                 cached_fragments[pmid] = cached
             else:
@@ -161,7 +159,7 @@ def fetch(
         merged = _merge_xml_responses(responses)
 
         # No cache: return merged XML directly (skip split/reassemble)
-        if cache_dir is None and not cached_fragments:
+        if pm_dir is None and not cached_fragments:
             if pm_dir is not None:
                 audit_log(
                     pm_dir,
@@ -180,7 +178,7 @@ def fetch(
         if merged:
             fetched_fragments = split_xml_articles(merged)
             for pmid, fragment in fetched_fragments.items():
-                cache_write(cache_dir, "fetch", f"{pmid}.xml", fragment)
+                cache_write(pm_dir, "fetch", f"{pmid}.xml", fragment)
 
     # Audit log
     if pm_dir is not None:
@@ -267,7 +265,6 @@ def main(args: list[str] | None = None) -> int:
         xml = fetch(
             pmids,
             verbose=verbose,
-            cache_dir=detected_pm_dir,
             pm_dir=detected_pm_dir,
         )
         if xml:

@@ -30,7 +30,6 @@ def search(
     query: str,
     max_results: int = DEFAULT_MAX,
     *,
-    cache_dir: Path | None = None,
     pm_dir: Path | None = None,
     refresh: bool = False,
 ) -> list[str]:
@@ -39,8 +38,7 @@ def search(
     Args:
         query: PubMed search query string.
         max_results: Maximum number of results to return.
-        cache_dir: Path to .pm/ directory for caching, or None.
-        pm_dir: Path to .pm/ directory for audit logging, or None.
+        pm_dir: Path to .pm/ directory for caching and audit logging, or None.
         refresh: If True, bypass cache and re-fetch.
 
     Returns:
@@ -54,9 +52,9 @@ def search(
         raise ValueError("Query cannot be empty")
 
     # Check cache
-    if cache_dir is not None and not refresh:
+    if pm_dir is not None and not refresh:
         key = _cache_key(query, max_results)
-        cached = cache_read(cache_dir, "search", key)
+        cached = cache_read(pm_dir, "search", key)
         if cached is not None:
             data = json.loads(cached)
             pmids = data["pmids"]
@@ -108,7 +106,7 @@ def search(
         )
 
     # Write cache
-    if cache_dir is not None:
+    if pm_dir is not None:
         key = _cache_key(query, max_results)
         timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         cache_data = json.dumps(
@@ -121,7 +119,7 @@ def search(
             },
             ensure_ascii=False,
         )
-        cache_write(cache_dir, "search", key, cache_data)
+        cache_write(pm_dir, "search", key, cache_data)
 
     return pmids
 
@@ -213,7 +211,6 @@ def main(args: list[str] | None = None) -> int:
         pmids = search(
             query,
             max_results,
-            cache_dir=detected_pm_dir,
             pm_dir=detected_pm_dir,
             refresh=refresh,
         )

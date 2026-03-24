@@ -356,7 +356,7 @@ def _make_pm_dir(tmp_path: Path) -> Path:
 
 
 class TestFetchSmartBatch:
-    """fetch() with cache_dir only fetches uncached PMIDs."""
+    """fetch() with pm_dir only fetches uncached PMIDs."""
 
     def test_all_cached_no_api_call(self, tmp_path: Path) -> None:
         """When all PMIDs are cached, zero API calls are made."""
@@ -373,7 +373,7 @@ class TestFetchSmartBatch:
             (pm_dir / "cache" / "fetch" / f"{pmid}.xml").write_text(xml)
 
         with patch("pm_tools.fetch.httpx.get") as mock_get:
-            result = fetch(["111", "222"], cache_dir=pm_dir)
+            result = fetch(["111", "222"], pm_dir=pm_dir)
 
         mock_get.assert_not_called()
         assert "111" in result
@@ -399,7 +399,7 @@ class TestFetchSmartBatch:
         mock_response = _make_mock_response("222")
 
         with patch("pm_tools.fetch.httpx.get", return_value=mock_response) as mock_get:
-            result = fetch(["111", "222"], cache_dir=pm_dir)
+            result = fetch(["111", "222"], pm_dir=pm_dir)
 
         # Only 1 API call (for 222), not 2
         assert mock_get.call_count == 1
@@ -409,8 +409,8 @@ class TestFetchSmartBatch:
         assert "111" in pmids
         assert "222" in pmids
 
-    def test_no_cache_without_cache_dir(self) -> None:
-        """Without cache_dir, fetch works as before."""
+    def test_no_cache_without_pm_dir(self) -> None:
+        """Without pm_dir, fetch works as before."""
         with patch("pm_tools.fetch.httpx.get", return_value=_make_mock_response()) as mock_get:
             fetch(["111", "222"])
         assert mock_get.call_count == 1  # single batch, no cache
@@ -423,7 +423,7 @@ class TestFetchAudit:
         pm_dir = _make_pm_dir(tmp_path)
 
         with patch("pm_tools.fetch.httpx.get", return_value=_make_mock_response()):
-            fetch(["111", "222"], cache_dir=pm_dir, pm_dir=pm_dir)
+            fetch(["111", "222"], pm_dir=pm_dir)
 
         lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
         assert len(lines) == 1
@@ -444,7 +444,7 @@ class TestFetchAudit:
         (pm_dir / "cache" / "fetch" / "111.xml").write_text(xml)
 
         with patch("pm_tools.fetch.httpx.get", return_value=_make_mock_response("222")):
-            fetch(["111", "222"], cache_dir=pm_dir, pm_dir=pm_dir)
+            fetch(["111", "222"], pm_dir=pm_dir)
 
         event = json.loads((pm_dir / "audit.jsonl").read_text().strip().splitlines()[0])
         assert event["cached"] == 1
@@ -468,7 +468,7 @@ class TestFetchRoundTrip:
             (pm_dir / "cache" / "fetch" / f"{pmid}.xml").write_text(frag)
 
         with patch("pm_tools.fetch.httpx.get") as mock_get:
-            reassembled_xml = fetch(["111", "222"], cache_dir=pm_dir)
+            reassembled_xml = fetch(["111", "222"], pm_dir=pm_dir)
         mock_get.assert_not_called()
 
         reassembled = parse_xml(reassembled_xml)

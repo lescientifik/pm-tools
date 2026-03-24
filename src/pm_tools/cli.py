@@ -79,7 +79,6 @@ def collect_main(argv: list[str] | None = None) -> int:
         pmids = search.search(
             query,
             max_results,
-            cache_dir=detected_pm_dir,
             pm_dir=detected_pm_dir,
         )
         if not pmids:
@@ -88,7 +87,6 @@ def collect_main(argv: list[str] | None = None) -> int:
         xml = fetch.fetch(
             pmids,
             verbose=verbose,
-            cache_dir=detected_pm_dir,
             pm_dir=detected_pm_dir,
         )
         if not xml:

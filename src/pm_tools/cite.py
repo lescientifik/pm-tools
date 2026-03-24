@@ -33,7 +33,6 @@ def cite(
     rate_limit_delay: float = RATE_LIMIT_DELAY,
     verbose: bool = False,
     *,
-    cache_dir: Path | None = None,
     pm_dir: Path | None = None,
     refresh: bool = False,
 ) -> list[dict]:
@@ -46,8 +45,7 @@ def cite(
         batch_size: Number of PMIDs per API request.
         rate_limit_delay: Delay between requests in seconds.
         verbose: If True, log progress to stderr.
-        cache_dir: Path to .pm/ directory for caching, or None.
-        pm_dir: Path to .pm/ directory for audit logging, or None.
+        pm_dir: Path to .pm/ directory for caching and audit logging, or None.
         refresh: If True, bypass cache and re-fetch.
 
     Returns:
@@ -68,9 +66,9 @@ def cite(
     cached_results: dict[str, dict] = {}
     uncached_pmids: list[str] = []
 
-    if cache_dir is not None and not refresh:
+    if pm_dir is not None and not refresh:
         for pmid in unique_pmids:
-            cached = cache_read(cache_dir, "cite", f"{pmid}.json")
+            cached = cache_read(pm_dir, "cite", f"{pmid}.json")
             if cached is not None:
                 cached_results[pmid] = json.loads(cached)
             else:
@@ -109,9 +107,9 @@ def cite(
                 pmid = item.get("PMID", "")
                 if pmid:
                     fetched_results[pmid] = item
-                    if cache_dir is not None:
+                    if pm_dir is not None:
                         cache_write(
-                            cache_dir,
+                            pm_dir,
                             "cite",
                             f"{pmid}.json",
                             json.dumps(item, ensure_ascii=False),
@@ -205,7 +203,6 @@ def main(args: list[str] | None = None) -> int:
         citations = cite(
             pmids,
             verbose=verbose,
-            cache_dir=detected_pm_dir,
             pm_dir=detected_pm_dir,
         )
         for citation in citations:
