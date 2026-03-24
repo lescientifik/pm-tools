@@ -377,7 +377,10 @@ def parse_xml(xml_input: str, verbose: bool = False) -> list[ArticleRecord]:
 
 
 def parse_xml_stream(input_stream: IO[str] | IO[bytes]) -> Iterator[ArticleRecord]:
-    """Parse PubMed XML from a stream, yielding article dicts.
+    """Parse PubMed XML from a stream, yielding article dicts incrementally.
+
+    Uses ``ET.iterparse`` for O(1) memory per article — only the current
+    ``<PubmedArticle>`` subtree is materialized at a time.
 
     Args:
         input_stream: File-like object with PubMed XML.
@@ -386,12 +389,15 @@ def parse_xml_stream(input_stream: IO[str] | IO[bytes]) -> Iterator[ArticleRecor
         ``ArticleRecord`` dicts.  See ``parse_article`` for the full field
         schema.
     """
-    # Read all content and parse
-    # For large files, could use iterparse but ET.fromstring is simpler
-    content = input_stream.read()
-    text = content.decode("utf-8") if isinstance(content, bytes) else content
-
-    yield from parse_xml(text)
+    try:
+        for _event, elem in ET.iterparse(input_stream, events=("end",)):
+            if elem.tag == "PubmedArticle":
+                parsed = parse_article(elem)
+                if parsed:
+                    yield parsed
+                elem.clear()
+    except ET.ParseError:
+        return
 
 
 def _date_str_to_parts(date_str: str) -> list[int]:
