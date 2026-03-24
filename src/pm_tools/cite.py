@@ -10,6 +10,7 @@ import httpx
 
 from pm_tools.cache import cached_batch_fetch
 from pm_tools.http import get_client as get_http_client
+from pm_tools.types import CslJsonRecord
 
 API_URL = "https://pmc.ncbi.nlm.nih.gov/api/ctxp/v1/pubmed/"
 BATCH_SIZE = 200
@@ -56,7 +57,7 @@ def cite(
     *,
     pm_dir: Path | None = None,
     refresh: bool = False,
-) -> list[dict]:
+) -> list[CslJsonRecord]:
     """Fetch CSL-JSON citations for given PMIDs.
 
     Deduplicates PMIDs before fetching. Recovers from per-batch HTTP errors.
@@ -96,7 +97,7 @@ def cite(
     )
 
     # Build result list: parse JSON strings back to dicts, in original order
-    results: list[dict] = []
+    results: list[CslJsonRecord] = []
     for pmid in unique_pmids:
         if pmid in data:
             results.append(json.loads(data[pmid]))

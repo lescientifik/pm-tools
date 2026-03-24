@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 
 def find_pm_dir() -> Path | None:
@@ -105,7 +106,7 @@ def cache_write(pm_dir: Path | None, category: str, key: str, data: str) -> None
 # =============================================================================
 
 
-def audit_log(pm_dir: Path | None, event: dict) -> None:
+def audit_log(pm_dir: Path | None, event: dict[str, Any]) -> None:
     """Append a single JSON event to .pm/audit.jsonl atomically.
 
     Uses O_APPEND + single os.write() for POSIX atomicity (< PIPE_BUF).

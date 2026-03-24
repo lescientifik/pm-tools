@@ -19,7 +19,6 @@ import httpx
 import pytest
 
 from pm_tools.download import (
-    PmcResult,
     _download_one,
     _extract_nxml_from_tgz,
     _extract_pdf_from_tgz,
@@ -85,22 +84,28 @@ def _make_transport(handler) -> httpx.MockTransport:
 
 
 # ---------------------------------------------------------------------------
-# Phase 9.0a: PmcResult dataclass
+# Phase 9.0a: DownloadSource TypedDict
 # ---------------------------------------------------------------------------
 
 
-class TestPmcResult:
-    def test_pmc_result_has_url_and_format(self) -> None:
-        """PmcResult can be instantiated with url and format fields."""
-        result = PmcResult(url="https://example.com/paper.pdf", format="pdf")
-        assert result.url == "https://example.com/paper.pdf"
-        assert result.format == "pdf"
+class TestDownloadSource:
+    def test_download_source_has_required_fields(self) -> None:
+        """DownloadSource can be constructed with pmid and source info."""
+        from pm_tools.types import DownloadSource
 
-    def test_pmc_result_tgz_format(self) -> None:
-        """PmcResult supports tgz format."""
-        result = PmcResult(url="https://example.com/archive.tar.gz", format="tgz")
-        assert result.url == "https://example.com/archive.tar.gz"
-        assert result.format == "tgz"
+        source = DownloadSource(pmid="12345", source="pmc", url="https://example.com/paper.pdf")
+        assert source["pmid"] == "12345"
+        assert source["url"] == "https://example.com/paper.pdf"
+
+    def test_download_source_pmc_format(self) -> None:
+        """DownloadSource supports pmc_format field."""
+        from pm_tools.types import DownloadSource
+
+        source = DownloadSource(
+            pmid="12345", source="pmc",
+            url="https://example.com/archive.tar.gz", pmc_format="tgz",
+        )
+        assert source["pmc_format"] == "tgz"
 
 
 # ---------------------------------------------------------------------------
@@ -806,8 +811,8 @@ _PMC_OA_NO_LINKS_XML = """\
 
 
 class TestPmcLookupReturnType:
-    def test_pdf_format_returns_pmc_result(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """pmc_lookup with PDF link returns PmcResult(format='pdf')."""
+    def test_pdf_format_returns_dict(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """pmc_lookup with PDF link returns dict with format='pdf'."""
 
         def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
@@ -817,12 +822,12 @@ class TestPmcLookupReturnType:
 
         result = pmc_lookup("PMC12345")
         assert result is not None
-        assert isinstance(result, PmcResult)
-        assert result.format == "pdf"
-        assert "PMC12345" in result.url
+        assert isinstance(result, dict)
+        assert result["format"] == "pdf"
+        assert "PMC12345" in result["url"]
 
-    def test_tgz_only_returns_pmc_result_tgz(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """pmc_lookup with tgz-only link returns PmcResult(format='tgz')."""
+    def test_tgz_only_returns_dict_tgz(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """pmc_lookup with tgz-only link returns dict with format='tgz'."""
 
         def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
@@ -832,9 +837,9 @@ class TestPmcLookupReturnType:
 
         result = pmc_lookup("PMC9273392")
         assert result is not None
-        assert isinstance(result, PmcResult)
-        assert result.format == "tgz"
-        assert "PMC9273392" in result.url
+        assert isinstance(result, dict)
+        assert result["format"] == "tgz"
+        assert "PMC9273392" in result["url"]
 
     def test_both_formats_prefers_tgz(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When both pdf and tgz are available, prefer tgz (contains NXML + PDF)."""
@@ -847,7 +852,7 @@ class TestPmcLookupReturnType:
 
         result = pmc_lookup("PMC3531190")
         assert result is not None
-        assert result.format == "tgz"
+        assert result["format"] == "tgz"
 
     def test_no_links_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """pmc_lookup with no links returns None."""
@@ -872,8 +877,8 @@ class TestPmcLookupReturnType:
 
         result = pmc_lookup("PMC12345")
         assert result is not None
-        assert result.url.startswith("https://")
-        assert "ftp.ncbi.nlm.nih.gov" in result.url
+        assert result["url"].startswith("https://")
+        assert "ftp.ncbi.nlm.nih.gov" in result["url"]
 
     def test_ftp_url_converted_to_https_tgz(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """FTP URLs are converted to HTTPS for tgz links."""
@@ -886,8 +891,8 @@ class TestPmcLookupReturnType:
 
         result = pmc_lookup("PMC9273392")
         assert result is not None
-        assert result.url.startswith("https://")
-        assert "ftp.ncbi.nlm.nih.gov" in result.url
+        assert result["url"].startswith("https://")
+        assert "ftp.ncbi.nlm.nih.gov" in result["url"]
 
     def test_logs_debug_with_format(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
@@ -2183,7 +2188,7 @@ class TestPmcLookupTgzPreference:
 
         result = pmc_lookup("PMC3531190")
         assert result is not None
-        assert result.format == "tgz"
+        assert result["format"] == "tgz"
 
     def test_tgz_only_still_returns_tgz(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """tgz-only response still returns tgz."""
@@ -2196,7 +2201,7 @@ class TestPmcLookupTgzPreference:
 
         result = pmc_lookup("PMC9273392")
         assert result is not None
-        assert result.format == "tgz"
+        assert result["format"] == "tgz"
 
     def test_pdf_only_still_returns_pdf(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """pdf-only response still returns pdf."""
@@ -2209,7 +2214,7 @@ class TestPmcLookupTgzPreference:
 
         result = pmc_lookup("PMC12345")
         assert result is not None
-        assert result.format == "pdf"
+        assert result["format"] == "pdf"
 
 
 # ---------------------------------------------------------------------------

@@ -15,6 +15,7 @@ import httpx
 
 from pm_tools.cache import audit_log, cache_read, cache_write
 from pm_tools.http import get_client
+from pm_tools.types import SearchCacheEntry
 
 ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 DEFAULT_MAX = 10000
@@ -57,7 +58,7 @@ def search(
         key = _cache_key(query, max_results)
         cached = cache_read(pm_dir, "search", key)
         if cached is not None:
-            data = json.loads(cached)
+            data: SearchCacheEntry = json.loads(cached)
             pmids = data["pmids"]
             original_ts = data.get("timestamp", "")
 
@@ -110,16 +111,14 @@ def search(
     if pm_dir is not None:
         key = _cache_key(query, max_results)
         timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-        cache_data = json.dumps(
-            {
-                "query": query,
-                "max_results": max_results,
-                "pmids": pmids,
-                "count": len(pmids),
-                "timestamp": timestamp,
-            },
-            ensure_ascii=False,
-        )
+        entry: SearchCacheEntry = {
+            "query": query,
+            "max_results": max_results,
+            "pmids": pmids,
+            "count": len(pmids),
+            "timestamp": timestamp,
+        }
+        cache_data = json.dumps(entry, ensure_ascii=False)
         cache_write(pm_dir, "search", key, cache_data)
 
     return pmids

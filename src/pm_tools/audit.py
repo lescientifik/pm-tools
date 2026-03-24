@@ -7,14 +7,16 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from pm_tools.types import AuditEvent
 
-def _read_events(pm_dir: Path) -> list[dict[str, Any]]:
+
+def _read_events(pm_dir: Path) -> list[AuditEvent]:
     """Read all valid events from audit.jsonl, skipping corrupted lines."""
     audit_path = pm_dir / "audit.jsonl"
     if not audit_path.exists():
         return []
 
-    events: list[dict[str, Any]] = []
+    events: list[AuditEvent] = []
     for line in audit_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
@@ -44,7 +46,7 @@ def audit_summary(pm_dir: Path) -> dict[str, Any]:
     }
 
 
-def audit_searches(pm_dir: Path) -> list[dict[str, Any]]:
+def audit_searches(pm_dir: Path) -> list[AuditEvent]:
     """List all search operations from the audit trail.
 
     Returns:

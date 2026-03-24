@@ -7,13 +7,14 @@ import sys
 from typing import Any
 
 from pm_tools.io import read_jsonl
+from pm_tools.types import DiffResult
 
 
 def diff_jsonl(
     old_articles: list[dict[str, Any]],
     new_articles: list[dict[str, Any]],
     ignore_fields: list[str] | None = None,
-) -> list[dict[str, Any]]:
+) -> list[DiffResult]:
     """Compare two lists of articles by PMID.
 
     Args:
@@ -46,9 +47,9 @@ def diff_jsonl(
         if pmid:
             new_by_pmid[pmid] = article
 
-    removed: list[dict[str, Any]] = []
-    changed: list[dict[str, Any]] = []
-    added: list[dict[str, Any]] = []
+    removed: list[DiffResult] = []
+    changed: list[DiffResult] = []
+    added: list[DiffResult] = []
 
     # Find removed and changed
     for pmid, old_article in old_by_pmid.items():

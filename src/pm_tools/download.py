@@ -9,25 +9,17 @@ import sys
 import tarfile
 import time
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import httpx
 
 from pm_tools.cache import audit_log
 from pm_tools.http import get_client as get_http_client
 from pm_tools.io import read_jsonl
+from pm_tools.types import DownloadSource
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class PmcResult:
-    """Result from PMC OA lookup: URL and format (pdf or tgz)."""
-
-    url: str
-    format: Literal["pdf", "tgz"]
 
 
 BATCH_SIZE = 200
@@ -59,11 +51,11 @@ def convert_pmids(
     return results
 
 
-def pmc_lookup(pmcid: str) -> PmcResult | None:
+def pmc_lookup(pmcid: str) -> dict[str, str] | None:
     """Query PMC OA Service for PDF or tgz URL.
 
     Prefers tgz over pdf when both are available (tgz contains NXML + PDF).
-    Returns PmcResult with url and format, or None if no link found.
+    Returns a dict with ``url`` and ``format`` keys, or None if no link found.
     """
     client = get_http_client()
     url = f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmcid}"
@@ -99,10 +91,10 @@ def pmc_lookup(pmcid: str) -> PmcResult | None:
 
         if tgz_href:
             logger.debug("PMC lookup %s: found tgz link", pmcid)
-            return PmcResult(url=tgz_href, format="tgz")
+            return {"url": tgz_href, "format": "tgz"}
         if pdf_href:
             logger.debug("PMC lookup %s: found pdf link", pmcid)
-            return PmcResult(url=pdf_href, format="pdf")
+            return {"url": pdf_href, "format": "pdf"}
     except ET.ParseError as e:
         logger.warning("PMC lookup %s: XML parse error: %s", pmcid, e)
 
@@ -199,7 +191,7 @@ def find_sources(
     email: str | None = None,
     pmc_only: bool = False,
     unpaywall_only: bool = False,
-) -> list[dict[str, Any]]:
+) -> list[DownloadSource]:
     """Find download sources for articles (tgz containing NXML, or PDF).
 
     Args:
@@ -209,12 +201,12 @@ def find_sources(
         unpaywall_only: Only check Unpaywall.
 
     Returns:
-        List of {pmid, source, url} dicts.
+        List of DownloadSource dicts.
     """
     if not articles:
         return []
 
-    sources: list[dict[str, Any]] = []
+    sources: list[DownloadSource] = []
 
     for article in articles:
         pmid = article.get("pmid", "")
@@ -227,13 +219,13 @@ def find_sources(
                 pmc_result = pmc_lookup(pmcid)
                 if pmc_result is not None:
                     sources.append(
-                        {
-                            "pmid": pmid,
-                            "source": "pmc",
-                            "url": pmc_result.url,
-                            "pmcid": pmcid,
-                            "pmc_format": pmc_result.format,
-                        }
+                        DownloadSource(
+                            pmid=pmid,
+                            source="pmc",
+                            url=pmc_result["url"],
+                            pmcid=pmcid,
+                            pmc_format=pmc_result["format"],
+                        )
                     )
                     continue
 
@@ -242,12 +234,12 @@ def find_sources(
                 pdf_url = unpaywall_lookup(doi, email)
                 if pdf_url:
                     sources.append(
-                        {
-                            "pmid": pmid,
-                            "source": "unpaywall",
-                            "url": pdf_url,
-                            "doi": doi,
-                        }
+                        DownloadSource(
+                            pmid=pmid,
+                            source="unpaywall",
+                            url=pdf_url,
+                            doi=doi,
+                        )
                     )
                     continue
         except Exception:
@@ -263,11 +255,11 @@ def find_sources(
         else:
             logger.debug("PMID %s: no source found (lookups returned None)", pmid)
         sources.append(
-            {
-                "pmid": pmid,
-                "source": None,
-                "url": None,
-            }
+            DownloadSource(
+                pmid=pmid,
+                source=None,
+                url=None,
+            )
         )
 
     return sources
@@ -278,7 +270,7 @@ RETRYABLE_STATUS_CODES = {503, 429}
 
 
 def _download_one(
-    source: dict[str, Any],
+    source: DownloadSource,
     output_dir: Path,
     overwrite: bool,
     timeout: int,
@@ -435,7 +427,7 @@ def _download_one(
 
 
 def download_articles(
-    sources: list[dict[str, Any]],
+    sources: list[DownloadSource],
     output_dir: Path,
     overwrite: bool = False,
     timeout: int = 30,
