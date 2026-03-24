@@ -17,6 +17,7 @@ import httpx
 
 from pm_tools.cache import audit_log
 from pm_tools.http import get_client as get_http_client
+from pm_tools.io import read_jsonl
 
 logger = logging.getLogger(__name__)
 
@@ -653,11 +654,7 @@ def main(args: list[str] | None = None) -> int:
     is_jsonl = lines[0].startswith("{")
 
     if is_jsonl:
-        for line in lines:
-            try:
-                articles.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
+        articles = list(read_jsonl(io.StringIO("\n".join(lines))))
     else:
         pmids = lines
         if verbose:

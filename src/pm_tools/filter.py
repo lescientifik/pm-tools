@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from pm_tools.cache import audit_log
+from pm_tools.io import read_jsonl
 
 
 def _parse_year_filter(year_str: str) -> tuple[int | None, int | None]:
@@ -265,17 +266,6 @@ def filter_articles_audited(
     return result
 
 
-def parse_jsonl_stream(input_stream) -> Iterator[dict[str, Any]]:
-    """Parse JSONL lines from a stream, skipping malformed lines."""
-    for line in input_stream:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            yield json.loads(line)
-        except json.JSONDecodeError:
-            continue
-
 
 HELP_TEXT = """\
 pm filter - Filter JSONL articles by field patterns
@@ -386,7 +376,7 @@ def main(args: list[str] | None = None) -> int:
     detected_pm_dir = find_pm_dir()
 
     # Process stdin
-    articles = parse_jsonl_stream(sys.stdin)
+    articles = read_jsonl(sys.stdin)
 
     filter_kwargs: dict[str, Any] = {
         "year": year_filter,

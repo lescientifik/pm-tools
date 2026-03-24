@@ -6,6 +6,8 @@ import json
 import sys
 from typing import Any
 
+from pm_tools.io import read_jsonl
+
 
 def diff_jsonl(
     old_articles: list[dict[str, Any]],
@@ -121,7 +123,9 @@ def diff_summary(
 
 
 def load_jsonl(filepath: str) -> list[dict[str, Any]]:
-    """Load JSONL file, skipping malformed lines.
+    """Load JSONL file, skipping malformed lines and non-dict values.
+
+    Only keeps dicts that contain a "pmid" key (required for diff).
 
     Args:
         filepath: Path to JSONL file, or "-" for stdin.
@@ -129,32 +133,11 @@ def load_jsonl(filepath: str) -> list[dict[str, Any]]:
     Returns:
         List of parsed dictionaries.
     """
-    articles = []
     if filepath == "-":
-        for line in sys.stdin:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                obj = json.loads(line)
-                if isinstance(obj, dict) and "pmid" in obj:
-                    articles.append(obj)
-            except json.JSONDecodeError:
-                continue
+        return [obj for obj in read_jsonl(sys.stdin) if "pmid" in obj]
     else:
         with open(filepath) as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                    if isinstance(obj, dict) and "pmid" in obj:
-                        articles.append(obj)
-                except json.JSONDecodeError:
-                    continue
-
-    return articles
+            return [obj for obj in read_jsonl(f) if "pmid" in obj]
 
 
 HELP_TEXT = """\
