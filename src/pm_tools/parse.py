@@ -533,7 +533,10 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(args: list[str] | None = None) -> int:
     """CLI entry point for pm parse."""
     parser = _build_parser()
-    ns = parser.parse_args(args)
+    try:
+        ns = parser.parse_args(args)
+    except SystemExit as e:
+        return int(e.code) if e.code is not None else 0
 
     # Read XML from stdin
     try:

@@ -320,9 +320,8 @@ class TestRefsCli:
 
     def test_help(self, capsys: pytest.CaptureFixture[str]) -> None:
         """pm refs --help prints help text and exits with 0."""
-        with pytest.raises(SystemExit) as exc_info:
-            refs_main(["--help"])
-        assert exc_info.value.code == 0
+        result = refs_main(["--help"])
+        assert result == 0
         captured = capsys.readouterr()
         assert "pm refs" in captured.out
         assert "--doi" in captured.out

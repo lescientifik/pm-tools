@@ -303,7 +303,7 @@ def main(args: list[str] | None = None) -> int:
     try:
         parsed = parser.parse_args(args)
     except SystemExit as e:
-        return 1 if e.code != 0 else 0
+        return int(e.code) if e.code is not None else 0
 
     # Validate year filter format
     if parsed.year is not None:

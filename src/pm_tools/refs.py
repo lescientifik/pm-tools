@@ -94,7 +94,10 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(args: list[str] | None = None) -> int:
     """CLI entry point for pm refs."""
     parser = _build_parser()
-    parsed = parser.parse_args(args)
+    try:
+        parsed = parser.parse_args(args)
+    except SystemExit as e:
+        return int(e.code) if e.code is not None else 0
 
     id_type = "doi" if parsed.doi else "pmid"
     files: list[str] = parsed.files
