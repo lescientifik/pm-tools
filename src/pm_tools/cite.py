@@ -75,8 +75,16 @@ def cite(
     if not pmids:
         return []
 
+    # Deduplicate while preserving order (for result assembly below)
+    seen: set[str] = set()
+    unique_pmids: list[str] = []
+    for pmid in pmids:
+        if pmid not in seen:
+            seen.add(pmid)
+            unique_pmids.append(pmid)
+
     data = cached_batch_fetch(
-        ids=pmids,
+        ids=unique_pmids,
         pm_dir=pm_dir,
         cache_category="cite",
         cache_ext=".json",
@@ -85,16 +93,7 @@ def cite(
         rate_limit_delay=rate_limit_delay,
         refresh=refresh,
         verbose=verbose,
-        deduplicate=True,
     )
-
-    # Deduplicate while preserving order
-    seen: set[str] = set()
-    unique_pmids: list[str] = []
-    for pmid in pmids:
-        if pmid not in seen:
-            seen.add(pmid)
-            unique_pmids.append(pmid)
 
     # Build result list: parse JSON strings back to dicts, in original order
     results: list[dict] = []

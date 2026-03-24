@@ -48,6 +48,34 @@ class _CallTracker:
 # ---------------------------------------------------------------------------
 
 
+class TestEmptyIds:
+    """Edge case: empty IDs list."""
+
+    def test_empty_ids_returns_empty_dict(self, tmp_path: Path) -> None:
+        """cached_batch_fetch with no IDs returns empty dict immediately."""
+        tracker = _CallTracker()
+        result = cached_batch_fetch(
+            ids=[],
+            pm_dir=_make_pm_dir(tmp_path),
+            cache_category="test",
+            cache_ext=".txt",
+            fetch_batch=tracker,
+        )
+        assert result == {}
+        assert tracker.calls == []
+
+    def test_empty_ids_no_pm_dir(self) -> None:
+        """cached_batch_fetch with no IDs and no pm_dir returns empty dict."""
+        result = cached_batch_fetch(
+            ids=[],
+            pm_dir=None,
+            cache_category="test",
+            cache_ext=".txt",
+            fetch_batch=_fake_fetch_batch,
+        )
+        assert result == {}
+
+
 class TestAllCached:
     """When all IDs are already cached, fetch_batch should not be called."""
 

@@ -22,36 +22,6 @@ XML_DOCTYPE = (
 )
 
 
-def _merge_xml_responses(responses: list[str]) -> str:
-    """Merge multiple efetch XML responses into a single valid document.
-
-    Each response is a complete XML document with its own declaration and
-    PubmedArticleSet root. This function extracts all article elements
-    and wraps them in a single PubmedArticleSet.
-    """
-    if not responses:
-        return ""
-
-    if len(responses) == 1:
-        return responses[0]
-
-    # Collect all article elements from all responses
-    fragments: list[str] = []
-    for resp in responses:
-        try:
-            root = ET.fromstring(resp)
-        except ET.ParseError:
-            continue
-        for child in root:
-            child.tail = None
-            fragments.append(ET.tostring(child, encoding="unicode"))
-
-    if not fragments:
-        return ""
-
-    articles_xml = "\n".join(fragments)
-    return f"{XML_HEADER}{XML_DOCTYPE}<PubmedArticleSet>\n{articles_xml}\n</PubmedArticleSet>"
-
 
 def split_xml_articles(xml: str) -> dict[str, str]:
     """Split a PubmedArticleSet XML into per-PMID fragments.
