@@ -4,70 +4,45 @@ The `pm` command provides a unified interface with subcommands:
   pm search, pm fetch, pm parse, pm filter, pm cite, pm download, pm diff, pm refs, pm collect
 """
 
+import argparse
 import sys
 
 from pm_tools import audit, cite, diff, download, fetch, filter, init, parse, refs, search
 
 
+def _build_collect_parser() -> argparse.ArgumentParser:
+    """Build argument parser for pm collect."""
+    parser = argparse.ArgumentParser(
+        prog="pm collect",
+        description="Collect PubMed articles (search + fetch + parse -> JSONL).",
+    )
+    parser.add_argument(
+        "--csl", action="store_true", help="Output CSL-JSON instead of ArticleRecord"
+    )
+    parser.add_argument(
+        "--max", type=int, default=100, dest="max_results", help="Maximum results (default: 100)"
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show progress on stderr")
+    parser.add_argument("query", help="PubMed search query")
+    return parser
+
+
 def collect_main(argv: list[str] | None = None) -> int:
     """Collect articles: pm search | pm fetch | pm parse in one command."""
-    args = argv if argv is not None else sys.argv[1:]
+    raw_args = argv if argv is not None else sys.argv[1:]
 
-    max_results = 100
-    query = ""
-    verbose = False
-    csl_mode = False
-    i = 0
+    parser = _build_collect_parser()
+    try:
+        args = parser.parse_args(raw_args)
+    except SystemExit as e:
+        return 2 if e.code != 0 else 0
 
-    while i < len(args):
-        arg = args[i]
-        if arg in ("--help", "-h"):
-            print(COLLECT_HELP)
-            sys.exit(0)
-        elif arg in ("--verbose", "-v"):
-            verbose = True
-        elif arg == "--csl":
-            csl_mode = True
-        elif arg == "--max":
-            i += 1
-            if i >= len(args):
-                print("Error: --max requires a number", file=sys.stderr)
-                sys.exit(2)
-            try:
-                max_results = int(args[i])
-            except ValueError:
-                print(f"Error: --max requires a number, got '{args[i]}'", file=sys.stderr)
-                sys.exit(2)
-        elif arg.startswith("--max="):
-            try:
-                max_results = int(arg.split("=", 1)[1])
-            except ValueError:
-                print("Error: --max requires a number", file=sys.stderr)
-                sys.exit(2)
-        elif arg.startswith("-"):
-            print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            sys.exit(1)
-        else:
-            if query:
-                print(
-                    "Error: Only one query allowed. Use quotes for multi-word queries.",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-            query = arg
-        i += 1
-
-    if not query:
-        print("Error: Missing query argument", file=sys.stderr)
-        print('Usage: pm collect [OPTIONS] "search query"', file=sys.stderr)
-        sys.exit(1)
-
-    if not query.strip():
+    if not args.query.strip():
         print("Error: Query cannot be empty", file=sys.stderr)
-        sys.exit(1)
+        return 1
 
-    if verbose:
-        print(f'Searching PubMed: "{query}" (max {max_results})...', file=sys.stderr)
+    if args.verbose:
+        print(f'Searching PubMed: "{args.query}" (max {args.max_results})...', file=sys.stderr)
 
     try:
         import json
@@ -77,57 +52,32 @@ def collect_main(argv: list[str] | None = None) -> int:
         detected_pm_dir = find_pm_dir()
 
         pmids = search.search(
-            query,
-            max_results,
+            args.query,
+            args.max_results,
             pm_dir=detected_pm_dir,
         )
         if not pmids:
-            sys.exit(0)
+            return 0
 
         xml = fetch.fetch(
             pmids,
-            verbose=verbose,
+            verbose=args.verbose,
             pm_dir=detected_pm_dir,
         )
         if not xml:
-            sys.exit(0)
+            return 0
 
         articles = parse.parse_xml(xml)
         for article in articles:
-            if csl_mode:
+            if args.csl:
                 output = parse.article_to_csl(article)
             else:
-                # Filter to legacy fields by default (backward compatibility)
                 output = {k: v for k, v in article.items() if k in parse.LEGACY_FIELDS}
             print(json.dumps(output, ensure_ascii=False))
-        sys.exit(0)
+        return 0
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-
-
-COLLECT_HELP = """\
-pm collect - Collect PubMed articles (search + fetch + parse → JSONL)
-
-Usage: pm collect [OPTIONS] "search query"
-
-Options:
-  --csl           Output CSL-JSON instead of ArticleRecord
-  --max N         Maximum results (default: 100)
-  -v, --verbose   Show progress on stderr
-  -h, --help      Show this help message
-
-Output:
-  JSONL to stdout (one article per line)
-  With --csl: CSL-JSON records (not compatible with pm filter/pm diff)
-
-Examples:
-  pm collect "CRISPR cancer therapy" --max 100 > results.jsonl
-  pm collect "CRISPR cancer therapy" --csl > citations.jsonl
-  pm collect --max 50 "machine learning diagnosis" > results.jsonl
-
-For advanced filtering, use the full pipeline:
-  pm search "query" | pm fetch | pm parse | pm filter --year 2024"""
+        return 1
 
 
 # --- Unified `pm` entry point ---

@@ -553,11 +553,10 @@ class TestLegacyFieldsFiltering:
             _patch("pm_tools.fetch.fetch", return_value=xml),
             _patch("pm_tools.cache.find_pm_dir", return_value=None),
             _patch("sys.stdout", captured),
-            pytest.raises(SystemExit) as exc_info,
         ):
-            collect_main(["test query"])
+            result = collect_main(["test query"])
 
-        assert exc_info.value.code == 0
+        assert result == 0
         output = captured.getvalue().strip()
         record = json.loads(output)
         assert set(record.keys()) <= LEGACY_FIELDS
@@ -776,10 +775,10 @@ class TestCollectCslFlag:
     """pm collect --csl produces CSL-JSON output."""
 
     def test_csl_in_collect_help(self) -> None:
-        """--csl appears in COLLECT_HELP."""
-        from pm_tools.cli import COLLECT_HELP
+        """--csl appears in collect parser help."""
+        from pm_tools.cli import _build_collect_parser
 
-        assert "--csl" in COLLECT_HELP
+        assert "--csl" in _build_collect_parser().format_help()
 
     def test_collect_csl_flag_accepted(self) -> None:
         """collect_main(["query", "--csl"]) doesn't error on the flag."""
@@ -791,12 +790,11 @@ class TestCollectCslFlag:
         with (
             patch("pm_tools.search.search", return_value=[]),
             patch("pm_tools.cache.find_pm_dir", return_value=None),
-            pytest.raises(SystemExit) as exc_info,
         ):
-            collect_main(["test query", "--csl"])
+            result = collect_main(["test query", "--csl"])
 
         # Empty search results → exit 0
-        assert exc_info.value.code == 0
+        assert result == 0
 
     def test_collect_without_csl_uses_legacy(self) -> None:
         """collect_main() without --csl filters to LEGACY_FIELDS."""
@@ -815,11 +813,10 @@ class TestCollectCslFlag:
             patch("pm_tools.fetch.fetch", return_value=xml),
             patch("pm_tools.cache.find_pm_dir", return_value=None),
             patch("sys.stdout", captured),
-            pytest.raises(SystemExit) as exc_info,
         ):
-            collect_main(["test query"])
+            result = collect_main(["test query"])
 
-        assert exc_info.value.code == 0
+        assert result == 0
         output = captured.getvalue().strip()
         record = json.loads(output)
         assert set(record.keys()) <= LEGACY_FIELDS
@@ -840,11 +837,10 @@ class TestCollectCslFlag:
             patch("pm_tools.fetch.fetch", return_value=xml),
             patch("pm_tools.cache.find_pm_dir", return_value=None),
             patch("sys.stdout", captured),
-            pytest.raises(SystemExit) as exc_info,
         ):
-            collect_main(["test query", "--csl"])
+            result = collect_main(["test query", "--csl"])
 
-        assert exc_info.value.code == 0
+        assert result == 0
         output = captured.getvalue().strip()
         record = json.loads(output)
         assert record["type"] == "article-journal"

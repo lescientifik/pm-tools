@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from collections.abc import Iterator
@@ -266,34 +267,31 @@ def filter_articles_audited(
     return result
 
 
-
-HELP_TEXT = """\
-pm filter - Filter JSONL articles by field patterns
-
-Usage: pm parse | pm filter [OPTIONS]
-       cat articles.jsonl | pm filter [OPTIONS]
-
-Filter Options:
-  --year PATTERN      Year filter (exact, range, or open-ended)
-                      Examples: 2024, 2020-2024, 2020-, -2024
-  --journal PATTERN   Journal contains PATTERN (case-insensitive)
-  --journal-exact STR Journal equals STR exactly
-  --author PATTERN    Any author contains PATTERN (case-insensitive)
-  --has-abstract      Article has non-empty abstract
-  --has-doi           Article has DOI
-
-General Options:
-  -v, --verbose       Show filter stats on stderr
-  -h, --help          Show this help
-
-Examples:
-  pm filter --year 2020- --journal nature --has-abstract
-  pm filter --author smith
-  pm filter --year 2020-2024
-
-Notes:
-  - Multiple filters combine with AND logic
-  - Malformed JSON lines are silently skipped"""
+def _build_parser() -> argparse.ArgumentParser:
+    """Build argument parser for pm filter."""
+    parser = argparse.ArgumentParser(
+        prog="pm filter",
+        description="Filter JSONL articles by field patterns.",
+    )
+    parser.add_argument("--year", default=None, help="Year filter (2024, 2020-2024, 2020-, -2024)")
+    parser.add_argument(
+        "--journal", default=None, help="Journal contains PATTERN (case-insensitive)"
+    )
+    parser.add_argument(
+        "--journal-exact", default=None, dest="journal_exact", help="Journal equals STR exactly"
+    )
+    parser.add_argument(
+        "--author", default=None, help="Any author contains PATTERN (case-insensitive)"
+    )
+    parser.add_argument(
+        "--has-abstract",
+        action="store_true",
+        dest="has_abstract",
+        help="Article has non-empty abstract",
+    )
+    parser.add_argument("--has-doi", action="store_true", dest="has_doi", help="Article has DOI")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show filter stats on stderr")
+    return parser
 
 
 def main(args: list[str] | None = None) -> int:
@@ -301,71 +299,16 @@ def main(args: list[str] | None = None) -> int:
     if args is None:
         args = sys.argv[1:]
 
-    # Parse arguments
-    year_filter = None
-    journal_filter = None
-    journal_exact_filter = None
-    author_filter = None
-    want_abstract = False
-    want_doi = False
-    verbose = False
-
-    i = 0
-    while i < len(args):
-        arg = args[i]
-        if arg in ("--help", "-h"):
-            print(HELP_TEXT)
-            return 0
-        elif arg in ("--verbose", "-v"):
-            verbose = True
-        elif arg == "--year":
-            i += 1
-            if i >= len(args):
-                print("Error: --year requires a pattern", file=sys.stderr)
-                return 1
-            year_filter = args[i]
-        elif arg.startswith("--year="):
-            year_filter = arg.split("=", 1)[1]
-        elif arg == "--journal":
-            i += 1
-            if i >= len(args):
-                print("Error: --journal requires a pattern", file=sys.stderr)
-                return 1
-            journal_filter = args[i]
-        elif arg.startswith("--journal="):
-            journal_filter = arg.split("=", 1)[1]
-        elif arg == "--journal-exact":
-            i += 1
-            if i >= len(args):
-                print("Error: --journal-exact requires a value", file=sys.stderr)
-                return 1
-            journal_exact_filter = args[i]
-        elif arg.startswith("--journal-exact="):
-            journal_exact_filter = arg.split("=", 1)[1]
-        elif arg == "--author":
-            i += 1
-            if i >= len(args):
-                print("Error: --author requires a pattern", file=sys.stderr)
-                return 1
-            author_filter = args[i]
-        elif arg.startswith("--author="):
-            author_filter = arg.split("=", 1)[1]
-        elif arg == "--has-abstract":
-            want_abstract = True
-        elif arg == "--has-doi":
-            want_doi = True
-        elif arg.startswith("-"):
-            print(f"Unknown option: {arg}. Use --help for usage.", file=sys.stderr)
-            return 1
-        else:
-            print(f"Unknown option: {arg}. Use --help for usage.", file=sys.stderr)
-            return 1
-        i += 1
+    parser = _build_parser()
+    try:
+        parsed = parser.parse_args(args)
+    except SystemExit as e:
+        return 1 if e.code != 0 else 0
 
     # Validate year filter format
-    if year_filter is not None:
+    if parsed.year is not None:
         try:
-            _parse_year_filter(year_filter)
+            _parse_year_filter(parsed.year)
         except ValueError as e:
             print(f"Error: {e}. Use: 2024, 2020-2024, 2020-, or -2024", file=sys.stderr)
             return 1
@@ -379,20 +322,20 @@ def main(args: list[str] | None = None) -> int:
     articles = read_jsonl(sys.stdin)
 
     filter_kwargs: dict[str, Any] = {
-        "year": year_filter,
-        "journal": journal_filter,
-        "journal_exact": journal_exact_filter,
-        "author": author_filter,
-        "has_abstract": want_abstract,
-        "has_doi": want_doi,
+        "year": parsed.year,
+        "journal": parsed.journal,
+        "journal_exact": parsed.journal_exact,
+        "author": parsed.author,
+        "has_abstract": parsed.has_abstract,
+        "has_doi": parsed.has_doi,
     }
 
-    if verbose or detected_pm_dir is not None:
+    if parsed.verbose or detected_pm_dir is not None:
         # Use audited version (consumes iterator into list)
         result = filter_articles_audited(articles, pm_dir=detected_pm_dir, **filter_kwargs)
         for article in result:
             print(json.dumps(article, ensure_ascii=False))
-        if verbose:
+        if parsed.verbose:
             print(
                 f"{len(result)} articles passed filters",
                 file=sys.stderr,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from typing import Any
@@ -141,38 +142,19 @@ def load_jsonl(filepath: str) -> list[dict[str, Any]]:
             return [obj for obj in read_jsonl(f) if "pmid" in obj]
 
 
-HELP_TEXT = """\
-pm diff - Compare two JSONL files by PMID
-
-Usage: pm diff [OPTIONS] OLD_FILE NEW_FILE
-       pm diff [OPTIONS] OLD_FILE - < new.jsonl
-       pm diff [OPTIONS] - NEW_FILE < old.jsonl
-
-Arguments:
-  OLD_FILE    Baseline/reference JSONL file (or - for stdin)
-  NEW_FILE    New/comparison JSONL file (or - for stdin)
-  Note: At most one of OLD_FILE or NEW_FILE can be - (stdin)
-
-Output: Streaming JSONL with one line per difference:
-  {"pmid":"...","status":"added","article":{...}}
-  {"pmid":"...","status":"removed","article":{...}}
-  {"pmid":"...","status":"changed","old":{...},"new":{...}}
-
-Options:
-  -q, --quiet         Suppress output, just set exit code
-  --ignore FIELDS     Ignore these fields when comparing (comma-separated)
-  -h, --help          Show this help
-
-Exit Codes:
-  0    No differences (files are identical)
-  1    Differences found
-  2    Error (invalid arguments, file not found, malformed JSON)
-
-Examples:
-  pm diff baseline_v1.jsonl baseline_v2.jsonl
-  pm diff old.jsonl new.jsonl | jq -r 'select(.status=="added") | .pmid'
-  pm diff file1.jsonl file2.jsonl --quiet && echo "identical"
-  pm diff old.jsonl new.jsonl --ignore abstract"""
+def _build_parser() -> argparse.ArgumentParser:
+    """Build argument parser for pm diff."""
+    parser = argparse.ArgumentParser(
+        prog="pm diff",
+        description="Compare two JSONL files by PMID.",
+    )
+    parser.add_argument(
+        "-q", "--quiet", action="store_true", help="Suppress output, just set exit code"
+    )
+    parser.add_argument("--ignore", default="", help="Ignore these fields (comma-separated)")
+    parser.add_argument("old_file", metavar="OLD_FILE", help="Baseline JSONL file (or - for stdin)")
+    parser.add_argument("new_file", metavar="NEW_FILE", help="New JSONL file (or - for stdin)")
+    return parser
 
 
 def main(args: list[str] | None = None) -> int:
@@ -180,45 +162,15 @@ def main(args: list[str] | None = None) -> int:
     if args is None:
         args = sys.argv[1:]
 
-    quiet = False
-    ignore_fields: list[str] = []
-    positional: list[str] = []
+    parser = _build_parser()
+    try:
+        parsed = parser.parse_args(args)
+    except SystemExit as e:
+        return 2 if e.code != 0 else 0
 
-    i = 0
-    while i < len(args):
-        arg = args[i]
-        if arg in ("--help", "-h"):
-            print(HELP_TEXT)
-            return 0
-        elif arg in ("--quiet", "-q"):
-            quiet = True
-        elif arg == "--ignore":
-            i += 1
-            if i >= len(args):
-                print("Error: --ignore requires an argument", file=sys.stderr)
-                return 2
-            ignore_fields = [f.strip() for f in args[i].split(",")]
-        elif arg.startswith("--ignore="):
-            ignore_fields = [f.strip() for f in arg.split("=", 1)[1].split(",")]
-        elif arg == "-":
-            positional.append("-")
-        elif arg.startswith("-"):
-            print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            return 2
-        else:
-            positional.append(arg)
-        i += 1
-
-    if len(positional) < 2:
-        print("Error: Two files required", file=sys.stderr)
-        print("Usage: pm diff [OPTIONS] OLD_FILE NEW_FILE", file=sys.stderr)
-        return 2
-
-    if len(positional) > 2:
-        print("Error: Too many arguments", file=sys.stderr)
-        return 2
-
-    old_file, new_file = positional
+    ignore_fields = [f.strip() for f in parsed.ignore.split(",") if f.strip()]
+    old_file: str = parsed.old_file
+    new_file: str = parsed.new_file
 
     if old_file == "-" and new_file == "-":
         print("Error: Cannot use stdin (-) for both files", file=sys.stderr)
@@ -239,7 +191,7 @@ def main(args: list[str] | None = None) -> int:
 
     diffs = diff_jsonl(old_articles, new_articles, ignore_fields or None)
 
-    if not quiet:
+    if not parsed.quiet:
         for diff in diffs:
             print(json.dumps(diff, ensure_ascii=False))
 
