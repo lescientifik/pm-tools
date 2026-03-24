@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -109,18 +110,16 @@ def cite(
     return results
 
 
-HELP_TEXT = """\
-pm cite - Fetch CSL-JSON citations from NCBI Citation Exporter API
-
-Usage: echo "12345" | pm cite > citations.jsonl
-       pm cite 12345 67890 > citations.jsonl
-
-Options:
-  -v, --verbose  Show progress on stderr
-  -h, --help     Show this help message
-
-Output:
-  JSONL format (one CSL-JSON object per line)"""
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser for pm cite."""
+    parser = argparse.ArgumentParser(
+        prog="pm cite",
+        description="Fetch CSL-JSON citations from NCBI Citation Exporter API.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show progress on stderr")
+    parser.add_argument("pmids", nargs="*", help="PMIDs to cite (also reads from stdin)")
+    return parser
 
 
 def main(args: list[str] | None = None) -> int:
@@ -128,20 +127,14 @@ def main(args: list[str] | None = None) -> int:
     if args is None:
         args = sys.argv[1:]
 
-    verbose = False
-    pmids: list[str] = []
+    parser = _build_parser()
+    try:
+        parsed = parser.parse_args(args)
+    except SystemExit as e:
+        return int(e.code) if e.code is not None else 0
 
-    for arg in args:
-        if arg in ("--help", "-h"):
-            print(HELP_TEXT)
-            return 0
-        elif arg in ("--verbose", "-v"):
-            verbose = True
-        elif arg.startswith("-"):
-            print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            return 2
-        else:
-            pmids.append(arg)
+    verbose: bool = parsed.verbose
+    pmids: list[str] = parsed.pmids
 
     # Read from stdin if no PMIDs as arguments
     if not pmids and not sys.stdin.isatty():

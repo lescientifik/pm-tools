@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import re
@@ -124,30 +125,20 @@ def search(
     return pmids
 
 
-HELP_TEXT = """\
-pm search - Search PubMed and return PMIDs
-
-Usage: pm search [OPTIONS] "search query"
-
-Options:
-  --max N        Maximum results to return (default: 10000)
-  --refresh      Bypass cache and re-fetch from PubMed
-  -h, --help     Show this help message
-
-Output:
-  PMIDs to stdout, one per line
-
-Tip: for most tasks, use 'pm collect' instead — it runs search + fetch + parse
-in one command and outputs JSONL directly:
-  pm collect "CRISPR cancer therapy" --max 100 > results.jsonl
-
-If you need raw PMIDs, save them to a file for reuse:
-  pm search "CRISPR cancer therapy" --max 100 > pmids.txt
-  cat pmids.txt | pm fetch | pm parse > results.jsonl
-
-Query syntax:
-  Uses PubMed query syntax. See:
-  https://pubmed.ncbi.nlm.nih.gov/help/#search-tags"""
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser for pm search."""
+    parser = argparse.ArgumentParser(
+        prog="pm search",
+        description="Search PubMed and return PMIDs.",
+    )
+    parser.add_argument(
+        "--max", type=int, default=DEFAULT_MAX, dest="max_results",
+        help="Maximum results (default: 10000)",
+    )
+    parser.add_argument("--refresh", action="store_true", help="Bypass cache and re-fetch")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show progress on stderr")
+    parser.add_argument("query_words", nargs="*", help="Search query")
+    return parser
 
 
 def main(args: list[str] | None = None) -> int:
@@ -155,44 +146,15 @@ def main(args: list[str] | None = None) -> int:
     if args is None:
         args = sys.argv[1:]
 
-    max_results = DEFAULT_MAX
-    query = ""
-    refresh = False
-    i = 0
+    parser = _build_parser()
+    try:
+        parsed = parser.parse_args(args)
+    except SystemExit as e:
+        return int(e.code) if e.code is not None else 0
 
-    while i < len(args):
-        arg = args[i]
-        if arg in ("--help", "-h"):
-            print(HELP_TEXT)
-            return 0
-        elif arg == "--refresh":
-            refresh = True
-        elif arg == "--max":
-            i += 1
-            if i >= len(args):
-                print("Error: --max requires a number", file=sys.stderr)
-                return 2
-            try:
-                max_results = int(args[i])
-            except ValueError:
-                print(
-                    f"Error: --max requires a number, got '{args[i]}'",
-                    file=sys.stderr,
-                )
-                return 2
-        elif arg.startswith("--max="):
-            try:
-                max_results = int(arg.split("=", 1)[1])
-            except ValueError:
-                print("Error: --max requires a number", file=sys.stderr)
-                return 2
-        elif arg.startswith("-"):
-            print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            print("hint: use 'pm search --help' for usage", file=sys.stderr)
-            return 2
-        else:
-            query = arg
-        i += 1
+    max_results: int = parsed.max_results
+    refresh: bool = parsed.refresh
+    query = " ".join(parsed.query_words)
 
     if not query:
         print('Usage: pm search [--max N] "search query"', file=sys.stderr)

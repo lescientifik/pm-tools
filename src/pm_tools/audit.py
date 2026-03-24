@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -87,21 +88,14 @@ def _format_searches(searches: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-HELP_TEXT = """\
-pm audit - View audit trail and PRISMA report
-
-Usage: pm audit [OPTIONS]
-
-Options:
-  --searches    List all search operations with dates and counts
-  -h, --help    Show this help message
-
-Output:
-  Human-readable audit summary to stdout
-
-Examples:
-  pm audit                # Summary of all operations
-  pm audit --searches     # List of searches with dates"""
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser for pm audit."""
+    parser = argparse.ArgumentParser(
+        prog="pm audit",
+        description="View audit trail and PRISMA report.",
+    )
+    parser.add_argument("--searches", action="store_true", help="List all search operations")
+    return parser
 
 
 def main(args: list[str] | None = None) -> int:
@@ -109,17 +103,13 @@ def main(args: list[str] | None = None) -> int:
     if args is None:
         args = sys.argv[1:]
 
-    show_searches = False
+    parser = _build_parser()
+    try:
+        parsed = parser.parse_args(args)
+    except SystemExit as e:
+        return int(e.code) if e.code is not None else 0
 
-    for arg in args:
-        if arg in ("--help", "-h"):
-            print(HELP_TEXT)
-            return 0
-        elif arg == "--searches":
-            show_searches = True
-        elif arg.startswith("-"):
-            print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            return 2
+    show_searches: bool = parsed.searches
 
     from pm_tools.cache import find_pm_dir
 
