@@ -16,6 +16,7 @@ from typing import Any, Literal
 import httpx
 
 from pm_tools.cache import audit_log
+from pm_tools.http import get_client as get_http_client
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +32,6 @@ class PmcResult:
 BATCH_SIZE = 200
 RATE_LIMIT_DELAY = 0.34
 MAX_MEMBER_SIZE = 200 * 1024 * 1024  # 200 MB guard against decompression bombs
-
-# Module-level HTTP client factory (allows monkeypatching in tests)
-_http_client: httpx.Client | None = None
-
-
-def get_http_client() -> httpx.Client:
-    """Get or create the module-level HTTP client."""
-    global _http_client
-    if _http_client is None:
-        _http_client = httpx.Client(timeout=30, follow_redirects=True)
-    return _http_client
 
 
 def convert_pmids(

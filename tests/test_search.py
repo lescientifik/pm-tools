@@ -16,6 +16,14 @@ import pytest
 
 from pm_tools.search import search
 
+
+def _mock_client_for(mock_response: MagicMock) -> MagicMock:
+    """Create a mock HTTP client whose .get() returns the given response."""
+    client = MagicMock()
+    client.get.return_value = mock_response
+    return client
+
+
 # =============================================================================
 # Basic functionality
 # =============================================================================
@@ -31,12 +39,14 @@ class TestSearchBasic:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             result = search("CRISPR cancer")
 
         assert result == ["12345", "67890", "11111"]
         # Verify the API was called
-        mock_get.assert_called_once()
+        mock_client.get.assert_called_once()
 
     def test_returns_list_of_strings(self, mock_esearch_response: str) -> None:
         """Return type is list[str], not list[int] or other."""
@@ -45,7 +55,9 @@ class TestSearchBasic:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response):
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             result = search("cancer")
 
         assert isinstance(result, list)
@@ -58,7 +70,9 @@ class TestSearchBasic:
         mock_response.text = mock_esearch_empty_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response):
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             result = search("nonexistent_query_xyzzy")
 
         assert result == []
@@ -79,10 +93,12 @@ class TestSearchAPIParameters:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("cancer")
 
-        call_args = mock_get.call_args
+        call_args = mock_client.get.call_args
         url = call_args[0][0] if call_args[0] else call_args[1].get("url", "")
         # The URL should contain esearch.fcgi (could be in URL or params)
         assert "esearch.fcgi" in str(url) or "esearch" in str(call_args)
@@ -94,10 +110,12 @@ class TestSearchAPIParameters:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("cancer")
 
-        call_args = mock_get.call_args
+        call_args = mock_client.get.call_args
         # Check params dict or URL string for db=pubmed
         params = call_args[1].get("params", {}) if call_args[1] else {}
         url_str = str(call_args)
@@ -110,10 +128,12 @@ class TestSearchAPIParameters:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("cancer")
 
-        call_args = mock_get.call_args
+        call_args = mock_client.get.call_args
         params = call_args[1].get("params", {}) if call_args[1] else {}
         url_str = str(call_args)
         assert params.get("retmax") in (10000, "10000") or "retmax=10000" in url_str
@@ -125,10 +145,12 @@ class TestSearchAPIParameters:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("cancer", max_results=100)
 
-        call_args = mock_get.call_args
+        call_args = mock_client.get.call_args
         params = call_args[1].get("params", {}) if call_args[1] else {}
         url_str = str(call_args)
         assert params.get("retmax") in (100, "100") or "retmax=100" in url_str
@@ -168,12 +190,14 @@ class TestSearchURLEncoding:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("asthma[MeSH Terms]")
 
         # The query should be passed to the API; httpx may encode params automatically,
         # but the term should contain the original query text
-        call_args = mock_get.call_args
+        call_args = mock_client.get.call_args
         params = call_args[1].get("params", {}) if call_args[1] else {}
         url_str = str(call_args)
         # Either the params dict has the raw query (httpx encodes it)
@@ -191,10 +215,12 @@ class TestSearchURLEncoding:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("(cancer OR tumor) AND treatment")
 
-        call_args = mock_get.call_args
+        call_args = mock_client.get.call_args
         params = call_args[1].get("params", {}) if call_args[1] else {}
         url_str = str(call_args)
         assert (
@@ -210,10 +236,12 @@ class TestSearchURLEncoding:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("2020:2024[dp]")
 
-        call_args = mock_get.call_args
+        call_args = mock_client.get.call_args
         params = call_args[1].get("params", {}) if call_args[1] else {}
         url_str = str(call_args)
         assert params.get("term") == "2020:2024[dp]" or "%3A" in url_str or "2020:2024" in url_str
@@ -225,10 +253,12 @@ class TestSearchURLEncoding:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("2024/01/15[edat]")
 
-        call_args = mock_get.call_args
+        call_args = mock_client.get.call_args
         params = call_args[1].get("params", {}) if call_args[1] else {}
         url_str = str(call_args)
         assert (
@@ -242,10 +272,12 @@ class TestSearchURLEncoding:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("cancer[ti] AND 2024[dp]")
 
-        call_args = mock_get.call_args
+        call_args = mock_client.get.call_args
         params = call_args[1].get("params", {}) if call_args[1] else {}
         url_str = str(call_args)
         assert (
@@ -275,19 +307,21 @@ class TestSearchErrorHandling:
             )
         )
 
+        mock_client = _mock_client_for(mock_response)
+
         with (
-            patch("pm_tools.search.httpx.get", return_value=mock_response),
+            patch("pm_tools.search.get_client", return_value=mock_client),
             pytest.raises((httpx.HTTPStatusError, RuntimeError)),
         ):
             search("cancer")
 
     def test_network_error_raises_exception(self) -> None:
         """Connection error should propagate."""
+        mock_client = MagicMock()
+        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
+
         with (
-            patch(
-                "pm_tools.search.httpx.get",
-                side_effect=httpx.ConnectError("Connection refused"),
-            ),
+            patch("pm_tools.search.get_client", return_value=mock_client),
             pytest.raises((httpx.ConnectError, ConnectionError, RuntimeError)),
         ):
             search("cancer")
@@ -319,12 +353,14 @@ class TestSearchCache:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             result1 = search("CRISPR cancer", pm_dir=pm_dir)
-            assert mock_get.call_count == 1
+            assert mock_client.get.call_count == 1
 
             result2 = search("CRISPR cancer", pm_dir=pm_dir)
-            assert mock_get.call_count == 1  # no additional API call
+            assert mock_client.get.call_count == 1  # no additional API call
 
         assert result1 == result2
 
@@ -337,10 +373,12 @@ class TestSearchCache:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("CRISPR", pm_dir=pm_dir)
             search("gene therapy", pm_dir=pm_dir)
-            assert mock_get.call_count == 2  # both queries hit API
+            assert mock_client.get.call_count == 2  # both queries hit API
 
     def test_refresh_bypasses_cache(self, mock_esearch_response: str, tmp_path: Path) -> None:
         pm_dir = _make_pm_dir(tmp_path)
@@ -349,10 +387,12 @@ class TestSearchCache:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("CRISPR", pm_dir=pm_dir)
             search("CRISPR", pm_dir=pm_dir, refresh=True)
-            assert mock_get.call_count == 2  # refresh forces API call
+            assert mock_client.get.call_count == 2  # refresh forces API call
 
     def test_no_cache_without_pm_dir(self, mock_esearch_response: str) -> None:
         """Without pm_dir, search works as before (no caching)."""
@@ -361,10 +401,12 @@ class TestSearchCache:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response) as mock_get:
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("CRISPR")
             search("CRISPR")
-            assert mock_get.call_count == 2  # no cache → 2 API calls
+            assert mock_client.get.call_count == 2  # no cache → 2 API calls
 
 
 class TestSearchAudit:
@@ -377,7 +419,9 @@ class TestSearchAudit:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response):
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("CRISPR cancer", pm_dir=pm_dir)
 
         lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
@@ -398,7 +442,9 @@ class TestSearchAudit:
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
 
-        with patch("pm_tools.search.httpx.get", return_value=mock_response):
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
             search("CRISPR", pm_dir=pm_dir)
             search("CRISPR", pm_dir=pm_dir)
 

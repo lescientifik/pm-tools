@@ -10,21 +10,11 @@ from pathlib import Path
 import httpx
 
 from pm_tools.cache import audit_log, cache_read, cache_write
+from pm_tools.http import get_client as get_http_client
 
 API_URL = "https://pmc.ncbi.nlm.nih.gov/api/ctxp/v1/pubmed/"
 BATCH_SIZE = 200
 RATE_LIMIT_DELAY = 0.34
-
-# Module-level HTTP client factory (allows monkeypatching in tests)
-_http_client: httpx.Client | None = None
-
-
-def get_http_client() -> httpx.Client:
-    """Get or create the module-level HTTP client."""
-    global _http_client
-    if _http_client is None:
-        _http_client = httpx.Client(timeout=30, follow_redirects=True)
-    return _http_client
 
 
 def cite(

@@ -14,6 +14,7 @@ from pathlib import Path
 import httpx
 
 from pm_tools.cache import audit_log, cache_read, cache_write
+from pm_tools.http import get_client
 
 ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 DEFAULT_MAX = 10000
@@ -84,7 +85,7 @@ def search(
     encoded_query = urllib.parse.quote(query, safe="")
     url = f"{ESEARCH_URL}?db=pubmed&term={encoded_query}&retmax={max_results}&retmode=xml"
 
-    response = httpx.get(url, timeout=30)
+    response = get_client().get(url)
     response.raise_for_status()
 
     root = ET.fromstring(response.text)

@@ -10,6 +10,7 @@ from pathlib import Path
 import httpx
 
 from pm_tools.cache import audit_log, cache_read, cache_write
+from pm_tools.http import get_client
 
 EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 BATCH_SIZE = 200
@@ -152,7 +153,7 @@ def fetch(
                 )
 
             url = f"{EFETCH_URL}?db=pubmed&id={ids_param}&rettype=abstract&retmode=xml"
-            response = httpx.get(url, timeout=30)
+            response = get_client().get(url)
             response.raise_for_status()
             responses.append(response.text)
 
