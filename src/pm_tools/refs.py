@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 import xml.etree.ElementTree as ET
 
@@ -62,25 +63,41 @@ Examples:
   pm refs ./articles/*.nxml"""
 
 
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser for pm refs."""
+    parser = argparse.ArgumentParser(
+        prog="pm refs",
+        description="Extract cited PMIDs/DOIs from NXML (JATS) files.",
+        epilog=(
+            "Examples:\n"
+            "  pm refs article.nxml\n"
+            "  pm refs *.nxml | sort -u | pm fetch | pm parse\n"
+            "  pm refs --doi article.nxml\n"
+            "  pm refs ./articles/*.nxml"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--doi",
+        action="store_true",
+        help="Extract DOIs instead of PMIDs",
+    )
+    parser.add_argument(
+        "files",
+        nargs="*",
+        metavar="FILE",
+        help="NXML files to process (reads stdin if omitted)",
+    )
+    return parser
+
+
 def main(args: list[str] | None = None) -> int:
     """CLI entry point for pm refs."""
-    if args is None:
-        args = sys.argv[1:]
+    parser = _build_parser()
+    parsed = parser.parse_args(args)
 
-    id_type = "pmid"
-    files: list[str] = []
-
-    for arg in args:
-        if arg in ("--help", "-h"):
-            print(HELP_TEXT)
-            return 0
-        elif arg == "--doi":
-            id_type = "doi"
-        elif arg.startswith("-"):
-            print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            return 1
-        else:
-            files.append(arg)
+    id_type = "doi" if parsed.doi else "pmid"
+    files: list[str] = parsed.files
 
     # Collect all refs across files, deduplicated
     all_refs: list[str] = []

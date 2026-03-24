@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import datetime
 import json
 import re
@@ -509,25 +510,30 @@ Examples:
   cat pubmed.xml | pm parse --verbose > articles.jsonl 2>progress.log"""
 
 
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser for pm parse."""
+    parser = argparse.ArgumentParser(
+        prog="pm parse",
+        description=HELP_TEXT,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--csl",
+        action="store_true",
+        help="Output CSL-JSON instead of ArticleRecord",
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Show progress on stderr",
+    )
+    return parser
+
+
 def main(args: list[str] | None = None) -> int:
     """CLI entry point for pm parse."""
-    if args is None:
-        args = sys.argv[1:]
-
-    verbose = False
-    csl_mode = False
-    for arg in args:
-        if arg in ("--help", "-h"):
-            print(HELP_TEXT)
-            return 0
-        elif arg in ("--verbose", "-v"):
-            verbose = True
-        elif arg == "--csl":
-            csl_mode = True
-        elif arg.startswith("-"):
-            print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            print("hint: use 'pm parse --help' for usage", file=sys.stderr)
-            return 2
+    parser = _build_parser()
+    ns = parser.parse_args(args)
 
     # Read XML from stdin
     try:
@@ -540,13 +546,13 @@ def main(args: list[str] | None = None) -> int:
 
     articles = parse_xml(xml_input)
     for i, article in enumerate(articles, 1):
-        if csl_mode:
+        if ns.csl:
             output = article_to_csl(article)
         else:
             # Filter to legacy fields by default (backward compatibility)
             output = {k: v for k, v in article.items() if k in LEGACY_FIELDS}
         print(json.dumps(output, ensure_ascii=False))
-        if verbose:
+        if ns.verbose:
             pmid = article.get("pmid", "?")
             print(f"Parsed article {i}: PMID {pmid}", file=sys.stderr)
 

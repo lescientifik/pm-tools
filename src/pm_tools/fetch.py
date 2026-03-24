@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -131,27 +132,28 @@ def fetch(
     return _reassemble_xml(fragments)
 
 
-HELP_TEXT = """\
-pm fetch - Fetch PubMed XML from E-utilities API
-
-Tip: for most tasks, use 'pm collect' instead — it runs search + fetch + parse
-in one command: pm collect "query" --max 100 > results.jsonl
-
-Usage: cat pmids.txt | pm fetch > articles.xml
-
-Options:
-  -v, --verbose  Show progress on stderr
-  -h, --help     Show this help message
-
-Input:
-  PMIDs from stdin, one per line
-
-Output:
-  PubMed XML to stdout
-
-Examples:
-  cat pmids.txt | pm fetch > articles.xml
-  pm search "CRISPR" | pm fetch | pm parse > results.jsonl"""
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser for pm fetch."""
+    parser = argparse.ArgumentParser(
+        prog="pm fetch",
+        description=(
+            "Fetch PubMed XML from E-utilities API.\n\n"
+            "Tip: for most tasks, use 'pm collect' instead — it runs search + fetch + parse\n"
+            "in one command: pm collect \"query\" --max 100 > results.jsonl"
+        ),
+        epilog=(
+            "examples:\n"
+            "  cat pmids.txt | pm fetch > articles.xml\n"
+            "  pm search \"CRISPR\" | pm fetch | pm parse > results.jsonl"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Show progress on stderr",
+    )
+    return parser
 
 
 def main(args: list[str] | None = None) -> int:
@@ -159,17 +161,13 @@ def main(args: list[str] | None = None) -> int:
     if args is None:
         args = sys.argv[1:]
 
-    verbose = False
-    for arg in args:
-        if arg in ("--help", "-h"):
-            print(HELP_TEXT)
-            return 0
-        elif arg in ("--verbose", "-v"):
-            verbose = True
-        elif arg.startswith("-"):
-            print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            print("hint: use 'pm fetch --help' for usage", file=sys.stderr)
-            return 2
+    parser = _build_parser()
+    try:
+        parsed = parser.parse_args(args)
+    except SystemExit as e:
+        return int(e.code) if e.code is not None else 0
+
+    verbose: bool = parsed.verbose
 
     # Read PMIDs from stdin
     pmids: list[str] = []

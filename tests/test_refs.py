@@ -319,9 +319,10 @@ class TestRefsCli:
         assert lines == ["10.1038/example", "10.1000/other"]
 
     def test_help(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """pm refs --help prints help text."""
-        exit_code = refs_main(["--help"])
-        assert exit_code == 0
+        """pm refs --help prints help text and exits with 0."""
+        with pytest.raises(SystemExit) as exc_info:
+            refs_main(["--help"])
+        assert exc_info.value.code == 0
         captured = capsys.readouterr()
         assert "pm refs" in captured.out
         assert "--doi" in captured.out
