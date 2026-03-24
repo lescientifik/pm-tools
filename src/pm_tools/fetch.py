@@ -207,16 +207,6 @@ def fetch(
     return _reassemble_xml(all_fragments)
 
 
-def fetch_stream(
-    pmids: list[str],
-    batch_size: int = BATCH_SIZE,
-    rate_limit_delay: float = RATE_LIMIT_DELAY,
-    verbose: bool = False,
-) -> str:
-    """Fetch PubMed XML, yielding results per batch."""
-    return fetch(pmids, batch_size, rate_limit_delay, verbose)
-
-
 HELP_TEXT = """\
 pm fetch - Fetch PubMed XML from E-utilities API
 
