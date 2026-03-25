@@ -557,7 +557,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--input", dest="input_file", metavar="FILE",
                         help="Read PMIDs from file (one per line)")
-    parser.add_argument("--output-dir", type=Path, default=Path("."), metavar="DIR",
+    parser.add_argument("-o", "--output-dir", type=Path, default=Path("."), metavar="DIR",
                         help="Output directory (default: current directory)")
     parser.add_argument("--overwrite", action="store_true",
                         help="Overwrite existing files")
