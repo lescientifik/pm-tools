@@ -17,7 +17,7 @@ class TestCollectArgs:
             patch("pm_tools.cli.fetch") as mock_fetch,
             patch("pm_tools.cli.parse") as mock_parse,
             patch("pm_tools.cli.collect_main.__module__", create=True),
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
+            patch("pm_tools.cli.find_pm_dir", return_value=None),
         ):
             mock_search.search.return_value = ["12345"]
             mock_fetch.fetch.return_value = "<xml/>"
@@ -34,7 +34,7 @@ class TestCollectArgs:
             patch("pm_tools.cli.search") as mock_search,
             patch("pm_tools.cli.fetch") as mock_fetch,
             patch("pm_tools.cli.parse") as mock_parse,
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
+            patch("pm_tools.cli.find_pm_dir", return_value=None),
         ):
             mock_search.search.return_value = ["12345"]
             mock_fetch.fetch.return_value = "<xml/>"
@@ -58,7 +58,7 @@ class TestCollectArgs:
             patch("pm_tools.cli.search") as mock_search,
             patch("pm_tools.cli.fetch"),
             patch("pm_tools.cli.parse"),
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
+            patch("pm_tools.cli.find_pm_dir", return_value=None),
         ):
             mock_search.search.return_value = []
             result = collect_main(["CRISPR cancer", "--max", "1"])
@@ -86,7 +86,7 @@ class TestCollectMaxValidation:
             patch("pm_tools.cli.search") as mock_search,
             patch("pm_tools.cli.fetch") as mock_fetch,
             patch("pm_tools.cli.parse") as mock_parse,
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
+            patch("pm_tools.cli.find_pm_dir", return_value=None),
         ):
             mock_search.search.return_value = ["12345"]
             mock_fetch.fetch.return_value = "<xml/>"

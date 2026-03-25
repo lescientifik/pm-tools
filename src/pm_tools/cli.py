@@ -9,6 +9,7 @@ import sys
 
 from pm_tools import audit, cite, diff, download, fetch, filter, init, parse, refs, search
 from pm_tools.args import positive_int
+from pm_tools.cache import find_pm_dir
 
 
 def _build_collect_parser() -> argparse.ArgumentParser:
@@ -53,8 +54,6 @@ def collect_main(argv: list[str] | None = None) -> int:
 
     try:
         import json
-
-        from pm_tools.cache import find_pm_dir
 
         detected_pm_dir = find_pm_dir()
 

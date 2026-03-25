@@ -668,7 +668,7 @@ class TestFilterMainAuditWithBreakdown:
         with (
             patch("sys.stdin", io.StringIO(jsonl_input)),
             patch("sys.stdin.isatty", return_value=False),
-            patch("pm_tools.cache.find_pm_dir", return_value=pm_dir),
+            patch("pm_tools.filter.find_pm_dir", return_value=pm_dir),
         ):
             result = filter_main(["--year", "2024", "--has-abstract", "-v"])
 

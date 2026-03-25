@@ -566,7 +566,7 @@ class TestLegacyFieldsFiltering:
         with (
             _patch("pm_tools.search.search", return_value=["99999"]),
             _patch("pm_tools.fetch.fetch", return_value=xml),
-            _patch("pm_tools.cache.find_pm_dir", return_value=None),
+            _patch("pm_tools.cli.find_pm_dir", return_value=None),
             _patch("sys.stdout", captured),
         ):
             result = collect_main(["test query"])
@@ -808,7 +808,7 @@ class TestCollectCslFlag:
 
         with (
             patch("pm_tools.search.search", return_value=[]),
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
+            patch("pm_tools.cli.find_pm_dir", return_value=None),
         ):
             result = collect_main(["test query", "--csl"])
 
@@ -830,7 +830,7 @@ class TestCollectCslFlag:
         with (
             patch("pm_tools.search.search", return_value=["99999"]),
             patch("pm_tools.fetch.fetch", return_value=xml),
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
+            patch("pm_tools.cli.find_pm_dir", return_value=None),
             patch("sys.stdout", captured),
         ):
             result = collect_main(["test query"])
@@ -854,7 +854,7 @@ class TestCollectCslFlag:
         with (
             patch("pm_tools.search.search", return_value=["99999"]),
             patch("pm_tools.fetch.fetch", return_value=xml),
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
+            patch("pm_tools.cli.find_pm_dir", return_value=None),
             patch("sys.stdout", captured),
         ):
             result = collect_main(["test query", "--csl"])

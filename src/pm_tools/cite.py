@@ -9,7 +9,7 @@ from pathlib import Path
 
 import httpx
 
-from pm_tools.cache import cached_batch_fetch
+from pm_tools.cache import cached_batch_fetch, find_pm_dir
 from pm_tools.http import get_client as get_http_client
 from pm_tools.types import CslJsonRecord
 
@@ -147,8 +147,6 @@ def main(args: list[str] | None = None) -> int:
         return 0
 
     # Detect .pm/ for cache + audit
-    from pm_tools.cache import find_pm_dir
-
     detected_pm_dir = find_pm_dir()
 
     try:

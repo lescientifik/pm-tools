@@ -15,7 +15,7 @@ from typing import Any
 
 import httpx
 
-from pm_tools.cache import audit_log
+from pm_tools.cache import audit_log, find_pm_dir
 from pm_tools.http import get_client as get_http_client
 from pm_tools.io import read_jsonl
 from pm_tools.types import DownloadSource
@@ -688,8 +688,6 @@ def main(args: list[str] | None = None) -> int:
     logger.setLevel(logging.DEBUG if verbose else logging.WARNING)
 
     # Detect .pm/ for audit
-    from pm_tools.cache import find_pm_dir
-
     detected_pm_dir = find_pm_dir()
 
     # Logger handles stderr output; no progress_callback needed in CLI

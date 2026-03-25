@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from pm_tools.cache import audit_log
+from pm_tools.cache import audit_log, find_pm_dir
 from pm_tools.io import read_jsonl
 
 
@@ -29,8 +30,6 @@ def _parse_year_filter(year_str: str) -> tuple[int | None, int | None]:
         raise ValueError(f"Invalid year format '{year_str}'")
 
     # Must only contain digits and at most one dash
-    import re
-
     if not re.match(r"^\d*-?\d*$", year_str):
         raise ValueError(f"Invalid year format '{year_str}'")
 
@@ -378,8 +377,6 @@ def main(args: list[str] | None = None) -> int:
             return 1
 
     # Detect .pm/ for audit
-    from pm_tools.cache import find_pm_dir
-
     detected_pm_dir = find_pm_dir()
 
     # Process stdin
