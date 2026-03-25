@@ -23,15 +23,23 @@ def _make_cite_batch(batch_pmids: list[str]) -> list[tuple[str, str]]:
 
     This is the ``fetch_batch`` callback for ``cached_batch_fetch()``.
     Recovers from HTTP errors by returning an empty list for failed batches.
+    PMIDs are stripped of whitespace and validated as strictly numeric before
+    being interpolated into the URL, preventing parameter injection.
 
     Args:
         batch_pmids: List of PMID strings for one batch.
 
     Returns:
         List of (pmid, json_string) pairs.
+
+    Raises:
+        ValueError: If any PMID is not strictly numeric.
     """
+    from pm_tools.io import validate_pmid
+
+    sanitized = [validate_pmid(p.strip()) for p in batch_pmids]
     client = get_http_client()
-    ids_param = ",".join(batch_pmids)
+    ids_param = ",".join(sanitized)
     url = f"{API_URL}?format=csl&id={ids_param}"
 
     try:
