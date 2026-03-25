@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from pm_tools.cache import audit_log
-from pm_tools.io import read_jsonl
+from pm_tools.io import read_jsonl, safe_parse
 
 
 def _parse_year_filter(year_str: str) -> tuple[int | None, int | None]:
@@ -364,10 +364,9 @@ def main(args: list[str] | None = None) -> int:
         args = sys.argv[1:]
 
     parser = _build_parser()
-    try:
-        parsed = parser.parse_args(args)
-    except SystemExit as e:
-        return int(e.code) if e.code is not None else 0
+    parsed, code = safe_parse(parser, args)
+    if parsed is None:
+        return code  # type: ignore[return-value]
 
     # Validate year filter format
     if parsed.year is not None:

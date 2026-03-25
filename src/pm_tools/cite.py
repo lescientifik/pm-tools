@@ -11,6 +11,7 @@ import httpx
 
 from pm_tools.cache import cached_batch_fetch
 from pm_tools.http import get_client as get_http_client
+from pm_tools.io import safe_parse
 from pm_tools.types import CslJsonRecord
 
 API_URL = "https://pmc.ncbi.nlm.nih.gov/api/ctxp/v1/pubmed/"
@@ -128,10 +129,9 @@ def main(args: list[str] | None = None) -> int:
         args = sys.argv[1:]
 
     parser = _build_parser()
-    try:
-        parsed = parser.parse_args(args)
-    except SystemExit as e:
-        return int(e.code) if e.code is not None else 0
+    parsed, code = safe_parse(parser, args)
+    if parsed is None:
+        return code  # type: ignore[return-value]
 
     verbose: bool = parsed.verbose
     pmids: list[str] = parsed.pmids

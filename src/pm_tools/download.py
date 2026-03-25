@@ -17,7 +17,7 @@ import httpx
 
 from pm_tools.cache import audit_log
 from pm_tools.http import get_client as get_http_client
-from pm_tools.io import read_jsonl
+from pm_tools.io import read_jsonl, safe_parse
 from pm_tools.types import DownloadSource
 
 logger = logging.getLogger(__name__)
@@ -585,11 +585,9 @@ def main(args: list[str] | None = None) -> int:
         args = sys.argv[1:]
 
     parser = _build_parser()
-    try:
-        parsed = parser.parse_args(args)
-    except SystemExit as exc:
-        # argparse calls sys.exit on --help or errors; convert to return code.
-        return int(exc.code) if exc.code is not None else 0
+    parsed, code = safe_parse(parser, args)
+    if parsed is None:
+        return code  # type: ignore[return-value]
 
     output_dir: Path = parsed.output_dir
     dry_run: bool = parsed.dry_run

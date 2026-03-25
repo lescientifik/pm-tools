@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from typing import IO, Any
 
+from pm_tools.io import safe_parse
 from pm_tools.types import ArticleRecord, CslJsonRecord
 
 # Fields emitted by default (without --csl) for backward compatibility.
@@ -534,10 +535,9 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(args: list[str] | None = None) -> int:
     """CLI entry point for pm parse."""
     parser = _build_parser()
-    try:
-        ns = parser.parse_args(args)
-    except SystemExit as e:
-        return int(e.code) if e.code is not None else 0
+    ns, code = safe_parse(parser, args)
+    if ns is None:
+        return code  # type: ignore[return-value]
 
     # Read XML from stdin
     try:

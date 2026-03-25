@@ -17,6 +17,7 @@ import httpx
 from pm_tools.args import positive_int
 from pm_tools.cache import audit_log, cache_read, cache_write
 from pm_tools.http import get_client
+from pm_tools.io import safe_parse
 from pm_tools.types import SearchCacheEntry
 
 ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
@@ -152,10 +153,9 @@ def main(args: list[str] | None = None) -> int:
         args = sys.argv[1:]
 
     parser = _build_parser()
-    try:
-        parsed = parser.parse_args(args)
-    except SystemExit as e:
-        return int(e.code) if e.code is not None else 0
+    parsed, code = safe_parse(parser, args)
+    if parsed is None:
+        return code  # type: ignore[return-value]
 
     max_results: int = parsed.max_results
     refresh: bool = parsed.refresh

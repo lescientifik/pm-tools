@@ -7,7 +7,7 @@ import json
 import sys
 from typing import Any
 
-from pm_tools.io import read_jsonl
+from pm_tools.io import read_jsonl, safe_parse
 from pm_tools.types import DiffResult
 
 
@@ -163,10 +163,9 @@ def main(args: list[str] | None = None) -> int:
         args = sys.argv[1:]
 
     parser = _build_parser()
-    try:
-        parsed = parser.parse_args(args)
-    except SystemExit as e:
-        return 2 if e.code != 0 else 0
+    parsed, code = safe_parse(parser, args)
+    if parsed is None:
+        return 2 if code != 0 else 0
 
     ignore_fields = [f.strip() for f in parsed.ignore.split(",") if f.strip()]
     old_file: str = parsed.old_file

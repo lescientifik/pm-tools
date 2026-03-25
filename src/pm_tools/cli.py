@@ -9,6 +9,7 @@ import sys
 
 from pm_tools import audit, cite, diff, download, fetch, filter, init, parse, refs, search
 from pm_tools.args import positive_int
+from pm_tools.io import safe_parse
 
 
 def _build_collect_parser() -> argparse.ArgumentParser:
@@ -38,10 +39,9 @@ def collect_main(argv: list[str] | None = None) -> int:
     raw_args = argv if argv is not None else sys.argv[1:]
 
     parser = _build_collect_parser()
-    try:
-        args = parser.parse_args(raw_args)
-    except SystemExit as e:
-        return 2 if e.code != 0 else 0
+    args, code = safe_parse(parser, raw_args)
+    if args is None:
+        return 2 if code != 0 else 0
 
     query = " ".join(args.query_words)
     if not query.strip():
