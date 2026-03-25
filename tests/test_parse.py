@@ -1245,3 +1245,58 @@ class TestParseHelp:
         parser = _build_parser()
         help_text = parser.format_help()
         assert "pm parse" in help_text
+
+
+# =============================================================================
+# format_article helper
+# =============================================================================
+
+
+class TestFormatArticle:
+    """format_article(article, csl=False) selects output mode."""
+
+    _ARTICLE: dict[str, object] = {
+        "pmid": "12345",
+        "title": "Test Article",
+        "authors": [{"family": "Doe", "given": "Jane"}],
+        "journal": "Test Journal",
+        "year": 2024,
+        "date": "2024-03",
+        "abstract": "An abstract.",
+        "doi": "10.1234/test",
+        "pmcid": "PMC999",
+        # Extra fields present in full ArticleRecord but NOT in LEGACY_FIELDS
+        "issn": "1234-5678",
+        "volume": "10",
+        "issue": "2",
+        "page": "100-110",
+        "journal_abbrev": "Test J.",
+        "publisher_place": "United States",
+        "pub_status": "ppublish",
+        "epub_date": "2024-02-15",
+    }
+
+    def test_legacy_mode_keeps_only_legacy_fields(self) -> None:
+        """csl=False returns only LEGACY_FIELDS keys."""
+        from pm_tools.parse import LEGACY_FIELDS, format_article
+
+        result = format_article(self._ARTICLE)
+        assert set(result.keys()) <= LEGACY_FIELDS
+        # Core fields preserved
+        assert result["pmid"] == "12345"
+        assert result["title"] == "Test Article"
+        assert result["doi"] == "10.1234/test"
+        # Extra fields stripped
+        assert "issn" not in result
+        assert "volume" not in result
+        assert "publisher_place" not in result
+
+    def test_csl_mode_returns_csl_json(self) -> None:
+        """csl=True returns a CSL-JSON record via article_to_csl."""
+        from pm_tools.parse import format_article
+
+        result = format_article(self._ARTICLE, csl=True)
+        assert result["type"] == "article-journal"
+        assert result["PMID"] == "12345"
+        assert result["DOI"] == "10.1234/test"
+        assert "container-title" in result

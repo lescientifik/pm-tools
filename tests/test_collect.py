@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from pm_tools.cli import collect_main
+from pm_tools.parse import format_article
 
 
 class TestCollectArgs:
@@ -23,6 +24,7 @@ class TestCollectArgs:
             mock_fetch.fetch.return_value = "<xml/>"
             mock_parse.parse_xml.return_value = [{"pmid": "12345", "title": "Test"}]
             mock_parse.LEGACY_FIELDS = {"pmid", "title"}
+            mock_parse.format_article = format_article
             result = collect_main(["CRISPR", "cancer", "--max", "1"])
             assert result == 0
             call_args = mock_search.search.call_args
@@ -40,6 +42,7 @@ class TestCollectArgs:
             mock_fetch.fetch.return_value = "<xml/>"
             mock_parse.parse_xml.return_value = [{"pmid": "12345", "title": "Test"}]
             mock_parse.LEGACY_FIELDS = {"pmid", "title"}
+            mock_parse.format_article = format_article
             result = collect_main(["CRISPR", "--max", "1"])
             assert result == 0
             call_args = mock_search.search.call_args
@@ -92,6 +95,7 @@ class TestCollectMaxValidation:
             mock_fetch.fetch.return_value = "<xml/>"
             mock_parse.parse_xml.return_value = [{"pmid": "12345", "title": "Test"}]
             mock_parse.LEGACY_FIELDS = {"pmid", "title"}
+            mock_parse.format_article = format_article
             result = collect_main(["CRISPR", "-n", "3"])
             assert result == 0
             call_args = mock_search.search.call_args

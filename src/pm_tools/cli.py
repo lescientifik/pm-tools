@@ -76,10 +76,7 @@ def collect_main(argv: list[str] | None = None) -> int:
 
         articles = parse.parse_xml(xml)
         for article in articles:
-            if args.csl:
-                output = parse.article_to_csl(article)
-            else:
-                output = {k: v for k, v in article.items() if k in parse.LEGACY_FIELDS}
+            output = parse.format_article(article, csl=args.csl)
             print(json.dumps(output, ensure_ascii=False))
         return 0
     except Exception as e:
