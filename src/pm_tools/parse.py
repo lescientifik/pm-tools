@@ -465,6 +465,22 @@ def article_to_csl(record: ArticleRecord) -> CslJsonRecord:
     return csl
 
 
+def format_article(article: ArticleRecord, *, csl: bool = False) -> dict[str, Any]:
+    """Format an ArticleRecord for output.
+
+    Args:
+        article: Parsed article record from ``parse_article``.
+        csl: If True, return CSL-JSON via ``article_to_csl``.
+             If False, return only ``LEGACY_FIELDS`` keys.
+
+    Returns:
+        A dict ready for JSON serialization.
+    """
+    if csl:
+        return article_to_csl(article)
+    return {k: v for k, v in article.items() if k in LEGACY_FIELDS}
+
+
 def parse_xml_csl(xml_input: str, verbose: bool = False) -> list[CslJsonRecord]:
     """Parse PubMed XML and return CSL-JSON records.
 
@@ -542,11 +558,7 @@ def main(args: list[str] | None = None) -> int:
     # Stream-parse XML from stdin (O(1) memory per article)
     try:
         for i, article in enumerate(parse_xml_stream(sys.stdin.buffer), 1):
-            if ns.csl:
-                output = article_to_csl(article)
-            else:
-                # Filter to legacy fields by default (backward compatibility)
-                output = {k: v for k, v in article.items() if k in LEGACY_FIELDS}
+            output = format_article(article, csl=ns.csl)
             print(json.dumps(output, ensure_ascii=False))
             if ns.verbose:
                 pmid = article.get("pmid", "?")

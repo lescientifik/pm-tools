@@ -82,10 +82,7 @@ def collect_main(argv: list[str] | None = None) -> int:
         import io
 
         for article in parse.parse_xml_stream(io.BytesIO(xml.encode("utf-8"))):
-            if args.csl:
-                output = parse.article_to_csl(article)
-            else:
-                output = {k: v for k, v in article.items() if k in parse.LEGACY_FIELDS}
+            output = parse.format_article(article, csl=args.csl)
             print(json.dumps(output, ensure_ascii=False))
         return 0
     except Exception as e:
