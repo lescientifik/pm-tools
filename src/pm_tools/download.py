@@ -610,6 +610,17 @@ def main(args: list[str] | None = None) -> int:
         print("Error: cannot use both positional PMIDs and --input FILE", file=sys.stderr)
         return 1
 
+    # Validate identifiers (filename-safe for filesystem operations)
+    from pm_tools.io import validate_filename_safe
+
+    if positional_pmids:
+        try:
+            for pmid in positional_pmids:
+                validate_filename_safe(pmid)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+
     lines: list[str] = []
     articles: list[dict[str, Any]] = []
 

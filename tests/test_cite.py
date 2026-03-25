@@ -296,3 +296,26 @@ class TestCiteAudit:
         event = json.loads((pm_dir / "audit.jsonl").read_text().strip().splitlines()[0])
         assert event["cached"] == 1
         assert event["fetched"] == 1
+
+
+# =============================================================================
+# PMID validation at entry point
+# =============================================================================
+
+
+class TestCitePmidValidation:
+    """cite.main() rejects non-numeric PMIDs (path traversal, PMC IDs)."""
+
+    def test_path_traversal_rejected(self) -> None:
+        """cite.main() with a path traversal PMID returns error code 1."""
+        from pm_tools.cite import main
+
+        result = main(["../../etc/passwd"])
+        assert result == 1
+
+    def test_mixed_valid_and_invalid_rejected(self) -> None:
+        """A single bad PMID in a batch causes rejection."""
+        from pm_tools.cite import main
+
+        result = main(["12345678", "../../etc/passwd"])
+        assert result == 1

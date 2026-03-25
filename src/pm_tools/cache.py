@@ -84,6 +84,11 @@ def cache_write(pm_dir: Path | None, category: str, key: str, data: str) -> None
     if pm_dir is None:
         return
 
+    # Defense in depth: validate the key before using it in a path.
+    from pm_tools.io import validate_filename_safe
+
+    validate_filename_safe(key)
+
     path = pm_dir / "cache" / category / key
     path.parent.mkdir(parents=True, exist_ok=True)
 

@@ -183,6 +183,16 @@ def main(args: list[str] | None = None) -> int:
     if not pmids:
         return 0
 
+    # Validate PMIDs (strict numeric for E-utilities)
+    from pm_tools.io import validate_pmid
+
+    try:
+        for pmid in pmids:
+            validate_pmid(pmid)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
     # Detect .pm/ for cache + audit
     from pm_tools.cache import find_pm_dir
 

@@ -2930,3 +2930,26 @@ class TestDownloadPositionalPmids:
         download_main(["--dry-run"])
         mock_convert.assert_called_once()
         assert mock_convert.call_args[0][0] == ["12345", "67890"]
+
+
+# =============================================================================
+# PMID validation at entry point
+# =============================================================================
+
+
+class TestDownloadPmidValidation:
+    """download.main() rejects path-unsafe identifiers."""
+
+    def test_path_traversal_rejected(self) -> None:
+        """download.main() with a path traversal PMID returns error code 1."""
+        from pm_tools.download import main as download_main
+
+        result = download_main(["../../etc/passwd", "--dry-run"])
+        assert result == 1
+
+    def test_mixed_valid_and_invalid_rejected(self) -> None:
+        """A single bad PMID in a batch causes rejection."""
+        from pm_tools.download import main as download_main
+
+        result = download_main(["12345678", "../../etc/passwd", "--dry-run"])
+        assert result == 1
