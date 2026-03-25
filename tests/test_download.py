@@ -2930,3 +2930,104 @@ class TestDownloadPositionalPmids:
         download_main(["--dry-run"])
         mock_convert.assert_called_once()
         assert mock_convert.call_args[0][0] == ["12345", "67890"]
+
+
+# ---------------------------------------------------------------------------
+# AR Gate 2: Security validation gaps
+# ---------------------------------------------------------------------------
+
+
+class TestConvertPmidsUrlInjection:
+    """convert_pmids() rejects unsafe identifiers before URL interpolation."""
+
+    def test_path_traversal_pmid_rejected(self) -> None:
+        """A path-traversal PMID raises ValueError before any HTTP call."""
+        from pm_tools.download import convert_pmids
+
+        with pytest.raises(ValueError, match="not filename-safe"):
+            convert_pmids(["../../etc/passwd"])
+
+    def test_special_chars_pmid_rejected(self) -> None:
+        """Query-string injection via PMID raises ValueError."""
+        from pm_tools.download import convert_pmids
+
+        with pytest.raises(ValueError, match="not filename-safe"):
+            convert_pmids(["123&tool=evil"])
+
+    def test_email_is_percent_encoded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Email with special characters is percent-encoded in the URL."""
+        captured_urls: list[str] = []
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            captured_urls.append(str(request.url))
+            return httpx.Response(200, json={"records": []})
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        from pm_tools.download import convert_pmids
+
+        convert_pmids(["12345"], email="user+test@example.com")
+        assert len(captured_urls) == 1
+        # The '+' in the email must be percent-encoded in the query string
+        email_part = captured_urls[0].split("email=")[1]
+        assert "+" not in email_part.split("&")[0], (
+            f"Email not encoded: {email_part}"
+        )
+
+
+class TestPmcLookupUrlInjection:
+    """pmc_lookup() rejects unsafe PMCID before URL interpolation."""
+
+    def test_path_traversal_pmcid_rejected(self) -> None:
+        """A path-traversal PMCID raises ValueError."""
+        with pytest.raises(ValueError, match="not filename-safe"):
+            pmc_lookup("../../etc/passwd")
+
+    def test_special_chars_pmcid_rejected(self) -> None:
+        """Query-string injection via PMCID raises ValueError."""
+        with pytest.raises(ValueError, match="not filename-safe"):
+            pmc_lookup("PMC123&id=evil")
+
+
+class TestCacheReadPathTraversal:
+    """cache_read() rejects path-traversal keys."""
+
+    def test_path_traversal_key_rejected(self, tmp_path: Path) -> None:
+        """cache_read() with a traversal key raises ValueError."""
+        from pm_tools.cache import cache_read
+
+        pm_dir = tmp_path / ".pm"
+        pm_dir.mkdir()
+        (pm_dir / "cache" / "search").mkdir(parents=True)
+
+        with pytest.raises(ValueError, match="not filename-safe"):
+            cache_read(pm_dir, "search", "../../etc/passwd")
+
+
+class TestDownloadStdinValidation:
+    """download.main() validates PMIDs from stdin/--input, not just positional."""
+
+    def test_stdin_path_traversal_rejected(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """PMIDs from stdin with path traversal are rejected."""
+        from pm_tools.download import main as download_main
+
+        monkeypatch.setattr("sys.stdin", io.StringIO("../../etc/passwd\n"))
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        result = download_main(["--dry-run"])
+        assert result == 1
+
+    def test_input_file_path_traversal_rejected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PMIDs from --input file with path traversal are rejected."""
+        from pm_tools.download import main as download_main
+
+        input_file = tmp_path / "pmids.txt"
+        input_file.write_text("../../etc/passwd\n")
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        result = download_main(["--input", str(input_file), "--dry-run"])
+        assert result == 1

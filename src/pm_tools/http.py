@@ -23,6 +23,9 @@ def get_client(timeout: int = _DEFAULT_TIMEOUT) -> httpx.Client:
     """
     global _client
     if timeout != _DEFAULT_TIMEOUT:
+        # WARNING: This creates a new client that is NOT cached. The caller
+        # is responsible for closing it (e.g. via a context manager) to avoid
+        # resource leaks. Currently no callsite uses a custom timeout.
         return httpx.Client(timeout=timeout, follow_redirects=True)
     if _client is None:
         _client = httpx.Client(timeout=timeout, follow_redirects=True)
