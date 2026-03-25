@@ -5,10 +5,13 @@ The `pm` command provides a unified interface with subcommands:
 """
 
 import argparse
+import json
 import sys
 
 from pm_tools import audit, cite, diff, download, fetch, filter, init, parse, refs, search
 from pm_tools.args import positive_int
+from pm_tools.cache import find_pm_dir
+from pm_tools.io import safe_parse
 
 
 def _build_collect_parser() -> argparse.ArgumentParser:
@@ -38,10 +41,10 @@ def collect_main(argv: list[str] | None = None) -> int:
     raw_args = argv if argv is not None else sys.argv[1:]
 
     parser = _build_collect_parser()
-    try:
-        args = parser.parse_args(raw_args)
-    except SystemExit as e:
-        return 2 if e.code != 0 else 0
+    result = safe_parse(parser, raw_args)
+    if isinstance(result, int):
+        return result
+    args = result
 
     query = " ".join(args.query_words)
     if not query.strip():
@@ -52,16 +55,13 @@ def collect_main(argv: list[str] | None = None) -> int:
         print(f'Searching PubMed: "{query}" (max {args.max_results})...', file=sys.stderr)
 
     try:
-        import json
-
-        from pm_tools.cache import find_pm_dir
-
         detected_pm_dir = find_pm_dir()
 
         pmids = search.search(
             query,
             args.max_results,
             pm_dir=detected_pm_dir,
+            verbose=args.verbose,
         )
         if not pmids:
             return 0

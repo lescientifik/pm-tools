@@ -36,6 +36,7 @@ def search(
     *,
     pm_dir: Path | None = None,
     refresh: bool = False,
+    verbose: bool = False,
 ) -> list[str]:
     """Search PubMed and return list of PMIDs.
 
@@ -44,6 +45,7 @@ def search(
         max_results: Maximum number of results to return.
         pm_dir: Path to .pm/ directory for caching and audit logging, or None.
         refresh: If True, bypass cache and re-fetch.
+        verbose: If True, show progress messages on stderr.
 
     Returns:
         List of PMID strings.
@@ -66,10 +68,10 @@ def search(
 
             # Log cached hit to audit
             if pm_dir is not None:
-                print(
-                    f"pm: using cached search from {original_ts[:10]}. Use --refresh to update.",
-                    file=sys.stderr,
-                )
+                if verbose:
+                    msg = f"pm: using cached search from {original_ts[:10]}."
+                    msg += " Use --refresh to update."
+                    print(msg, file=sys.stderr)
                 audit_log(
                     pm_dir,
                     {
@@ -180,6 +182,7 @@ def main(args: list[str] | None = None) -> int:
             max_results,
             pm_dir=detected_pm_dir,
             refresh=refresh,
+            verbose=parsed.verbose,
         )
         for pmid in pmids:
             print(pmid)
