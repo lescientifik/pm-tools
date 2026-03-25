@@ -203,12 +203,8 @@ def cached_batch_fetch(
 
     # Batch-fetch uncached IDs
     fetched: dict[str, str] = {}
-    for batch_num, i in enumerate(range(0, max(len(uncached), 1), batch_size)):
-        if i >= len(uncached):
-            break
+    for batch_num, i in enumerate(range(0, len(uncached), batch_size)):
         batch = uncached[i : i + batch_size]
-        if not batch:
-            break
 
         if batch_num > 0 and rate_limit_delay > 0:
             time.sleep(rate_limit_delay)

@@ -3,23 +3,28 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections.abc import Iterator
 from typing import IO
+
+logger = logging.getLogger(__name__)
 
 
 def read_jsonl(stream: IO[str]) -> Iterator[dict]:
     """Read JSONL from a stream, yielding dicts.
 
     Skips blank lines, malformed JSON, and non-dict values.
+    Emits a warning for malformed JSON lines.
     """
-    for line in stream:
+    for n, line in enumerate(stream, 1):
         line = line.strip()
         if not line:
             continue
         try:
             obj = json.loads(line)
         except json.JSONDecodeError:
+            logger.warning("skipping malformed JSON on line %d", n)
             continue
         if isinstance(obj, dict):
             yield obj

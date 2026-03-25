@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import logging
 
 import pytest
 
@@ -17,10 +18,20 @@ def test_valid_jsonl_yields_dicts() -> None:
 
 
 def test_malformed_lines_skipped() -> None:
-    """Malformed JSON lines are silently skipped."""
+    """Malformed JSON lines are skipped."""
     stream = io.StringIO('{"pmid": "1"}\nnot json\n{"pmid": "2"}\n')
     result = list(read_jsonl(stream))
     assert result == [{"pmid": "1"}, {"pmid": "2"}]
+
+
+def test_malformed_line_emits_warning(caplog: pytest.LogCaptureFixture) -> None:
+    """Malformed JSON lines emit a logging.WARNING with line number."""
+    stream = io.StringIO('{"pmid": "1"}\nnot json\n{"pmid": "2"}\n')
+    with caplog.at_level(logging.WARNING, logger="pm_tools.io"):
+        list(read_jsonl(stream))
+    assert len(caplog.records) == 1
+    assert caplog.records[0].levelno == logging.WARNING
+    assert "line 2" in caplog.records[0].message
 
 
 def test_empty_lines_skipped() -> None:
