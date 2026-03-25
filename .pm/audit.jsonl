@@ -1,0 +1,47 @@
+{"ts": "2026-03-24T08:32:10Z", "op": "init"}
+{"op": "search", "db": "pubmed", "query": "CRISPR cas9 2024", "max": 10000, "count": 4933, "cached": false, "refreshed": false, "ts": "2026-03-24T08:32:24Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR cancer 2024", "max": 3, "count": 3, "cached": false, "refreshed": false, "ts": "2026-03-24T12:47:18Z"}
+{"op": "fetch", "db": "pubmed", "requested": 3, "cached": 0, "fetched": 3, "refreshed": false, "ts": "2026-03-24T12:47:26Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR cancer 2024", "max": 3, "count": 3, "cached": true, "original_ts": "2026-03-24T12:47:18Z", "ts": "2026-03-24T12:47:32Z"}
+{"op": "fetch", "db": "pubmed", "requested": 3, "cached": 3, "fetched": 0, "refreshed": false, "ts": "2026-03-24T12:47:32Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR cancer 2024", "max": 3, "count": 3, "cached": true, "original_ts": "2026-03-24T12:47:18Z", "ts": "2026-03-24T12:47:37Z"}
+{"op": "fetch", "db": "pubmed", "requested": 3, "cached": 3, "fetched": 0, "refreshed": false, "ts": "2026-03-24T12:47:37Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR cancer 2024", "max": 3, "count": 3, "cached": true, "original_ts": "2026-03-24T12:47:18Z", "ts": "2026-03-24T12:47:43Z"}
+{"op": "fetch", "db": "pubmed", "requested": 3, "cached": 3, "fetched": 0, "refreshed": false, "ts": "2026-03-24T12:47:43Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR AND 2024[dp]", "max": 3, "count": 3, "cached": false, "refreshed": false, "ts": "2026-03-25T06:05:56Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR AND 2024[dp]", "max": 3, "count": 3, "cached": true, "original_ts": "2026-03-25T06:05:56Z", "ts": "2026-03-25T06:06:00Z"}
+{"op": "fetch", "requested": 3, "cached": 0, "fetched": 3, "refreshed": false, "ts": "2026-03-25T06:06:01Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR cancer therapy", "max": 5, "count": 5, "cached": false, "refreshed": false, "ts": "2026-03-25T06:07:25Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR cancer therapy", "max": 3, "count": 3, "cached": false, "refreshed": false, "ts": "2026-03-25T06:07:26Z"}
+{"op": "fetch", "requested": 3, "cached": 0, "fetched": 3, "refreshed": false, "ts": "2026-03-25T06:07:26Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR cancer", "max": 3, "count": 3, "cached": false, "refreshed": false, "ts": "2026-03-25T06:07:33Z"}
+{"op": "filter", "input": 1, "output": 0, "excluded": 1, "criteria": {"year": "2024"}, "ts": "2026-03-25T06:07:41Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": 0, "count": 0, "cached": false, "refreshed": false, "ts": "2026-03-25T06:07:42Z"}
+{"op": "cite", "requested": 1, "cached": 0, "fetched": 1, "refreshed": false, "ts": "2026-03-25T06:07:55Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR cancer", "max": 1, "count": 1, "cached": false, "refreshed": false, "ts": "2026-03-25T06:08:11Z"}
+{"op": "fetch", "requested": 1, "cached": 0, "fetched": 1, "refreshed": false, "ts": "2026-03-25T06:08:11Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": 2, "count": 2, "cached": false, "refreshed": false, "ts": "2026-03-25T06:08:16Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": -5, "count": 0, "cached": false, "refreshed": false, "ts": "2026-03-25T06:08:35Z"}
+{"op": "filter", "input": 0, "output": 0, "excluded": 0, "criteria": {}, "ts": "2026-03-25T06:08:40Z"}
+{"op": "filter", "input": 0, "output": 0, "excluded": 0, "criteria": {}, "ts": "2026-03-25T06:08:46Z"}
+{"op": "cite", "requested": 1, "cached": 1, "fetched": 0, "refreshed": false, "ts": "2026-03-25T06:08:53Z"}
+{"op": "filter", "input": 0, "output": 0, "excluded": 0, "criteria": {}, "ts": "2026-03-25T06:08:55Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": 2, "count": 2, "cached": true, "original_ts": "2026-03-25T06:08:16Z", "ts": "2026-03-25T06:09:02Z"}
+{"op": "fetch", "requested": 2, "cached": 0, "fetched": 2, "refreshed": false, "ts": "2026-03-25T06:09:02Z"}
+{"op": "fetch", "requested": 1, "cached": 1, "fetched": 0, "refreshed": false, "ts": "2026-03-25T06:09:12Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": 5, "count": 5, "cached": false, "refreshed": false, "ts": "2026-03-25T06:09:14Z"}
+{"op": "fetch", "requested": 5, "cached": 3, "fetched": 2, "refreshed": false, "ts": "2026-03-25T06:09:14Z"}
+{"op": "filter", "input": 5, "output": 5, "excluded": 0, "criteria": {"year": "2025-", "has_abstract": true}, "ts": "2026-03-25T06:09:14Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": 5, "count": 5, "cached": true, "original_ts": "2026-03-25T06:09:14Z", "ts": "2026-03-25T06:09:23Z"}
+{"op": "fetch", "requested": 5, "cached": 5, "fetched": 0, "refreshed": false, "ts": "2026-03-25T06:09:23Z"}
+{"op": "filter", "input": 5, "output": 5, "excluded": 0, "criteria": {"year": "2025-", "has_abstract": true}, "ts": "2026-03-25T06:09:23Z"}
+{"op": "search", "db": "pubmed", "query": "test", "max": -1, "count": 0, "cached": false, "refreshed": false, "ts": "2026-03-25T06:10:55Z"}
+{"op": "search", "db": "pubmed", "query": "test", "max": 0, "count": 0, "cached": false, "refreshed": false, "ts": "2026-03-25T06:10:56Z"}
+{"op": "filter", "input": 1, "output": 1, "excluded": 0, "criteria": {"year": "2020-2024"}, "ts": "2026-03-25T06:11:04Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": 0, "count": 0, "cached": true, "original_ts": "2026-03-25T06:07:42Z", "ts": "2026-03-25T11:44:22Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": -5, "count": 0, "cached": true, "original_ts": "2026-03-25T06:08:35Z", "ts": "2026-03-25T11:44:22Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": 0, "count": 0, "cached": true, "original_ts": "2026-03-25T06:07:42Z", "ts": "2026-03-25T11:44:22Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": -5, "count": 0, "cached": true, "original_ts": "2026-03-25T06:08:35Z", "ts": "2026-03-25T11:44:22Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": 3, "count": 3, "cached": false, "refreshed": false, "ts": "2026-03-25T11:44:56Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": 3, "count": 3, "cached": true, "original_ts": "2026-03-25T11:44:56Z", "ts": "2026-03-25T11:45:10Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": 3, "count": 3, "cached": true, "original_ts": "2026-03-25T11:44:56Z", "ts": "2026-03-25T11:45:18Z"}

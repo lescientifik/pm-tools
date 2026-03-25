@@ -9,6 +9,7 @@ All tests are written RED-first: they MUST fail until the module is implemented.
 
 import json
 import time
+import urllib.parse
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -16,7 +17,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
-from pm_tools.fetch import fetch, split_xml_articles
+from pm_tools.fetch import _make_efetch_batch, fetch, split_xml_articles
 
 MOCK_XML_TEMPLATE = """<?xml version="1.0" ?>
 <!DOCTYPE PubmedArticleSet PUBLIC "-//NLM//DTD PubMedArticle, 1st January 2024//EN"
@@ -611,3 +612,53 @@ class TestFetchPmidValidation:
 
         result = main(["12345678", "../../etc/passwd"])
         assert result == 1
+
+
+# =============================================================================
+# URL parameter encoding (v0.3.1 phase 2.2)
+# =============================================================================
+
+
+class TestFetchUrlEncoding:
+    """_make_efetch_batch() must produce safe, well-formed URLs."""
+
+    def test_batch_url_has_correct_id_param(self) -> None:
+        """_make_efetch_batch(["123", "456"]) encodes id=123,456 in the URL."""
+        mock_client = _mock_client_for(_make_mock_response("123"))
+
+        with patch("pm_tools.fetch.get_client", return_value=mock_client):
+            _make_efetch_batch(["123", "456"])
+
+        url = mock_client.get.call_args[0][0]
+        parsed = urllib.parse.urlparse(url)
+        params = urllib.parse.parse_qs(parsed.query)
+        assert params["id"] == ["123,456"]
+
+    def test_batch_url_has_correct_retmode(self) -> None:
+        """_make_efetch_batch() always sets retmode=xml."""
+        mock_client = _mock_client_for(_make_mock_response("123"))
+
+        with patch("pm_tools.fetch.get_client", return_value=mock_client):
+            _make_efetch_batch(["123"])
+
+        url = mock_client.get.call_args[0][0]
+        parsed = urllib.parse.urlparse(url)
+        params = urllib.parse.parse_qs(parsed.query)
+        assert params["retmode"] == ["xml"]
+
+    def test_malicious_pmid_rejected(self) -> None:
+        """A PMID like '123&retmode=json' must be rejected (non-numeric)."""
+        with pytest.raises(ValueError, match="Invalid PMID"):
+            _make_efetch_batch(["123&retmode=json"])
+
+    def test_whitespace_pmid_stripped_and_validated(self) -> None:
+        """PMIDs with leading/trailing whitespace are stripped before validation."""
+        mock_client = _mock_client_for(_make_mock_response("123"))
+
+        with patch("pm_tools.fetch.get_client", return_value=mock_client):
+            _make_efetch_batch(["  123  ", "456"])
+
+        url = mock_client.get.call_args[0][0]
+        parsed = urllib.parse.urlparse(url)
+        params = urllib.parse.parse_qs(parsed.query)
+        assert params["id"] == ["123,456"]

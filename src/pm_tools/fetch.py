@@ -64,14 +64,22 @@ def _make_efetch_batch(batch_pmids: list[str]) -> list[tuple[str, str]]:
     """Fetch a batch of PMIDs from E-utilities and split into per-PMID fragments.
 
     This is the ``fetch_batch`` callback for ``cached_batch_fetch()``.
+    PMIDs are stripped of whitespace and validated as strictly numeric before
+    being interpolated into the URL, preventing parameter injection.
 
     Args:
         batch_pmids: List of PMID strings for one batch.
 
     Returns:
         List of (pmid, xml_fragment) pairs.
+
+    Raises:
+        ValueError: If any PMID is not strictly numeric.
     """
-    ids_param = ",".join(batch_pmids)
+    from pm_tools.io import validate_pmid
+
+    sanitized = [validate_pmid(p.strip()) for p in batch_pmids]
+    ids_param = ",".join(sanitized)
     url = f"{EFETCH_URL}?db=pubmed&id={ids_param}&rettype=abstract&retmode=xml"
     response = get_client().get(url)
     response.raise_for_status()

@@ -7,12 +7,13 @@ pattern and error recovery. Cache test drives the audit/cache feature.
 from __future__ import annotations
 
 import json
+import urllib.parse
 from pathlib import Path
 
 import httpx
 import pytest
 
-from pm_tools.cite import cite
+from pm_tools.cite import _make_cite_batch, cite
 
 # ---------------------------------------------------------------------------
 # Helpers -- fake API responses
@@ -319,3 +320,71 @@ class TestCitePmidValidation:
 
         result = main(["12345678", "../../etc/passwd"])
         assert result == 1
+
+
+# ---------------------------------------------------------------------------
+# URL parameter encoding (v0.3.1 phase 2.2)
+# ---------------------------------------------------------------------------
+
+
+class TestCiteUrlEncoding:
+    """_make_cite_batch() must produce safe, well-formed URLs."""
+
+    def test_batch_url_has_correct_id_param(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """_make_cite_batch(["123", "456"]) encodes id=123,456 in the URL."""
+        captured_urls: list[str] = []
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            captured_urls.append(str(request.url))
+            return httpx.Response(status_code=200, json=[])
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
+
+        _make_cite_batch(["123", "456"])
+
+        assert len(captured_urls) == 1
+        parsed = urllib.parse.urlparse(captured_urls[0])
+        params = urllib.parse.parse_qs(parsed.query)
+        assert params["id"] == ["123,456"]
+
+    def test_batch_url_has_correct_format(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """_make_cite_batch() always sets format=csl."""
+        captured_urls: list[str] = []
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            captured_urls.append(str(request.url))
+            return httpx.Response(status_code=200, json=[])
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
+
+        _make_cite_batch(["123"])
+
+        parsed = urllib.parse.urlparse(captured_urls[0])
+        params = urllib.parse.parse_qs(parsed.query)
+        assert params["format"] == ["csl"]
+
+    def test_malicious_pmid_rejected(self) -> None:
+        """A PMID like '123&format=bibtex' must be rejected (non-numeric)."""
+        with pytest.raises(ValueError, match="Invalid PMID"):
+            _make_cite_batch(["123&format=bibtex"])
+
+    def test_whitespace_pmid_stripped_and_validated(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PMIDs with leading/trailing whitespace are stripped before validation."""
+        captured_urls: list[str] = []
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            captured_urls.append(str(request.url))
+            return httpx.Response(status_code=200, json=[])
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
+
+        _make_cite_batch(["  123  ", "456"])
+
+        parsed = urllib.parse.urlparse(captured_urls[0])
+        params = urllib.parse.parse_qs(parsed.query)
+        assert params["id"] == ["123,456"]
