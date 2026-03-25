@@ -74,8 +74,9 @@ def collect_main(argv: list[str] | None = None) -> int:
         if not xml:
             return 0
 
-        articles = parse.parse_xml(xml)
-        for article in articles:
+        import io
+
+        for article in parse.parse_xml_stream(io.BytesIO(xml.encode("utf-8"))):
             if args.csl:
                 output = parse.article_to_csl(article)
             else:

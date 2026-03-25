@@ -1,10 +1,41 @@
 """Tests for pm collect command."""
 
+import json
 from unittest.mock import patch
 
 import pytest
 
 from pm_tools.cli import collect_main
+
+# Minimal two-article XML for end-to-end CLI tests.
+_COLLECT_XML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>111</PMID>
+    <Article>
+      <ArticleTitle>First</ArticleTitle>
+      <Journal>
+        <JournalIssue><PubDate><Year>2024</Year></PubDate></JournalIssue>
+        <Title>J1</Title>
+      </Journal>
+    </Article>
+  </MedlineCitation>
+</PubmedArticle>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>222</PMID>
+    <Article>
+      <ArticleTitle>Second</ArticleTitle>
+      <Journal>
+        <JournalIssue><PubDate><Year>2023</Year></PubDate></JournalIssue>
+        <Title>J2</Title>
+      </Journal>
+    </Article>
+  </MedlineCitation>
+</PubmedArticle>
+</PubmedArticleSet>"""
 
 
 class TestCollectArgs:
@@ -96,3 +127,51 @@ class TestCollectMaxValidation:
             assert result == 0
             call_args = mock_search.search.call_args
             assert call_args[0][1] == 3
+
+
+# =============================================================================
+# collect_main streaming wiring (Phase 1.2)
+# =============================================================================
+
+
+class TestCollectStreamingWiring:
+    """collect_main must use parse_xml_stream, not parse_xml."""
+
+    def test_collect_jsonl_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """collect_main produces correct JSONL output with mocked search+fetch."""
+        with (
+            patch("pm_tools.cli.search") as mock_search,
+            patch("pm_tools.cli.fetch") as mock_fetch,
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            mock_search.search.return_value = ["111", "222"]
+            mock_fetch.fetch.return_value = _COLLECT_XML
+            rc = collect_main(["test", "query"])
+
+        assert rc == 0
+        lines = capsys.readouterr().out.strip().splitlines()
+        assert len(lines) == 2
+        first = json.loads(lines[0])
+        second = json.loads(lines[1])
+        assert first["pmid"] == "111"
+        assert second["pmid"] == "222"
+
+    def test_collect_uses_stream_not_parse_xml(self) -> None:
+        """collect_main must call parse.parse_xml_stream, NOT parse.parse_xml."""
+        from pm_tools import parse as parse_mod
+
+        with (
+            patch("pm_tools.cli.search") as mock_search,
+            patch("pm_tools.cli.fetch") as mock_fetch,
+            patch.object(parse_mod, "parse_xml_stream") as mock_stream,
+            patch.object(parse_mod, "parse_xml") as mock_legacy,
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            mock_search.search.return_value = ["111"]
+            mock_fetch.fetch.return_value = _COLLECT_XML
+            mock_stream.return_value = iter([{"pmid": "111", "title": "T1"}])
+            rc = collect_main(["test", "query"])
+
+        assert rc == 0
+        mock_stream.assert_called_once()
+        mock_legacy.assert_not_called()

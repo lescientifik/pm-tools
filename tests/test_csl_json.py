@@ -537,7 +537,9 @@ class TestLegacyFieldsFiltering:
         old_stdin = sys.stdin
         old_stdout = sys.stdout
         try:
-            sys.stdin = io.StringIO(xml)
+            fake_stdin = io.StringIO(xml)
+            fake_stdin.buffer = io.BytesIO(xml.encode("utf-8"))  # type: ignore[attr-defined]
+            sys.stdin = fake_stdin
             out = io.StringIO()
             sys.stdout = out
 
@@ -624,7 +626,9 @@ class TestParseCslFlag:
         old_stdin = sys.stdin
         old_stdout = sys.stdout
         try:
-            sys.stdin = io.StringIO(xml)
+            fake_stdin = io.StringIO(xml)
+            fake_stdin.buffer = io.BytesIO(xml.encode("utf-8"))  # type: ignore[attr-defined]
+            sys.stdin = fake_stdin
             out = io.StringIO()
             sys.stdout = out
 
@@ -652,7 +656,9 @@ class TestParseCslFlag:
         old_stdin = sys.stdin
         old_stdout = sys.stdout
         try:
-            sys.stdin = io.StringIO(xml)
+            fake_stdin = io.StringIO(xml)
+            fake_stdin.buffer = io.BytesIO(xml.encode("utf-8"))  # type: ignore[attr-defined]
+            sys.stdin = fake_stdin
             out = io.StringIO()
             sys.stdout = out
 
@@ -676,7 +682,9 @@ class TestParseCslFlag:
         old_stdin = sys.stdin
         old_stdout = sys.stdout
         try:
-            sys.stdin = io.StringIO("")
+            fake_stdin = io.StringIO("")
+            fake_stdin.buffer = io.BytesIO(b"")  # type: ignore[attr-defined]
+            sys.stdin = fake_stdin
             out = io.StringIO()
             sys.stdout = out
 
@@ -713,7 +721,9 @@ class TestParseCslFlag:
         old_stdin = sys.stdin
         old_stdout = sys.stdout
         try:
-            sys.stdin = io.StringIO(xml)
+            fake_stdin = io.StringIO(xml)
+            fake_stdin.buffer = io.BytesIO(xml.encode("utf-8"))  # type: ignore[attr-defined]
+            sys.stdin = fake_stdin
             out = io.StringIO()
             sys.stdout = out
 
