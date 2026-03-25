@@ -23,7 +23,7 @@ def _build_collect_parser() -> argparse.ArgumentParser:
         "--max", type=int, default=100, dest="max_results", help="Maximum results (default: 100)"
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Show progress on stderr")
-    parser.add_argument("query", help="PubMed search query")
+    parser.add_argument("query_words", nargs="*", help="PubMed search query")
     return parser
 
 
@@ -37,12 +37,13 @@ def collect_main(argv: list[str] | None = None) -> int:
     except SystemExit as e:
         return 2 if e.code != 0 else 0
 
-    if not args.query.strip():
+    query = " ".join(args.query_words)
+    if not query.strip():
         print("Error: Query cannot be empty", file=sys.stderr)
         return 1
 
     if args.verbose:
-        print(f'Searching PubMed: "{args.query}" (max {args.max_results})...', file=sys.stderr)
+        print(f'Searching PubMed: "{query}" (max {args.max_results})...', file=sys.stderr)
 
     try:
         import json
@@ -52,7 +53,7 @@ def collect_main(argv: list[str] | None = None) -> int:
         detected_pm_dir = find_pm_dir()
 
         pmids = search.search(
-            args.query,
+            query,
             args.max_results,
             pm_dir=detected_pm_dir,
         )

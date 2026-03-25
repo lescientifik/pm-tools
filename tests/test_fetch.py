@@ -522,3 +522,48 @@ class TestFetchRoundTrip:
         orig_pmids = {a["pmid"] for a in original}
         new_pmids = {a["pmid"] for a in reassembled}
         assert orig_pmids == new_pmids
+
+
+# =============================================================================
+# Positional PMIDs in CLI
+# =============================================================================
+
+
+class TestFetchPositionalPmids:
+    """Test that fetch CLI accepts positional PMIDs (same pattern as cite)."""
+
+    @patch("pm_tools.cache.find_pm_dir", return_value=None)
+    @patch("pm_tools.fetch.fetch")
+    def test_positional_pmid(self, mock_fetch_fn: MagicMock, mock_find: MagicMock) -> None:
+        """fetch.main(["41873355"]) should produce output."""
+        from pm_tools.fetch import main
+
+        mock_fetch_fn.return_value = "<xml/>"
+        result = main(["41873355"])
+        assert result == 0
+        mock_fetch_fn.assert_called_once()
+        assert "41873355" in mock_fetch_fn.call_args[0][0]
+
+    @patch("pm_tools.cache.find_pm_dir", return_value=None)
+    @patch("pm_tools.fetch.fetch")
+    def test_multiple_positional_pmids(
+        self, mock_fetch_fn: MagicMock, mock_find: MagicMock,
+    ) -> None:
+        """Multiple positional PMIDs all passed to fetch()."""
+        from pm_tools.fetch import main
+
+        mock_fetch_fn.return_value = "<xml/>"
+        result = main(["111", "222", "333"])
+        assert result == 0
+        assert mock_fetch_fn.call_args[0][0] == ["111", "222", "333"]
+
+    @patch("pm_tools.cache.find_pm_dir", return_value=None)
+    @patch("pm_tools.fetch.fetch")
+    def test_positional_with_verbose(self, mock_fetch_fn: MagicMock, mock_find: MagicMock) -> None:
+        """Positional PMIDs work with -v flag."""
+        from pm_tools.fetch import main
+
+        mock_fetch_fn.return_value = "<xml/>"
+        result = main(["41873355", "-v"])
+        assert result == 0
+        assert "41873355" in mock_fetch_fn.call_args[0][0]

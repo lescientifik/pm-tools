@@ -549,9 +549,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "  1 - Usage error or some downloads failed\n"
             "  2 - No articles downloaded (no sources available)\n\n"
             "Examples:\n"
+            "  pm download 41873355 --dry-run\n"
+            "  pm download 111 222 --output-dir ./articles/\n"
             '  pm search "CRISPR" | pm fetch | pm parse | pm download --output-dir ./articles/\n'
-            "  pm download --pdf --output-dir ./pdfs/\n"
-            "  pm parse output.jsonl | pm download --dry-run\n"
             "  pm download --input pmids.txt --email user@example.com"
         ),
     )
@@ -575,6 +575,7 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Only use Unpaywall (skip PMC)")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Show progress on stderr")
+    parser.add_argument("pmids", nargs="*", help="PMIDs (also reads from stdin)")
     return parser
 
 
@@ -601,30 +602,24 @@ def main(args: list[str] | None = None) -> int:
     verbose: bool = parsed.verbose
     prefer_pdf: bool = parsed.pdf
 
-    # Read input
-    lines: list[str] = []
-    if input_file:
-        with open(input_file) as f:
-            lines = [line.strip() for line in f if line.strip()]
-    elif not sys.stdin.isatty():
-        lines = [line.strip() for line in sys.stdin if line.strip()]
+    # Read input — positional PMIDs, --input FILE, or stdin
+    positional_pmids: list[str] = parsed.pmids
 
-    if not lines:
-        print("Error: No input provided. Use --help for usage.", file=sys.stderr)
+    # Mutual exclusivity: positional PMIDs vs --input FILE
+    if positional_pmids and input_file:
+        print("Error: cannot use both positional PMIDs and --input FILE", file=sys.stderr)
         return 1
 
-    # Detect format
+    lines: list[str] = []
     articles: list[dict[str, Any]] = []
-    is_jsonl = lines[0].startswith("{")
 
-    if is_jsonl:
-        articles = list(read_jsonl(io.StringIO("\n".join(lines))))
-    else:
-        pmids = lines
+    if positional_pmids:
+        # Positional PMIDs: always plain PMID strings (skip JSONL auto-detection)
+        pmids = positional_pmids
         if verbose:
             print("Converting PMIDs to get DOI/PMCID...", file=sys.stderr)
         converted = convert_pmids(pmids, email or "user@example.com")
-        conv_by_pmid = {}
+        conv_by_pmid: dict[str, dict[str, Any]] = {}
         for rec in converted:
             p = str(rec.get("pmid", ""))
             conv_by_pmid[p] = rec
@@ -637,6 +632,39 @@ def main(args: list[str] | None = None) -> int:
                     "doi": rec.get("doi", ""),
                 }
             )
+    elif input_file:
+        with open(input_file) as f:
+            lines = [line.strip() for line in f if line.strip()]
+    elif not sys.stdin.isatty():
+        lines = [line.strip() for line in sys.stdin if line.strip()]
+
+    # Process lines (from --input or stdin) with JSONL auto-detection
+    if lines and not articles:
+        is_jsonl = lines[0].startswith("{")
+        if is_jsonl:
+            articles = list(read_jsonl(io.StringIO("\n".join(lines))))
+        else:
+            pmids = lines
+            if verbose:
+                print("Converting PMIDs to get DOI/PMCID...", file=sys.stderr)
+            converted = convert_pmids(pmids, email or "user@example.com")
+            conv_by_pmid_lines: dict[str, dict[str, Any]] = {}
+            for rec in converted:
+                p = str(rec.get("pmid", ""))
+                conv_by_pmid_lines[p] = rec
+            for pmid in pmids:
+                rec = conv_by_pmid_lines.get(pmid, {})
+                articles.append(
+                    {
+                        "pmid": pmid,
+                        "pmcid": rec.get("pmcid", ""),
+                        "doi": rec.get("doi", ""),
+                    }
+                )
+
+    if not articles:
+        print("Error: No input provided. Use --help for usage.", file=sys.stderr)
+        return 1
 
     sources = find_sources(articles, email, pmc_only, unpaywall_only)
 

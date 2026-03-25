@@ -2851,3 +2851,62 @@ class TestCliPdfFlag:
         assert exit_code == 0
         assert (output_dir / "99999.nxml").exists()
         assert not (output_dir / "99999.pdf").exists()
+
+
+# =============================================================================
+# Positional PMIDs in CLI
+# =============================================================================
+
+
+class TestDownloadPositionalPmids:
+    """Test that download CLI accepts positional PMIDs (same pattern as cite)."""
+
+    def test_positional_pmid_with_dry_run(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """download.main(["41873355", "--dry-run"]) should work."""
+        from unittest.mock import MagicMock
+
+        from pm_tools.download import main as download_main
+
+        mock_convert = MagicMock(
+            return_value=[{"pmid": "41873355", "pmcid": "", "doi": ""}]
+        )
+        monkeypatch.setattr("pm_tools.download.convert_pmids", mock_convert)
+        monkeypatch.setattr("pm_tools.download.find_sources", lambda *a, **kw: [
+            {"pmid": "41873355", "source": None, "url": None},
+        ])
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        result = download_main(["41873355", "--dry-run"])
+        assert result == 2  # no sources available
+        mock_convert.assert_called_once()
+        assert "41873355" in mock_convert.call_args[0][0]
+
+    def test_multiple_positional_pmids(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Multiple positional PMIDs passed correctly."""
+        from unittest.mock import MagicMock
+
+        from pm_tools.download import main as download_main
+
+        mock_convert = MagicMock(return_value=[])
+        monkeypatch.setattr("pm_tools.download.convert_pmids", mock_convert)
+        monkeypatch.setattr("pm_tools.download.find_sources", lambda *a, **kw: [])
+        monkeypatch.setattr("pm_tools.download.download_articles", lambda *a, **kw: {
+            "downloaded": 0, "skipped": 0, "failed": 0,
+        })
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        download_main(["111", "222", "--dry-run"])
+        assert mock_convert.call_args[0][0] == ["111", "222"]
+
+    def test_positional_and_input_file_conflict(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Positional PMIDs + --input FILE should error."""
+        from pm_tools.download import main as download_main
+
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        result = download_main(["41873355", "--input", "file.txt"])
+        assert result == 1
+        captured = capsys.readouterr()
+        assert "cannot use both" in captured.err.lower()

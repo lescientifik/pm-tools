@@ -143,6 +143,8 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "examples:\n"
+            "  pm fetch 41873355\n"
+            "  pm fetch 111 222 333 > articles.xml\n"
             "  cat pmids.txt | pm fetch > articles.xml\n"
             "  pm search \"CRISPR\" | pm fetch | pm parse > results.jsonl"
         ),
@@ -153,6 +155,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show progress on stderr",
     )
+    parser.add_argument("pmids", nargs="*", help="PMIDs (also reads from stdin)")
     return parser
 
 
@@ -169,9 +172,9 @@ def main(args: list[str] | None = None) -> int:
 
     verbose: bool = parsed.verbose
 
-    # Read PMIDs from stdin
-    pmids: list[str] = []
-    if not sys.stdin.isatty():
+    # Read PMIDs: positional args first, then stdin fallback
+    pmids: list[str] = parsed.pmids
+    if not pmids and not sys.stdin.isatty():
         for line in sys.stdin:
             stripped = line.strip()
             if stripped:
