@@ -503,3 +503,34 @@ class TestSearchMaxValidation:
 
         result = main(["CRISPR", "--max", "abc"])
         assert result == 2
+
+
+# =============================================================================
+# --verbose flag (Phase 3.2)
+# =============================================================================
+
+
+class TestSearchVerbose:
+    """search -v prints progress to stderr."""
+
+    def test_verbose_prints_searching_on_stderr(
+        self, mock_esearch_response: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """search.main(["-v", "CRISPR"]) prints progress message to stderr."""
+        from pm_tools.search import main
+
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_esearch_response
+        mock_response.raise_for_status = MagicMock()
+        mock_client = _mock_client_for(mock_response)
+
+        with (
+            patch("pm_tools.search.get_client", return_value=mock_client),
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            result = main(["-v", "CRISPR"])
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Searching" in captured.err
