@@ -36,6 +36,7 @@ def search(
     *,
     pm_dir: Path | None = None,
     refresh: bool = False,
+    verbose: bool = False,
 ) -> list[str]:
     """Search PubMed and return list of PMIDs.
 
@@ -44,6 +45,7 @@ def search(
         max_results: Maximum number of results to return.
         pm_dir: Path to .pm/ directory for caching and audit logging, or None.
         refresh: If True, bypass cache and re-fetch.
+        verbose: If True, print progress messages to stderr.
 
     Returns:
         List of PMID strings.
@@ -85,6 +87,8 @@ def search(
             return pmids
 
     # API call
+    if verbose:
+        print(f'Searching PubMed for "{query}"...', file=sys.stderr)
     encoded_query = urllib.parse.quote(query, safe="")
     url = f"{ESEARCH_URL}?db=pubmed&term={encoded_query}&retmax={max_results}&retmode=xml"
 
@@ -159,6 +163,7 @@ def main(args: list[str] | None = None) -> int:
 
     max_results: int = parsed.max_results
     refresh: bool = parsed.refresh
+    verbose: bool = parsed.verbose
     query = " ".join(parsed.query_words)
 
     if not query:
@@ -180,6 +185,7 @@ def main(args: list[str] | None = None) -> int:
             max_results,
             pm_dir=detected_pm_dir,
             refresh=refresh,
+            verbose=verbose,
         )
         for pmid in pmids:
             print(pmid)
