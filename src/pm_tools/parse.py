@@ -245,7 +245,7 @@ def parse_article(article: ET.Element) -> ArticleRecord:
                         if year_match:
                             year = year_match.group()
 
-                    if year:
+                    if year and year.isdigit():
                         result["year"] = int(year)
 
                     date = _build_date(year, month, day, season, medline_date)

@@ -1245,3 +1245,44 @@ class TestParseHelp:
         parser = _build_parser()
         help_text = parser.format_help()
         assert "pm parse" in help_text
+
+
+class TestParseNonNumericYear:
+    """Guard int(year) against non-numeric values (v0.3.1 phase 1.1)."""
+
+    def _make_xml(self, year_content: str) -> str:
+        """Build minimal PubMed XML with a given <Year> content."""
+        return f"""<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>11111</PMID>
+    <Article>
+      <Journal>
+        <JournalIssue>
+          <PubDate>
+            <Year>{year_content}</Year>
+          </PubDate>
+        </JournalIssue>
+      </Journal>
+    </Article>
+  </MedlineCitation>
+</PubmedArticle>
+</PubmedArticleSet>"""
+
+    def test_non_numeric_year_no_crash(self) -> None:
+        """XML with <Year>not-a-year</Year> must not crash; year field absent."""
+        result = parse_xml(self._make_xml("not-a-year"))
+        article = result[0]
+        assert "year" not in article
+
+    def test_alphanumeric_year_no_crash(self) -> None:
+        """XML with <Year>2024a</Year> must not crash; year field absent."""
+        result = parse_xml(self._make_xml("2024a"))
+        article = result[0]
+        assert "year" not in article
+
+    def test_empty_year_no_crash(self) -> None:
+        """XML with <Year></Year> must not crash; year field absent."""
+        result = parse_xml(self._make_xml(""))
+        article = result[0]
+        assert "year" not in article
