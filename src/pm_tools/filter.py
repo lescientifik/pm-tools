@@ -267,6 +267,70 @@ def filter_articles_audited(
     return result
 
 
+def filter_with_breakdown(
+    articles: list[dict[str, Any]],
+    *,
+    year: str | None = None,
+    journal: str | None = None,
+    journal_exact: str | None = None,
+    author: str | None = None,
+    has_abstract: bool = False,
+    has_doi: bool = False,
+) -> tuple[list[dict[str, Any]], list[tuple[str, int]]]:
+    """Apply filters one at a time and track per-step counts.
+
+    Returns:
+        Tuple of (filtered_articles, steps) where steps is a list of
+        (label, count) pairs showing how many articles survive each filter.
+    """
+    # Build ordered list of active filters (CLI-exposed only, in application order)
+    active_filters: list[tuple[str, dict[str, Any]]] = []
+    if year is not None:
+        active_filters.append((f"--year {year}", {"year": year}))
+    if journal is not None:
+        active_filters.append((f"--journal {journal}", {"journal": journal}))
+    if journal_exact is not None:
+        label = f"--journal-exact {journal_exact}"
+        active_filters.append((label, {"journal_exact": journal_exact}))
+    if author is not None:
+        active_filters.append((f"--author {author}", {"author": author}))
+    if has_abstract:
+        active_filters.append(("--has-abstract", {"has_abstract": True}))
+    if has_doi:
+        active_filters.append(("--has-doi", {"has_doi": True}))
+
+    remaining = list(articles)
+    steps: list[tuple[str, int]] = []
+    for label, single_kwarg in active_filters:
+        remaining = list(filter_articles(iter(remaining), **single_kwarg))
+        steps.append((label, len(remaining)))
+
+    return remaining, steps
+
+
+def format_breakdown(
+    input_count: int,
+    steps: list[tuple[str, int]],
+    output_count: int,
+) -> str:
+    """Format per-filter breakdown for stderr output.
+
+    Args:
+        input_count: Number of articles read.
+        steps: List of (label, count) pairs from filter_with_breakdown.
+        output_count: Number of articles after all filters.
+
+    Returns:
+        Formatted multi-line string for stderr.
+    """
+    lines = [f"{input_count} read"]
+    for label, count in steps:
+        lines.append(f"  → {count} after {label}")
+    excluded = input_count - output_count
+    lines.append(f"{output_count}/{input_count} passed ({excluded} excluded)")
+    return "\n".join(lines)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """Build argument parser for pm filter."""
     parser = argparse.ArgumentParser(
@@ -331,13 +395,41 @@ def main(args: list[str] | None = None) -> int:
     }
 
     if parsed.verbose or detected_pm_dir is not None:
-        # Use audited version (consumes iterator into list)
-        result = filter_articles_audited(articles, pm_dir=detected_pm_dir, **filter_kwargs)
+        # Consume into list for counting and breakdown
+        input_list = list(articles)
+        result, steps = filter_with_breakdown(input_list, **filter_kwargs)
         for article in result:
             print(json.dumps(article, ensure_ascii=False))
+
+        # Audit log (preserve existing schema)
+        if detected_pm_dir is not None:
+            criteria: dict[str, Any] = {}
+            if filter_kwargs.get("year") is not None:
+                criteria["year"] = filter_kwargs["year"]
+            if filter_kwargs.get("journal") is not None:
+                criteria["journal"] = filter_kwargs["journal"]
+            if filter_kwargs.get("journal_exact") is not None:
+                criteria["journal_exact"] = filter_kwargs["journal_exact"]
+            if filter_kwargs.get("author") is not None:
+                criteria["author"] = filter_kwargs["author"]
+            if filter_kwargs.get("has_abstract"):
+                criteria["has_abstract"] = True
+            if filter_kwargs.get("has_doi"):
+                criteria["has_doi"] = True
+            audit_log(
+                detected_pm_dir,
+                {
+                    "op": "filter",
+                    "input": len(input_list),
+                    "output": len(result),
+                    "excluded": len(input_list) - len(result),
+                    "criteria": criteria,
+                },
+            )
+
         if parsed.verbose:
             print(
-                f"{len(result)} articles passed filters",
+                format_breakdown(len(input_list), steps, len(result)),
                 file=sys.stderr,
             )
     else:

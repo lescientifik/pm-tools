@@ -509,3 +509,114 @@ class TestFilterAudit:
 
         result = filter_articles_audited(iter(articles), pm_dir=pm_dir)
         assert isinstance(result, list)
+
+
+# ---------------------------------------------------------------------------
+# filter_with_breakdown (Phase 4)
+# ---------------------------------------------------------------------------
+
+
+class TestFilterWithBreakdown:
+    """Test per-filter breakdown for verbose output."""
+
+    def test_no_filters_returns_all_articles(self) -> None:
+        """0 active filters → steps is empty, all articles pass."""
+        from pm_tools.filter import filter_with_breakdown
+
+        articles = [_article(pmid="1"), _article(pmid="2")]
+        result, steps = filter_with_breakdown(articles)
+        assert len(result) == 2
+        assert steps == []
+
+    def test_single_filter_single_step(self) -> None:
+        """1 filter → single step in breakdown."""
+        from pm_tools.filter import filter_with_breakdown
+
+        articles = [
+            _article(pmid="1", year=2024),
+            _article(pmid="2", year=2020),
+        ]
+        result, steps = filter_with_breakdown(articles, year="2024")
+        assert len(result) == 1
+        assert len(steps) == 1
+        assert steps[0] == ("--year 2024", 1)
+
+    def test_multiple_filters_sequential_steps(self) -> None:
+        """Multiple filters → steps in application order."""
+        from pm_tools.filter import filter_with_breakdown
+
+        articles = [
+            _article(pmid="1", year=2024, journal="Nature", abstract="yes"),
+            _article(pmid="2", year=2024, journal="Science", abstract="yes"),
+            _article(pmid="3", year=2020, journal="Nature", abstract="yes"),
+        ]
+        result, steps = filter_with_breakdown(
+            articles, year="2024", journal="Nature"
+        )
+        assert len(result) == 1
+        assert len(steps) == 2
+        # Year filter applied first, then journal
+        assert steps[0][0] == "--year 2024"
+        assert steps[0][1] == 2  # 2 articles from 2024
+        assert steps[1][0] == "--journal Nature"
+        assert steps[1][1] == 1  # 1 of those is Nature
+
+    def test_has_abstract_filter_step(self) -> None:
+        """--has-abstract produces correct step label."""
+        from pm_tools.filter import filter_with_breakdown
+
+        articles = [
+            _article(pmid="1", abstract="yes"),
+            _article(pmid="2", abstract=""),
+        ]
+        result, steps = filter_with_breakdown(articles, has_abstract=True)
+        assert len(result) == 1
+        assert steps[0] == ("--has-abstract", 1)
+
+    def test_has_doi_filter_step(self) -> None:
+        """--has-doi produces correct step label."""
+        from pm_tools.filter import filter_with_breakdown
+
+        articles = [
+            _article(pmid="1", doi="10.1234/x"),
+            _article(pmid="2", doi=None),
+        ]
+        result, steps = filter_with_breakdown(articles, has_doi=True)
+        assert len(result) == 1
+        assert steps[0] == ("--has-doi", 1)
+
+
+class TestFilterBreakdownFormat:
+    """Test the formatted breakdown string."""
+
+    def test_format_no_filters(self) -> None:
+        """0 filters → just count line."""
+        from pm_tools.filter import format_breakdown
+
+        text = format_breakdown(5, [], 5)
+        assert "5 read" in text
+        assert "5/5 passed" in text
+        assert "0 excluded" in text
+
+    def test_format_one_filter(self) -> None:
+        """1 filter → read + step + summary."""
+        from pm_tools.filter import format_breakdown
+
+        text = format_breakdown(200, [("--year 2024-", 180)], 180)
+        assert "200 read" in text
+        assert "→ 180 after --year 2024-" in text
+        assert "180/200 passed" in text
+
+    def test_format_multiple_filters(self) -> None:
+        """Multiple filters → all steps shown."""
+        from pm_tools.filter import format_breakdown
+
+        text = format_breakdown(
+            200,
+            [("--year 2024-", 180), ("--has-abstract", 5)],
+            5,
+        )
+        assert "200 read" in text
+        assert "→ 180 after --year 2024-" in text
+        assert "→ 5 after --has-abstract" in text
+        assert "5/200 passed (195 excluded)" in text
