@@ -1203,3 +1203,45 @@ class TestParseRealFixtures:
             assert "pmid" in article
             # Must be JSON-serializable
             json.dumps(article)
+
+
+# =============================================================================
+# Help text (Phase 3)
+# =============================================================================
+
+
+class TestParseHelp:
+    """Test that parse --help has no duplicated options."""
+
+    def test_no_duplicate_options_section(self) -> None:
+        """There should be only one 'options:' section (argparse-generated)."""
+        from pm_tools.parse import _build_parser
+
+        parser = _build_parser()
+        help_text = parser.format_help()
+        # argparse generates "options:" header; there should be exactly one
+        assert help_text.lower().count("options:") == 1
+
+    def test_no_manual_options_block_in_description(self) -> None:
+        """Description should not contain a manual 'Options:' block."""
+        from pm_tools.parse import PARSE_DESCRIPTION
+
+        # The description should NOT list options — argparse handles that
+        assert "--csl" not in PARSE_DESCRIPTION
+        assert "--verbose" not in PARSE_DESCRIPTION
+
+    def test_help_includes_output_format_docs(self) -> None:
+        """Help should still include output format documentation."""
+        from pm_tools.parse import _build_parser
+
+        parser = _build_parser()
+        help_text = parser.format_help()
+        assert "JSONL" in help_text or "jsonl" in help_text.lower()
+
+    def test_help_includes_examples(self) -> None:
+        """Help should still include examples."""
+        from pm_tools.parse import _build_parser
+
+        parser = _build_parser()
+        help_text = parser.format_help()
+        assert "pm parse" in help_text

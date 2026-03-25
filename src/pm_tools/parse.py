@@ -482,19 +482,13 @@ def parse_xml_stream_csl(input_stream: IO[str] | IO[bytes]) -> Iterator[CslJsonR
         yield article_to_csl(record)
 
 
-HELP_TEXT = """\
-pm parse - Parse PubMed XML to JSONL
+PARSE_DESCRIPTION = """\
+Parse PubMed XML to JSONL.
 
 Tip: for most tasks, use 'pm collect' instead — it runs search + fetch + parse
-in one command: pm collect "query" --max 100 > results.jsonl
+in one command: pm collect "query" --max 100 > results.jsonl"""
 
-Usage: cat articles.xml | pm parse [OPTIONS] > articles.jsonl
-
-Options:
-  --csl          Output CSL-JSON instead of ArticleRecord
-  -v, --verbose  Show progress on stderr
-  -h, --help     Show this help message
-
+PARSE_EPILOG = """\
 Output (default):
   One JSON object per line (JSONL format) with fields:
     pmid, title, authors, journal, year, date, doi, pmcid,
@@ -520,7 +514,8 @@ def _build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for pm parse."""
     parser = argparse.ArgumentParser(
         prog="pm parse",
-        description=HELP_TEXT,
+        description=PARSE_DESCRIPTION,
+        epilog=PARSE_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
