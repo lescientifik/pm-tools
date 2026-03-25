@@ -29,6 +29,9 @@ def _build_collect_parser() -> argparse.ArgumentParser:
         help="Maximum results (default: 100)",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Show progress on stderr")
+    parser.add_argument(
+        "--refresh", action="store_true", help="Bypass cache and re-fetch from API"
+    )
     parser.add_argument("query_words", nargs="*", help="PubMed search query")
     return parser
 
@@ -62,6 +65,7 @@ def collect_main(argv: list[str] | None = None) -> int:
             query,
             args.max_results,
             pm_dir=detected_pm_dir,
+            refresh=args.refresh,
         )
         if not pmids:
             return 0
@@ -70,6 +74,7 @@ def collect_main(argv: list[str] | None = None) -> int:
             pmids,
             verbose=args.verbose,
             pm_dir=detected_pm_dir,
+            refresh=args.refresh,
         )
         if not xml:
             return 0
