@@ -527,7 +527,7 @@ class TestSearchVerbose:
 
         with (
             patch("pm_tools.search.get_client", return_value=mock_client),
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
+            patch("pm_tools.search.find_pm_dir", return_value=None),
         ):
             result = main(["-v", "CRISPR"])
 

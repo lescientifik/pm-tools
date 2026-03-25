@@ -6,6 +6,8 @@ import argparse
 import sys
 import xml.etree.ElementTree as ET
 
+from pm_tools.io import safe_parse
+
 
 def extract_refs(nxml_content: str, id_type: str = "pmid") -> list[str]:
     """Extract cited identifiers from an NXML file's <ref-list>.
@@ -69,10 +71,9 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(args: list[str] | None = None) -> int:
     """CLI entry point for pm refs."""
     parser = _build_parser()
-    try:
-        parsed = parser.parse_args(args)
-    except SystemExit as e:
-        return int(e.code) if e.code is not None else 0
+    parsed, code = safe_parse(parser, args)
+    if parsed is None:
+        return code  # type: ignore[return-value]
 
     id_type = "doi" if parsed.doi else "pmid"
     files: list[str] = parsed.files

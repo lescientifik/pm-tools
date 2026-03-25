@@ -1,7 +1,8 @@
-"""Shared I/O utilities for JSONL processing and input validation."""
+"""Shared I/O utilities for JSONL processing, input validation, and argument parsing."""
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import re
@@ -9,6 +10,22 @@ from collections.abc import Iterator
 from typing import IO
 
 logger = logging.getLogger(__name__)
+
+
+def safe_parse(
+    parser: argparse.ArgumentParser,
+    args: list[str] | None,
+) -> tuple[argparse.Namespace | None, int | None]:
+    """Parse *args* with *parser*, catching ``SystemExit`` from argparse.
+
+    Returns ``(namespace, None)`` on success, or ``(None, exit_code)`` when
+    argparse calls ``sys.exit`` (--help, errors, etc.).
+    """
+    try:
+        ns = parser.parse_args(args)
+    except SystemExit as e:
+        return None, int(e.code) if e.code is not None else 0
+    return ns, None
 
 
 def read_jsonl(stream: IO[str]) -> Iterator[dict]:

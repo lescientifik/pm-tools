@@ -45,3 +45,17 @@
 {"op": "search", "db": "pubmed", "query": "CRISPR", "max": 3, "count": 3, "cached": false, "refreshed": false, "ts": "2026-03-25T11:44:56Z"}
 {"op": "search", "db": "pubmed", "query": "CRISPR", "max": 3, "count": 3, "cached": true, "original_ts": "2026-03-25T11:44:56Z", "ts": "2026-03-25T11:45:10Z"}
 {"op": "search", "db": "pubmed", "query": "CRISPR", "max": 3, "count": 3, "cached": true, "original_ts": "2026-03-25T11:44:56Z", "ts": "2026-03-25T11:45:18Z"}
+{"op": "download", "total": 1, "downloaded": 1, "skipped": 0, "failed": 0, "ts": "2026-03-25T15:38:24Z"}
+{"op": "filter", "input": 3, "output": 2, "excluded": 1, "criteria": {"title": "CRISPR"}, "ts": "2026-03-25T15:38:28Z"}
+{"op": "filter", "input": 2, "output": 1, "excluded": 1, "criteria": {"pmid": "12345"}, "ts": "2026-03-25T15:38:28Z"}
+{"op": "filter", "input": 2, "output": 1, "excluded": 1, "criteria": {"min_authors": 3}, "ts": "2026-03-25T15:38:28Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": 10000, "count": 3, "cached": false, "refreshed": false, "ts": "2026-03-25T15:38:28Z"}
+{"op": "download", "total": 1, "downloaded": 1, "skipped": 0, "failed": 0, "ts": "2026-03-25T15:40:10Z"}
+{"op": "filter", "input": 3, "output": 2, "excluded": 1, "criteria": {"title": "CRISPR"}, "ts": "2026-03-25T15:40:13Z"}
+{"op": "filter", "input": 2, "output": 1, "excluded": 1, "criteria": {"pmid": "12345"}, "ts": "2026-03-25T15:40:13Z"}
+{"op": "filter", "input": 2, "output": 1, "excluded": 1, "criteria": {"min_authors": 3}, "ts": "2026-03-25T15:40:13Z"}
+{"op": "search", "db": "pubmed", "query": "CRISPR", "max": 10000, "count": 3, "cached": true, "original_ts": "2026-03-25T15:38:28Z", "ts": "2026-03-25T15:40:13Z"}
+{"op": "download", "total": 1, "downloaded": 1, "skipped": 0, "failed": 0, "ts": "2026-03-25T15:40:35Z"}
+{"op": "filter", "input": 3, "output": 2, "excluded": 1, "criteria": {"title": "CRISPR"}, "ts": "2026-03-25T15:40:38Z"}
+{"op": "filter", "input": 2, "output": 1, "excluded": 1, "criteria": {"pmid": "12345"}, "ts": "2026-03-25T15:40:38Z"}
+{"op": "filter", "input": 2, "output": 1, "excluded": 1, "criteria": {"min_authors": 3}, "ts": "2026-03-25T15:40:38Z"}
