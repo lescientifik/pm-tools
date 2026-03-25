@@ -630,3 +630,19 @@ class TestRefsWarnings:
         lines = captured.out.strip().splitlines()
         assert "11111111" in lines
         assert "22222222" in lines
+
+    def test_multifile_invalid_plus_no_refs_warns_both(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Parse error + valid-but-no-refs → both warnings emitted."""
+        bad = tmp_path / "bad.nxml"
+        bad.write_text("<broken><<<xml")
+        no_refs = tmp_path / "noref.nxml"
+        no_refs.write_text(_NXML_NO_REFLIST)
+        exit_code = refs_main([str(bad), str(no_refs)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "warning: could not parse XML" in captured.err
+        assert "warning: no references found" in captured.err

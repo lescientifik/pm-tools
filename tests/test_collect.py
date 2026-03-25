@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from pm_tools.cli import collect_main
 
 
@@ -43,11 +45,11 @@ class TestCollectArgs:
             call_args = mock_search.search.call_args
             assert call_args[0][0] == "CRISPR"
 
-    def test_empty_query_returns_1(self, capsys: object) -> None:
+    def test_empty_query_returns_1(self, capsys: pytest.CaptureFixture[str]) -> None:
         """No query args should print error to stderr and return 1."""
         result = collect_main([])
         assert result == 1
-        captured = capsys.readouterr()  # type: ignore[union-attr]
+        captured = capsys.readouterr()
         assert "Error" in captured.err
 
     def test_quoted_query_still_works(self) -> None:

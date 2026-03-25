@@ -75,6 +75,8 @@ The `/planning-feature` skill:
 |------|---------|
 | `spec.md` | Requirements and decisions |
 | `plan.md` | Implementation plan with phases |
+| `todos.md` | Future ideas and improvements to explore |
+| `docs/roadmap/` | Implementation roadmaps (reviewed, ready to execute) |
 | `src/pm_tools/` | Python source code |
 | `tests/` | Pytest test files |
 | `fixtures/` | Test data |

@@ -16,7 +16,10 @@ def extract_refs(nxml_content: str, id_type: str = "pmid") -> list[str]:
 
     Returns:
         List of identifier strings, deduplicated and in document order.
-        Returns empty list on invalid XML or if no matching refs found.
+        Returns empty list for empty/whitespace input or if no matching refs found.
+
+    Raises:
+        xml.etree.ElementTree.ParseError: If nxml_content is not valid XML.
     """
     if not nxml_content or not nxml_content.strip():
         return []
@@ -77,7 +80,6 @@ def main(args: list[str] | None = None) -> int:
     # Collect all refs across files, deduplicated
     all_refs: list[str] = []
     had_error = False
-    had_parse_error = False
 
     if files:
         for filepath in files:
@@ -95,7 +97,6 @@ def main(args: list[str] | None = None) -> int:
                     f"warning: could not parse XML: {filepath}",
                     file=sys.stderr,
                 )
-                had_parse_error = True
                 continue
             all_refs.extend(refs)
     elif not sys.stdin.isatty():
@@ -104,7 +105,6 @@ def main(args: list[str] | None = None) -> int:
             refs = extract_refs(content, id_type=id_type)
         except ET.ParseError:
             print("warning: could not parse XML", file=sys.stderr)
-            had_parse_error = True
             refs = []
         all_refs.extend(refs)
     else:
@@ -119,7 +119,7 @@ def main(args: list[str] | None = None) -> int:
     for ref in unique_refs:
         print(ref)
 
-    if not unique_refs and not had_error and not had_parse_error:
+    if not unique_refs and not had_error:
         print("warning: no references found", file=sys.stderr)
 
     return 1 if had_error else 0

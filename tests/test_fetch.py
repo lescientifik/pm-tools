@@ -567,3 +567,24 @@ class TestFetchPositionalPmids:
         result = main(["41873355", "-v"])
         assert result == 0
         assert "41873355" in mock_fetch_fn.call_args[0][0]
+
+    @patch("pm_tools.cache.find_pm_dir", return_value=None)
+    @patch("pm_tools.fetch.fetch")
+    def test_stdin_fallback_when_no_positional(
+        self,
+        mock_fetch_fn: MagicMock,
+        mock_find: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Stdin is read when no positional args and stdin is not a TTY."""
+        import io
+
+        from pm_tools.fetch import main
+
+        mock_fetch_fn.return_value = "<xml/>"
+        monkeypatch.setattr("sys.stdin", io.StringIO("12345\n67890\n"))
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        result = main([])
+        assert result == 0
+        mock_fetch_fn.assert_called_once()
+        assert mock_fetch_fn.call_args[0][0] == ["12345", "67890"]

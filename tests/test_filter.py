@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -585,6 +586,30 @@ class TestFilterWithBreakdown:
         assert len(result) == 1
         assert steps[0] == ("--has-doi", 1)
 
+    def test_journal_exact_filter_step(self) -> None:
+        """--journal-exact produces correct step label."""
+        from pm_tools.filter import filter_with_breakdown
+
+        articles = [
+            _article(pmid="1", journal="Nature"),
+            _article(pmid="2", journal="Science"),
+        ]
+        result, steps = filter_with_breakdown(articles, journal_exact="Nature")
+        assert len(result) == 1
+        assert steps[0] == ("--journal-exact Nature", 1)
+
+    def test_author_filter_step(self) -> None:
+        """--author produces correct step label."""
+        from pm_tools.filter import filter_with_breakdown
+
+        articles = [
+            _article(pmid="1", authors=[{"family": "Smith", "given": "J"}]),
+            _article(pmid="2", authors=[{"family": "Jones", "given": "A"}]),
+        ]
+        result, steps = filter_with_breakdown(articles, author="Smith")
+        assert len(result) == 1
+        assert steps[0] == ("--author Smith", 1)
+
 
 class TestFilterBreakdownFormat:
     """Test the formatted breakdown string."""
@@ -620,3 +645,40 @@ class TestFilterBreakdownFormat:
         assert "→ 180 after --year 2024-" in text
         assert "→ 5 after --has-abstract" in text
         assert "5/200 passed (195 excluded)" in text
+
+
+class TestFilterMainAuditWithBreakdown:
+    """Integration test: filter main() preserves audit log schema after refactor."""
+
+    def test_verbose_with_pm_dir_writes_audit(self, tmp_path: Path) -> None:
+        """filter -v with .pm/ dir writes correct audit log entry."""
+        import io
+
+        from pm_tools.filter import main as filter_main
+
+        pm_dir = _make_pm_dir(tmp_path)
+        # Prepare JSONL input
+        articles = [
+            _article(pmid="1", year=2024, abstract="yes"),
+            _article(pmid="2", year=2020, abstract="yes"),
+            _article(pmid="3", year=2024, abstract=""),
+        ]
+        jsonl_input = "\n".join(json.dumps(a) for a in articles)
+
+        with (
+            patch("sys.stdin", io.StringIO(jsonl_input)),
+            patch("sys.stdin.isatty", return_value=False),
+            patch("pm_tools.cache.find_pm_dir", return_value=pm_dir),
+        ):
+            result = filter_main(["--year", "2024", "--has-abstract", "-v"])
+
+        assert result == 0
+        audit_file = pm_dir / "audit.jsonl"
+        assert audit_file.exists()
+        event = json.loads(audit_file.read_text().strip().splitlines()[0])
+        assert event["op"] == "filter"
+        assert event["input"] == 3
+        assert event["output"] == 1
+        assert event["excluded"] == 2
+        assert "year" in event["criteria"]
+        assert "has_abstract" in event["criteria"]

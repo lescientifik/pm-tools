@@ -2910,3 +2910,23 @@ class TestDownloadPositionalPmids:
         assert result == 1
         captured = capsys.readouterr()
         assert "cannot use both" in captured.err.lower()
+
+    def test_stdin_fallback_when_no_positional(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Stdin is read when no positional args and stdin is not a TTY."""
+        import io
+        from unittest.mock import MagicMock
+
+        from pm_tools.download import main as download_main
+
+        mock_convert = MagicMock(return_value=[])
+        monkeypatch.setattr("pm_tools.download.convert_pmids", mock_convert)
+        monkeypatch.setattr("pm_tools.download.find_sources", lambda *a, **kw: [])
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("sys.stdin", io.StringIO("12345\n67890\n"))
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+
+        download_main(["--dry-run"])
+        mock_convert.assert_called_once()
+        assert mock_convert.call_args[0][0] == ["12345", "67890"]
