@@ -68,10 +68,11 @@ def search(
             original_ts = data.get("timestamp", "")
 
             # Log cached hit to audit
-            print(
-                f"pm: using cached search from {original_ts[:10]}. Use --refresh to update.",
-                file=sys.stderr,
-            )
+            if verbose:
+                print(
+                    f"pm: using cached search from {original_ts[:10]}. Use --refresh to update.",
+                    file=sys.stderr,
+                )
             audit_log(
                 pm_dir,
                 {

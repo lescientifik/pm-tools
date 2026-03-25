@@ -14,6 +14,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from pm_tools.io import validate_filename_safe
+
 
 def find_pm_dir() -> Path | None:
     """Detect .pm/ directory in the current working directory.
@@ -85,7 +87,7 @@ def cache_write(pm_dir: Path | None, category: str, key: str, data: str) -> None
         return
 
     # Defense in depth: validate the key before using it in a path.
-    from pm_tools.io import validate_filename_safe
+
 
     validate_filename_safe(key)
 

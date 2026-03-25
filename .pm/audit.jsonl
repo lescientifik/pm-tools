@@ -59,3 +59,11 @@
 {"op": "filter", "input": 3, "output": 2, "excluded": 1, "criteria": {"title": "CRISPR"}, "ts": "2026-03-25T15:40:38Z"}
 {"op": "filter", "input": 2, "output": 1, "excluded": 1, "criteria": {"pmid": "12345"}, "ts": "2026-03-25T15:40:38Z"}
 {"op": "filter", "input": 2, "output": 1, "excluded": 1, "criteria": {"min_authors": 3}, "ts": "2026-03-25T15:40:38Z"}
+{"op": "download", "total": 1, "downloaded": 1, "skipped": 0, "failed": 0, "ts": "2026-03-25T16:11:31Z"}
+{"op": "filter", "input": 3, "output": 2, "excluded": 1, "criteria": {"title": "CRISPR"}, "ts": "2026-03-25T16:11:35Z"}
+{"op": "filter", "input": 2, "output": 1, "excluded": 1, "criteria": {"pmid": "12345"}, "ts": "2026-03-25T16:11:35Z"}
+{"op": "filter", "input": 2, "output": 1, "excluded": 1, "criteria": {"min_authors": 3}, "ts": "2026-03-25T16:11:35Z"}
+{"op": "download", "total": 1, "downloaded": 1, "skipped": 0, "failed": 0, "ts": "2026-03-25T16:23:31Z"}
+{"op": "filter", "input": 3, "output": 2, "excluded": 1, "criteria": {"title": "CRISPR"}, "ts": "2026-03-25T16:23:34Z"}
+{"op": "filter", "input": 2, "output": 1, "excluded": 1, "criteria": {"pmid": "12345"}, "ts": "2026-03-25T16:23:34Z"}
+{"op": "filter", "input": 2, "output": 1, "excluded": 1, "criteria": {"min_authors": 3}, "ts": "2026-03-25T16:23:34Z"}

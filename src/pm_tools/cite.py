@@ -11,7 +11,7 @@ import httpx
 
 from pm_tools.cache import cached_batch_fetch, find_pm_dir
 from pm_tools.http import get_client as get_http_client
-from pm_tools.io import safe_parse
+from pm_tools.io import safe_parse, validate_pmid
 from pm_tools.types import CslJsonRecord
 
 API_URL = "https://pmc.ncbi.nlm.nih.gov/api/ctxp/v1/pubmed/"
@@ -36,7 +36,7 @@ def _make_cite_batch(batch_pmids: list[str]) -> list[tuple[str, str]]:
     Raises:
         ValueError: If any PMID is not strictly numeric.
     """
-    from pm_tools.io import validate_pmid
+
 
     sanitized = [validate_pmid(p.strip()) for p in batch_pmids]
     client = get_http_client()
@@ -154,7 +154,7 @@ def main(args: list[str] | None = None) -> int:
         return 0
 
     # Validate PMIDs (strict numeric for E-utilities)
-    from pm_tools.io import validate_pmid
+
 
     try:
         for pmid in pmids:

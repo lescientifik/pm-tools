@@ -9,6 +9,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from pm_tools.io import safe_parse
+
 PM_DIR = ".pm"
 CACHE_SUBDIRS = ("search", "fetch", "cite", "download")
 
@@ -76,9 +78,8 @@ def main(args: list[str] | None = None) -> int:
         args = sys.argv[1:]
 
     parser = _build_parser()
-    try:
-        parser.parse_args(args)
-    except SystemExit as e:
-        return int(e.code) if e.code is not None else 0
+    _, code = safe_parse(parser, args)
+    if code is not None:
+        return code
 
     return init()

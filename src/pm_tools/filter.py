@@ -109,6 +109,44 @@ def _matches_title(article: dict[str, Any], pattern: str) -> bool:
     return pattern.lower() in title.lower()
 
 
+def _build_criteria_dict(
+    *,
+    year: str | None = None,
+    journal: str | None = None,
+    journal_exact: str | None = None,
+    author: str | None = None,
+    title: str | None = None,
+    pmid: str | None = None,
+    min_authors: int | None = None,
+    has_abstract: bool = False,
+    has_doi: bool = False,
+) -> dict[str, Any]:
+    """Build a criteria dict from filter kwargs for audit logging.
+
+    Only includes keys whose values are truthy / not None.
+    """
+    criteria: dict[str, Any] = {}
+    if year is not None:
+        criteria["year"] = year
+    if journal is not None:
+        criteria["journal"] = journal
+    if journal_exact is not None:
+        criteria["journal_exact"] = journal_exact
+    if author is not None:
+        criteria["author"] = author
+    if title is not None:
+        criteria["title"] = title
+    if pmid is not None:
+        criteria["pmid"] = pmid
+    if min_authors is not None:
+        criteria["min_authors"] = min_authors
+    if has_abstract:
+        criteria["has_abstract"] = True
+    if has_doi:
+        criteria["has_doi"] = True
+    return criteria
+
+
 def filter_articles(
     articles: Iterator[dict[str, Any]],
     *,
@@ -231,26 +269,17 @@ def filter_articles_audited(
     output_count = len(result)
 
     if pm_dir is not None:
-        # Build criteria dict for PRISMA traceability
-        criteria: dict[str, Any] = {}
-        if year is not None:
-            criteria["year"] = year
-        if journal is not None:
-            criteria["journal"] = journal
-        if journal_exact is not None:
-            criteria["journal_exact"] = journal_exact
-        if author is not None:
-            criteria["author"] = author
-        if title is not None:
-            criteria["title"] = title
-        if pmid is not None:
-            criteria["pmid"] = pmid
-        if min_authors is not None:
-            criteria["min_authors"] = min_authors
-        if has_abstract:
-            criteria["has_abstract"] = True
-        if has_doi:
-            criteria["has_doi"] = True
+        criteria = _build_criteria_dict(
+            year=year,
+            journal=journal,
+            journal_exact=journal_exact,
+            author=author,
+            title=title,
+            pmid=pmid,
+            min_authors=min_authors,
+            has_abstract=has_abstract,
+            has_doi=has_doi,
+        )
 
         audit_log(
             pm_dir,
@@ -424,25 +453,7 @@ def main(args: list[str] | None = None) -> int:
 
         # Audit log (preserve existing schema)
         if detected_pm_dir is not None:
-            criteria: dict[str, Any] = {}
-            if filter_kwargs.get("year") is not None:
-                criteria["year"] = filter_kwargs["year"]
-            if filter_kwargs.get("journal") is not None:
-                criteria["journal"] = filter_kwargs["journal"]
-            if filter_kwargs.get("journal_exact") is not None:
-                criteria["journal_exact"] = filter_kwargs["journal_exact"]
-            if filter_kwargs.get("author") is not None:
-                criteria["author"] = filter_kwargs["author"]
-            if filter_kwargs.get("title") is not None:
-                criteria["title"] = filter_kwargs["title"]
-            if filter_kwargs.get("pmid") is not None:
-                criteria["pmid"] = filter_kwargs["pmid"]
-            if filter_kwargs.get("min_authors") is not None:
-                criteria["min_authors"] = filter_kwargs["min_authors"]
-            if filter_kwargs.get("has_abstract"):
-                criteria["has_abstract"] = True
-            if filter_kwargs.get("has_doi"):
-                criteria["has_doi"] = True
+            criteria = _build_criteria_dict(**filter_kwargs)
             audit_log(
                 detected_pm_dir,
                 {

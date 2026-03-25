@@ -18,7 +18,7 @@ import httpx
 
 from pm_tools.cache import audit_log, find_pm_dir
 from pm_tools.http import get_client as get_http_client
-from pm_tools.io import read_jsonl, safe_parse
+from pm_tools.io import read_jsonl, safe_parse, validate_filename_safe
 from pm_tools.types import DownloadSource
 
 logger = logging.getLogger(__name__)
@@ -612,7 +612,7 @@ def main(args: list[str] | None = None) -> int:
         return 1
 
     # Validate identifiers (filename-safe for filesystem operations)
-    from pm_tools.io import validate_filename_safe
+
 
     if positional_pmids:
         try:

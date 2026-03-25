@@ -5,6 +5,8 @@ The `pm` command provides a unified interface with subcommands:
 """
 
 import argparse
+import io
+import json
 import sys
 
 from pm_tools import audit, cite, diff, download, fetch, filter, init, parse, refs, search
@@ -56,8 +58,6 @@ def collect_main(argv: list[str] | None = None) -> int:
         print(f'Searching PubMed: "{query}" (max {args.max_results})...', file=sys.stderr)
 
     try:
-        import json
-
         detected_pm_dir = find_pm_dir()
 
         pmids = search.search(
@@ -65,6 +65,7 @@ def collect_main(argv: list[str] | None = None) -> int:
             args.max_results,
             pm_dir=detected_pm_dir,
             refresh=args.refresh,
+            verbose=args.verbose,
         )
         if not pmids:
             return 0
@@ -77,8 +78,6 @@ def collect_main(argv: list[str] | None = None) -> int:
         )
         if not xml:
             return 0
-
-        import io
 
         for article in parse.parse_xml_stream(io.BytesIO(xml.encode("utf-8"))):
             output = parse.format_article(article, csl=args.csl)
