@@ -588,3 +588,26 @@ class TestFetchPositionalPmids:
         assert result == 0
         mock_fetch_fn.assert_called_once()
         assert mock_fetch_fn.call_args[0][0] == ["12345", "67890"]
+
+
+# =============================================================================
+# PMID validation at entry point
+# =============================================================================
+
+
+class TestFetchPmidValidation:
+    """fetch.main() rejects non-numeric PMIDs (path traversal, PMC IDs)."""
+
+    def test_path_traversal_rejected(self) -> None:
+        """fetch.main() with a path traversal PMID returns error code 1."""
+        from pm_tools.fetch import main
+
+        result = main(["../../etc/passwd"])
+        assert result == 1
+
+    def test_mixed_valid_and_invalid_rejected(self) -> None:
+        """A single bad PMID in a batch causes rejection."""
+        from pm_tools.fetch import main
+
+        result = main(["12345678", "../../etc/passwd"])
+        assert result == 1
