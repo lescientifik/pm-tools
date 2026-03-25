@@ -76,3 +76,13 @@ class TestInitCLI:
         from pm_tools.cli import SUBCOMMANDS
 
         assert "init" in SUBCOMMANDS
+
+    def test_help_returns_zero(self) -> None:
+        from pm_tools.init import main
+
+        assert main(["--help"]) == 0
+
+    def test_unknown_option_returns_two(self) -> None:
+        from pm_tools.init import main
+
+        assert main(["--unknown"]) == 2
