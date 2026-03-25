@@ -541,6 +541,52 @@ class TestPmcLookupLogging:
 
 
 # ---------------------------------------------------------------------------
+# DOI URL encoding (v0.3.1 phase 2.4)
+# ---------------------------------------------------------------------------
+
+
+class TestDoiUrlEncoding:
+    """Unpaywall URL must properly encode special characters in DOIs."""
+
+    def test_hash_in_doi_is_percent_encoded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """DOI with '#' must produce '%23' in the URL, not a raw '#'."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url_str = str(request.url)
+            assert "%23" in url_str, f"Expected %23 in URL, got: {url_str}"
+            assert "#bar" not in url_str, f"Raw '#' leaked into URL: {url_str}"
+            return httpx.Response(status_code=200, json=_UNPAYWALL_RESPONSE)
+
+        client = httpx.Client(transport=httpx.MockTransport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = unpaywall_lookup("10.1234/foo#bar", "test@example.com")
+        assert result == "https://example.com/paper.pdf"
+
+    def test_question_mark_and_ampersand_in_doi_are_encoded(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """DOI with '?' and '&' must be percent-encoded so they don't become query params."""
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            # The path portion should contain the encoded DOI, not raw ? or &
+            url_str = str(request.url)
+            # After /v2/ and before ?email= there should be the encoded DOI
+            path_part = url_str.split("/v2/")[1].split("?email=")[0]
+            assert "?" not in path_part, f"Raw '?' in DOI path: {path_part}"
+            assert "&" not in path_part, f"Raw '&' in DOI path: {path_part}"
+            assert "%3F" in path_part, f"Expected %3F in path: {path_part}"
+            assert "%26" in path_part, f"Expected %26 in path: {path_part}"
+            return httpx.Response(status_code=200, json=_UNPAYWALL_RESPONSE)
+
+        client = httpx.Client(transport=httpx.MockTransport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+
+        result = unpaywall_lookup("10.1234/foo?bar&baz", "test@example.com")
+        assert result == "https://example.com/paper.pdf"
+
+
+# ---------------------------------------------------------------------------
 # unpaywall_lookup error handling
 # ---------------------------------------------------------------------------
 

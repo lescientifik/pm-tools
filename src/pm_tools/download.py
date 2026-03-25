@@ -9,6 +9,7 @@ import logging
 import sys
 import tarfile
 import time
+import urllib.parse
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
@@ -163,7 +164,7 @@ def _extract_nxml_from_tgz(content: bytes, pmcid: str = "") -> bytes | None:
 def unpaywall_lookup(doi: str, email: str) -> str | None:
     """Query Unpaywall API for PDF URL."""
     client = get_http_client()
-    encoded_doi = doi.replace("/", "%2F")
+    encoded_doi = urllib.parse.quote(doi, safe="")
     url = f"https://api.unpaywall.org/v2/{encoded_doi}?email={email}"
     logger.debug("Unpaywall lookup: %s", url)
     try:
