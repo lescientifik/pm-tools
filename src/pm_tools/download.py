@@ -183,7 +183,8 @@ def unpaywall_lookup(doi: str, email: str) -> str | None:
     """Query Unpaywall API for PDF URL."""
     client = get_http_client()
     encoded_doi = urllib.parse.quote(doi, safe="")
-    url = f"https://api.unpaywall.org/v2/{encoded_doi}?email={email}"
+    safe_email = urllib.parse.quote(email, safe="@.")
+    url = f"https://api.unpaywall.org/v2/{encoded_doi}?email={safe_email}"
     logger.debug("Unpaywall lookup: %s", url)
     try:
         response = client.get(url)
@@ -309,6 +310,9 @@ def _download_one(
     non-downloaded outcomes. The input ``source`` dict is never mutated.
     """
     pmid = source.get("pmid", "unknown")
+    # Defense in depth: ensure pmid is safe for path construction even when
+    # it comes from JSONL input (which bypasses CLI-level validation).
+    validate_filename_safe(pmid)
     url = source.get("url")
 
     if not url:
