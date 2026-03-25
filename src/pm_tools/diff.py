@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Any
 
@@ -177,8 +178,6 @@ def main(args: list[str] | None = None) -> int:
         return 2
 
     # Validate files exist
-    import os
-
     if old_file != "-" and not os.path.isfile(old_file):
         print(f"Error: File does not exist: {old_file}", file=sys.stderr)
         return 2

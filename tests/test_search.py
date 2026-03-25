@@ -489,7 +489,7 @@ class TestSearchMaxValidation:
 
         with (
             patch("pm_tools.search.get_client", return_value=mock_client),
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
+            patch("pm_tools.search.find_pm_dir", return_value=None),
         ):
             result = main(["CRISPR", "-n", "3"])
             assert result == 0

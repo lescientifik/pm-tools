@@ -15,7 +15,7 @@ from pathlib import Path
 import httpx
 
 from pm_tools.args import positive_int
-from pm_tools.cache import audit_log, cache_read, cache_write
+from pm_tools.cache import audit_log, cache_read, cache_write, find_pm_dir
 from pm_tools.http import get_client
 from pm_tools.types import SearchCacheEntry
 
@@ -170,8 +170,6 @@ def main(args: list[str] | None = None) -> int:
         return 1
 
     # Detect .pm/ for cache + audit
-    from pm_tools.cache import find_pm_dir
-
     detected_pm_dir = find_pm_dir()
 
     try:

@@ -1060,7 +1060,7 @@ class TestDownloadVerboseProgress:
 
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("pm_tools.download.find_pm_dir", lambda: None)
 
         # Simulate JSONL input via stdin
         jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
@@ -1099,7 +1099,7 @@ class TestMainLoggingConfig:
 
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("pm_tools.download.find_pm_dir", lambda: None)
 
         jsonl_input = '{"pmid":"11111","pmcid":"PMC99999","doi":""}\n'
         monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
@@ -1134,7 +1134,7 @@ class TestMainLoggingConfig:
 
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("pm_tools.download.find_pm_dir", lambda: None)
 
         jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
         monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
@@ -1169,7 +1169,7 @@ class TestMainLoggingConfig:
 
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("pm_tools.download.find_pm_dir", lambda: None)
 
         jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
         monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
@@ -1203,7 +1203,7 @@ class TestMainLoggingConfig:
 
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("pm_tools.download.find_pm_dir", lambda: None)
 
         jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
         monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
@@ -1242,7 +1242,7 @@ class TestMainLoggingConfig:
 
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("pm_tools.download.find_pm_dir", lambda: None)
 
         # Two PMIDs: one with PMC source (will 403), one without any source
         jsonl_lines = (
@@ -2858,7 +2858,7 @@ class TestCliPdfFlag:
 
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("pm_tools.download.find_pm_dir", lambda: None)
 
         jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
         monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
@@ -2888,7 +2888,7 @@ class TestCliPdfFlag:
 
         client = httpx.Client(transport=_make_transport(_handler))
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("pm_tools.download.find_pm_dir", lambda: None)
 
         jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
         monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
@@ -2920,7 +2920,7 @@ class TestDownloadPositionalPmids:
         monkeypatch.setattr("pm_tools.download.find_sources", lambda *a, **kw: [
             {"pmid": "41873355", "source": None, "url": None},
         ])
-        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("pm_tools.download.find_pm_dir", lambda: None)
 
         result = download_main(["41873355", "--dry-run"])
         assert result == 2  # no sources available
@@ -2939,7 +2939,7 @@ class TestDownloadPositionalPmids:
         monkeypatch.setattr("pm_tools.download.download_articles", lambda *a, **kw: {
             "downloaded": 0, "skipped": 0, "failed": 0,
         })
-        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("pm_tools.download.find_pm_dir", lambda: None)
 
         download_main(["111", "222", "--dry-run"])
         assert mock_convert.call_args[0][0] == ["111", "222"]
@@ -2950,7 +2950,7 @@ class TestDownloadPositionalPmids:
         """Positional PMIDs + --input FILE should error."""
         from pm_tools.download import main as download_main
 
-        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("pm_tools.download.find_pm_dir", lambda: None)
 
         result = download_main(["41873355", "--input", "file.txt"])
         assert result == 1
@@ -2969,7 +2969,7 @@ class TestDownloadPositionalPmids:
         mock_convert = MagicMock(return_value=[])
         monkeypatch.setattr("pm_tools.download.convert_pmids", mock_convert)
         monkeypatch.setattr("pm_tools.download.find_sources", lambda *a, **kw: [])
-        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("pm_tools.download.find_pm_dir", lambda: None)
         monkeypatch.setattr("sys.stdin", io.StringIO("12345\n67890\n"))
         monkeypatch.setattr("sys.stdin.isatty", lambda: False)
 
