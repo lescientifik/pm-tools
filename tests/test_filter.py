@@ -513,6 +513,99 @@ class TestFilterAudit:
 
 
 # ---------------------------------------------------------------------------
+# CLI: --title, --pmid, --min-authors (Phase 3.3)
+# ---------------------------------------------------------------------------
+
+
+class TestFilterMainNewFlags:
+    """CLI tests for --title, --pmid, --min-authors flags."""
+
+    def test_title_flag_filters_by_title(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--title CRISPR keeps only articles whose title contains 'CRISPR'."""
+        import io
+
+        from pm_tools.filter import main as filter_main
+
+        articles = [
+            _article(pmid="1", title="CRISPR gene editing"),
+            _article(pmid="2", title="RNA sequencing"),
+            _article(pmid="3", title="CRISPR-Cas9 review"),
+        ]
+        jsonl_input = "\n".join(json.dumps(a) for a in articles)
+
+        with (
+            patch("sys.stdin", io.StringIO(jsonl_input)),
+            patch("sys.stdin.isatty", return_value=False),
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            result = filter_main(["--title", "CRISPR"])
+
+        assert result == 0
+        out = capsys.readouterr().out.strip().splitlines()
+        assert len(out) == 2
+        pmids = {json.loads(line)["pmid"] for line in out}
+        assert pmids == {"1", "3"}
+
+    def test_pmid_flag_filters_by_pmid(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--pmid 12345 keeps only the article with that PMID."""
+        import io
+
+        from pm_tools.filter import main as filter_main
+
+        articles = [
+            _article(pmid="12345", title="Target"),
+            _article(pmid="99999", title="Other"),
+        ]
+        jsonl_input = "\n".join(json.dumps(a) for a in articles)
+
+        with (
+            patch("sys.stdin", io.StringIO(jsonl_input)),
+            patch("sys.stdin.isatty", return_value=False),
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            result = filter_main(["--pmid", "12345"])
+
+        assert result == 0
+        out = capsys.readouterr().out.strip().splitlines()
+        assert len(out) == 1
+        assert json.loads(out[0])["pmid"] == "12345"
+
+    def test_min_authors_flag_filters_by_count(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--min-authors 3 keeps only articles with >= 3 authors."""
+        import io
+
+        from pm_tools.filter import main as filter_main
+
+        articles = [
+            _article(
+                pmid="1",
+                authors=[
+                    {"family": "A", "given": "X"},
+                    {"family": "B", "given": "Y"},
+                    {"family": "C", "given": "Z"},
+                ],
+            ),
+            _article(
+                pmid="2",
+                authors=[{"family": "Solo", "given": "S"}],
+            ),
+        ]
+        jsonl_input = "\n".join(json.dumps(a) for a in articles)
+
+        with (
+            patch("sys.stdin", io.StringIO(jsonl_input)),
+            patch("sys.stdin.isatty", return_value=False),
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            result = filter_main(["--min-authors", "3"])
+
+        assert result == 0
+        out = capsys.readouterr().out.strip().splitlines()
+        assert len(out) == 1
+        assert json.loads(out[0])["pmid"] == "1"
+
+
+# ---------------------------------------------------------------------------
 # filter_with_breakdown (Phase 4)
 # ---------------------------------------------------------------------------
 
