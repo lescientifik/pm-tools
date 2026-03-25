@@ -46,7 +46,7 @@ def _make_cite_batch(batch_pmids: list[str]) -> list[tuple[str, str]]:
             if pmid:
                 pairs.append((pmid, json.dumps(item, ensure_ascii=False)))
         return pairs
-    except (httpx.HTTPStatusError, httpx.HTTPError):
+    except httpx.HTTPError:
         return []
 
 
@@ -61,7 +61,7 @@ def cite(
 ) -> list[CslJsonRecord]:
     """Fetch CSL-JSON citations for given PMIDs.
 
-    Deduplicates PMIDs before fetching. Recovers from per-batch HTTP errors.
+    Deduplication is handled by ``cached_batch_fetch()``. Recovers from per-batch HTTP errors.
 
     Args:
         pmids: List of PMID strings.
@@ -77,16 +77,8 @@ def cite(
     if not pmids:
         return []
 
-    # Deduplicate while preserving order (for result assembly below)
-    seen: set[str] = set()
-    unique_pmids: list[str] = []
-    for pmid in pmids:
-        if pmid not in seen:
-            seen.add(pmid)
-            unique_pmids.append(pmid)
-
     data = cached_batch_fetch(
-        ids=unique_pmids,
+        ids=pmids,
         pm_dir=pm_dir,
         cache_category="cite",
         cache_ext=".json",
@@ -95,12 +87,15 @@ def cite(
         rate_limit_delay=rate_limit_delay,
         refresh=refresh,
         verbose=verbose,
+        deduplicate=True,
     )
 
-    # Build result list: parse JSON strings back to dicts, in original order
+    # Build result list: parse JSON strings back to dicts, in input order
+    seen: set[str] = set()
     results: list[CslJsonRecord] = []
-    for pmid in unique_pmids:
-        if pmid in data:
+    for pmid in pmids:
+        if pmid in data and pmid not in seen:
+            seen.add(pmid)
             results.append(json.loads(data[pmid]))
     # Include any extra PMIDs from responses not in the input list
     for pmid, val in data.items():
