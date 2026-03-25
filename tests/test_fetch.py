@@ -588,3 +588,38 @@ class TestFetchPositionalPmids:
         assert result == 0
         mock_fetch_fn.assert_called_once()
         assert mock_fetch_fn.call_args[0][0] == ["12345", "67890"]
+
+
+# =============================================================================
+# --refresh CLI flag wiring (Phase 3.1)
+# =============================================================================
+
+
+class TestFetchRefreshFlag:
+    """fetch.main must accept --refresh and pass refresh=True to fetch()."""
+
+    @patch("pm_tools.cache.find_pm_dir", return_value=None)
+    @patch("pm_tools.fetch.fetch")
+    def test_refresh_passed_to_fetch(
+        self, mock_fetch_fn: MagicMock, mock_find: MagicMock
+    ) -> None:
+        """--refresh should forward refresh=True to the fetch() library call."""
+        from pm_tools.fetch import main
+
+        mock_fetch_fn.return_value = "<xml/>"
+        rc = main(["--refresh", "12345"])
+        assert rc == 0
+        assert mock_fetch_fn.call_args.kwargs.get("refresh") is True
+
+    @patch("pm_tools.cache.find_pm_dir", return_value=None)
+    @patch("pm_tools.fetch.fetch")
+    def test_no_refresh_defaults_false(
+        self, mock_fetch_fn: MagicMock, mock_find: MagicMock
+    ) -> None:
+        """Without --refresh, refresh should not be True."""
+        from pm_tools.fetch import main
+
+        mock_fetch_fn.return_value = "<xml/>"
+        rc = main(["12345"])
+        assert rc == 0
+        assert not mock_fetch_fn.call_args.kwargs.get("refresh")

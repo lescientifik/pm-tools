@@ -296,3 +296,44 @@ class TestCiteAudit:
         event = json.loads((pm_dir / "audit.jsonl").read_text().strip().splitlines()[0])
         assert event["cached"] == 1
         assert event["fetched"] == 1
+
+
+# =============================================================================
+# --refresh CLI flag wiring (Phase 3.1)
+# =============================================================================
+
+
+class TestCiteRefreshFlag:
+    """cite.main must accept --refresh and pass refresh=True to cite()."""
+
+    def test_refresh_passed_to_cite(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """--refresh should forward refresh=True to the cite() library call."""
+        from unittest.mock import patch
+
+        from pm_tools.cite import main as cite_main
+
+        with (
+            patch("pm_tools.cite.cite") as mock_cite,
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            mock_cite.return_value = []
+            rc = cite_main(["--refresh", "12345"])
+
+        assert rc == 0
+        assert mock_cite.call_args.kwargs.get("refresh") is True
+
+    def test_no_refresh_defaults_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Without --refresh, refresh should not be True."""
+        from unittest.mock import patch
+
+        from pm_tools.cite import main as cite_main
+
+        with (
+            patch("pm_tools.cite.cite") as mock_cite,
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            mock_cite.return_value = []
+            rc = cite_main(["12345"])
+
+        assert rc == 0
+        assert not mock_cite.call_args.kwargs.get("refresh")

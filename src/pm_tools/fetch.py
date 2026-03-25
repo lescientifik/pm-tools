@@ -155,6 +155,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show progress on stderr",
     )
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Bypass cache and re-fetch from API",
+    )
     parser.add_argument("pmids", nargs="*", help="PMIDs (also reads from stdin)")
     return parser
 
@@ -171,6 +176,7 @@ def main(args: list[str] | None = None) -> int:
         return int(e.code) if e.code is not None else 0
 
     verbose: bool = parsed.verbose
+    refresh: bool = parsed.refresh
 
     # Read PMIDs: positional args first, then stdin fallback
     pmids: list[str] = parsed.pmids
@@ -193,6 +199,7 @@ def main(args: list[str] | None = None) -> int:
             pmids,
             verbose=verbose,
             pm_dir=detected_pm_dir,
+            refresh=refresh,
         )
         if xml:
             print(xml, end="")

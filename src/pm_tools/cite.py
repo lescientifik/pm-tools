@@ -118,6 +118,9 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Show progress on stderr")
+    parser.add_argument(
+        "--refresh", action="store_true", help="Bypass cache and re-fetch from API"
+    )
     parser.add_argument("pmids", nargs="*", help="PMIDs to cite (also reads from stdin)")
     return parser
 
@@ -134,6 +137,7 @@ def main(args: list[str] | None = None) -> int:
         return int(e.code) if e.code is not None else 0
 
     verbose: bool = parsed.verbose
+    refresh: bool = parsed.refresh
     pmids: list[str] = parsed.pmids
 
     # Read from stdin if no PMIDs as arguments
@@ -156,6 +160,7 @@ def main(args: list[str] | None = None) -> int:
             pmids,
             verbose=verbose,
             pm_dir=detected_pm_dir,
+            refresh=refresh,
         )
         for citation in citations:
             print(json.dumps(citation, ensure_ascii=False))

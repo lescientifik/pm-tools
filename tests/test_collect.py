@@ -96,3 +96,54 @@ class TestCollectMaxValidation:
             assert result == 0
             call_args = mock_search.search.call_args
             assert call_args[0][1] == 3
+
+
+# =============================================================================
+# --refresh flag wiring (Phase 3.1)
+# =============================================================================
+
+
+class TestCollectRefreshFlag:
+    """collect_main must accept --refresh and pass refresh=True to search() and fetch()."""
+
+    def test_refresh_passed_to_search_and_fetch(self) -> None:
+        """--refresh should forward refresh=True to both search() and fetch()."""
+        with (
+            patch("pm_tools.cli.search") as mock_search,
+            patch("pm_tools.cli.fetch") as mock_fetch,
+            patch("pm_tools.cli.parse") as mock_parse,
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            mock_search.search.return_value = ["111"]
+            mock_fetch.fetch.return_value = "<PubmedArticleSet></PubmedArticleSet>"
+            mock_parse.parse_xml.return_value = []
+            mock_parse.LEGACY_FIELDS = {"pmid", "title"}
+            rc = collect_main(["--refresh", "test", "query"])
+
+        assert rc == 0
+        # search() must receive refresh=True
+        search_kwargs = mock_search.search.call_args
+        assert search_kwargs.kwargs.get("refresh") is True
+        # fetch() must receive refresh=True
+        fetch_kwargs = mock_fetch.fetch.call_args
+        assert fetch_kwargs.kwargs.get("refresh") is True
+
+    def test_no_refresh_defaults_false(self) -> None:
+        """Without --refresh, refresh should not be True in search()/fetch() calls."""
+        with (
+            patch("pm_tools.cli.search") as mock_search,
+            patch("pm_tools.cli.fetch") as mock_fetch,
+            patch("pm_tools.cli.parse") as mock_parse,
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            mock_search.search.return_value = ["111"]
+            mock_fetch.fetch.return_value = "<PubmedArticleSet></PubmedArticleSet>"
+            mock_parse.parse_xml.return_value = []
+            mock_parse.LEGACY_FIELDS = {"pmid", "title"}
+            rc = collect_main(["test", "query"])
+
+        assert rc == 0
+        search_kwargs = mock_search.search.call_args
+        assert not search_kwargs.kwargs.get("refresh")
+        fetch_kwargs = mock_fetch.fetch.call_args
+        assert not fetch_kwargs.kwargs.get("refresh")
