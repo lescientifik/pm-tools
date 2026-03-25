@@ -52,7 +52,7 @@ def search(
         ValueError: If query is empty.
         httpx.HTTPError: On network failure.
     """
-    if not query or not query.strip():
+    if not query.strip():
         raise ValueError("Query cannot be empty")
 
     # Check cache
@@ -65,23 +65,22 @@ def search(
             original_ts = data.get("timestamp", "")
 
             # Log cached hit to audit
-            if pm_dir is not None:
-                print(
-                    f"pm: using cached search from {original_ts[:10]}. Use --refresh to update.",
-                    file=sys.stderr,
-                )
-                audit_log(
-                    pm_dir,
-                    {
-                        "op": "search",
-                        "db": "pubmed",
-                        "query": query,
-                        "max": max_results,
-                        "count": len(pmids),
-                        "cached": True,
-                        "original_ts": original_ts,
-                    },
-                )
+            print(
+                f"pm: using cached search from {original_ts[:10]}. Use --refresh to update.",
+                file=sys.stderr,
+            )
+            audit_log(
+                pm_dir,
+                {
+                    "op": "search",
+                    "db": "pubmed",
+                    "query": query,
+                    "max": max_results,
+                    "count": len(pmids),
+                    "cached": True,
+                    "original_ts": original_ts,
+                },
+            )
             return pmids
 
     # API call
@@ -161,12 +160,8 @@ def main(args: list[str] | None = None) -> int:
     refresh: bool = parsed.refresh
     query = " ".join(parsed.query_words)
 
-    if not query:
-        print('Usage: pm search [--max N] "search query"', file=sys.stderr)
-        return 1
-
     if not query.strip():
-        print("Error: Query cannot be empty", file=sys.stderr)
+        print('Usage: pm search [--max N] "search query"', file=sys.stderr)
         return 1
 
     # Detect .pm/ for cache + audit
