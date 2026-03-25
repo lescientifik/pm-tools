@@ -2999,3 +2999,35 @@ class TestDownloadPmidValidation:
 
         result = download_main(["12345678", "../../etc/passwd", "--dry-run"])
         assert result == 1
+
+
+class TestOutputDirAlias:
+    """-o is a short alias for --output-dir."""
+
+    def test_o_alias_accepted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """-o works the same as --output-dir."""
+        from pm_tools.download import main as download_main
+
+        output_dir = tmp_path / "out"
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            if "pmc/utils/oa" in url:
+                return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
+            if "ftp.ncbi.nlm.nih.gov" in url or "example.com" in url:
+                return httpx.Response(status_code=200, content=b"%PDF-1.4 content")
+            return httpx.Response(status_code=404)
+
+        client = httpx.Client(transport=_make_transport(_handler))
+        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+
+        jsonl_input = '{"pmid":"99999","pmcid":"PMC12345","doi":"10.1234/test"}\n'
+        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
+
+        exit_code = download_main(["-o", str(output_dir)])
+
+        assert exit_code == 0
+        assert output_dir.exists()
