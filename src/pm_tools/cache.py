@@ -53,6 +53,9 @@ def cache_read(pm_dir: Path | None, category: str, key: str) -> str | None:
     if pm_dir is None:
         return None
 
+    # Defense in depth: validate the key before using it in a path.
+    validate_filename_safe(key)
+
     path = pm_dir / "cache" / category / key
     if not path.exists():
         return None

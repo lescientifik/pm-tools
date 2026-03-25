@@ -33,15 +33,27 @@ def convert_pmids(
     pmids: list[str],
     email: str = "user@example.com",
 ) -> list[dict[str, Any]]:
-    """Convert PMIDs to DOI/PMCID using NCBI ID Converter API."""
+    """Convert PMIDs to DOI/PMCID using NCBI ID Converter API.
+
+    All PMIDs are validated as filename-safe before interpolation into the URL.
+    The email parameter is percent-encoded to prevent query-string injection.
+
+    Raises:
+        ValueError: If any PMID fails filename-safe validation.
+    """
+
+    for pmid in pmids:
+        validate_filename_safe(pmid)
+
     client = get_http_client()
     results: list[dict[str, Any]] = []
+    safe_email = urllib.parse.quote(email, safe="@.")
     for i in range(0, len(pmids), BATCH_SIZE):
         batch = pmids[i : i + BATCH_SIZE]
         ids_param = ",".join(batch)
         url = (
             f"https://pmc.ncbi.nlm.nih.gov/tools/idconv/api/v1/articles/"
-            f"?ids={ids_param}&format=json&tool=pm-download&email={email}"
+            f"?ids={ids_param}&format=json&tool=pm-download&email={safe_email}"
         )
         response = client.get(url)
         response.raise_for_status()
@@ -58,7 +70,13 @@ def pmc_lookup(pmcid: str) -> dict[str, str] | None:
 
     Prefers tgz over pdf when both are available (tgz contains NXML + PDF).
     Returns a dict with ``url`` and ``format`` keys, or None if no link found.
+
+    Raises:
+        ValueError: If *pmcid* is not filename-safe.
     """
+
+    validate_filename_safe(pmcid)
+
     client = get_http_client()
     url = f"https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id={pmcid}"
     logger.debug("PMC lookup: %s", url)
@@ -613,7 +631,6 @@ def main(args: list[str] | None = None) -> int:
 
     # Validate identifiers (filename-safe for filesystem operations)
 
-
     if positional_pmids:
         try:
             for pmid in positional_pmids:
@@ -659,6 +676,13 @@ def main(args: list[str] | None = None) -> int:
         if is_jsonl:
             articles = list(read_jsonl(io.StringIO("\n".join(lines))))
         else:
+            # Validate stdin/--input PMIDs the same way as positional args
+            try:
+                for line in lines:
+                    validate_filename_safe(line)
+            except ValueError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+                return 1
             pmids = lines
             if verbose:
                 print("Converting PMIDs to get DOI/PMCID...", file=sys.stderr)
