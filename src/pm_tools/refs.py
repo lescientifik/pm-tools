@@ -21,10 +21,7 @@ def extract_refs(nxml_content: str, id_type: str = "pmid") -> list[str]:
     if not nxml_content or not nxml_content.strip():
         return []
 
-    try:
-        root = ET.fromstring(nxml_content)
-    except ET.ParseError:
-        return []
+    root = ET.fromstring(nxml_content)
 
     refs: list[str] = []
     for ref_list in root.iter("ref-list"):
@@ -80,6 +77,7 @@ def main(args: list[str] | None = None) -> int:
     # Collect all refs across files, deduplicated
     all_refs: list[str] = []
     had_error = False
+    had_parse_error = False
 
     if files:
         for filepath in files:
@@ -90,11 +88,24 @@ def main(args: list[str] | None = None) -> int:
                 print(f"Error: {e}", file=sys.stderr)
                 had_error = True
                 continue
-            refs = extract_refs(content, id_type=id_type)
+            try:
+                refs = extract_refs(content, id_type=id_type)
+            except ET.ParseError:
+                print(
+                    f"warning: could not parse XML: {filepath}",
+                    file=sys.stderr,
+                )
+                had_parse_error = True
+                continue
             all_refs.extend(refs)
     elif not sys.stdin.isatty():
         content = sys.stdin.read()
-        refs = extract_refs(content, id_type=id_type)
+        try:
+            refs = extract_refs(content, id_type=id_type)
+        except ET.ParseError:
+            print("warning: could not parse XML", file=sys.stderr)
+            had_parse_error = True
+            refs = []
         all_refs.extend(refs)
     else:
         print(
@@ -107,5 +118,8 @@ def main(args: list[str] | None = None) -> int:
     unique_refs = list(dict.fromkeys(all_refs))
     for ref in unique_refs:
         print(ref)
+
+    if not unique_refs and not had_error and not had_parse_error:
+        print("warning: no references found", file=sys.stderr)
 
     return 1 if had_error else 0

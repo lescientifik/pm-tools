@@ -199,15 +199,17 @@ class TestExtractRefs:
         result = extract_refs(_NXML_DUPLICATES)
         assert result == ["11111111", "22222222"]
 
-    def test_empty_string(self) -> None:
-        """Empty string input returns empty list."""
-        result = extract_refs("")
-        assert result == []
+    def test_invalid_xml_raises_parse_error(self) -> None:
+        """Invalid XML input raises ET.ParseError."""
+        import xml.etree.ElementTree as ET
 
-    def test_invalid_xml(self) -> None:
-        """Invalid XML input returns empty list (no crash)."""
-        result = extract_refs("<not-valid-xml><<<")
-        assert result == []
+        with pytest.raises(ET.ParseError):
+            extract_refs("<not-valid-xml><<<")
+
+    def test_empty_string_returns_empty(self) -> None:
+        """Empty/whitespace input still returns empty list (not ParseError)."""
+        assert extract_refs("") == []
+        assert extract_refs("   ") == []
 
     def test_whitespace_only_pmid_skipped(self) -> None:
         """Whitespace-only PMID text is skipped, not emitted."""
@@ -227,7 +229,9 @@ class TestExtractRefs:
         assert result == ["11111111", "22222222"]
 
     def test_doctype_xxe_safe(self) -> None:
-        """XML with DOCTYPE declaration doesn't crash (ET rejects external entities)."""
+        """XML with DOCTYPE declaration raises ParseError (ET rejects external entities)."""
+        import xml.etree.ElementTree as ET
+
         malicious = (
             '<?xml version="1.0"?>'
             '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
@@ -236,9 +240,9 @@ class TestExtractRefs:
             "</mixed-citation></ref>"
             "</ref-list></back></article>"
         )
-        # ET.fromstring rejects DTDs with external entities → ParseError → empty list
-        result = extract_refs(malicious)
-        assert result == []
+        # ET.fromstring rejects DTDs with external entities → ParseError
+        with pytest.raises(ET.ParseError):
+            extract_refs(malicious)
 
     def test_golden_pmids(self) -> None:
         """Golden file sample-refs-pmids.txt matches extract_refs(sample.nxml)."""
@@ -552,7 +556,7 @@ class TestIntegrationDownloadRefs:
     def test_refs_on_pdf_returns_empty(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """pm refs on a PDF file → empty output (no crash, exit 0)."""
+        """pm refs on a PDF file → empty output, warning on stderr, exit 0."""
         pdf_file = tmp_path / "article.pdf"
         pdf_file.write_bytes(_FAKE_PDF)
 
@@ -560,3 +564,69 @@ class TestIntegrationDownloadRefs:
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == ""
+        assert "warning" in captured.err.lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 — warnings on invalid XML / 0 results
+# ---------------------------------------------------------------------------
+
+
+class TestRefsWarnings:
+    """Test stderr warnings for edge cases."""
+
+    def test_invalid_xml_warns_on_stderr(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Piping invalid XML → stderr warning, exit 0."""
+        bad_file = tmp_path / "bad.nxml"
+        bad_file.write_text("<not-valid-xml><<<")
+        exit_code = refs_main([str(bad_file)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "warning: could not parse XML" in captured.err
+
+    def test_valid_xml_no_refs_warns(
+        self,
+        capsys: pytest.CaptureFixture[str],
+        tmp_path: Path,
+    ) -> None:
+        """Valid XML with no ref-list → stderr warning, exit 0."""
+        nxml_file = tmp_path / "noref.nxml"
+        nxml_file.write_text(_NXML_NO_REFLIST)
+        exit_code = refs_main([str(nxml_file)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "warning: no references found" in captured.err
+
+    def test_valid_nxml_with_refs_no_warning(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Valid NXML with refs → no warning on stderr."""
+        exit_code = refs_main([str(SAMPLE_NXML)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "warning" not in captured.err.lower()
+
+    def test_multifile_invalid_plus_valid(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Multi-file: bad XML warns, good file refs still printed, exit 0."""
+        bad = tmp_path / "bad.nxml"
+        bad.write_text("<broken><<<xml")
+        good = tmp_path / "good.nxml"
+        good.write_text(SAMPLE_NXML.read_text())
+        exit_code = refs_main([str(bad), str(good)])
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        # Warning for bad file
+        assert "warning: could not parse XML" in captured.err
+        # Refs from good file still printed
+        lines = captured.out.strip().splitlines()
+        assert "11111111" in lines
+        assert "22222222" in lines
