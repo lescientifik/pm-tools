@@ -8,6 +8,7 @@ import argparse
 import sys
 
 from pm_tools import audit, cite, diff, download, fetch, filter, init, parse, refs, search
+from pm_tools.args import positive_int
 
 
 def _build_collect_parser() -> argparse.ArgumentParser:
@@ -20,7 +21,12 @@ def _build_collect_parser() -> argparse.ArgumentParser:
         "--csl", action="store_true", help="Output CSL-JSON instead of ArticleRecord"
     )
     parser.add_argument(
-        "--max", type=int, default=100, dest="max_results", help="Maximum results (default: 100)"
+        "-n",
+        "--max",
+        type=positive_int,
+        default=100,
+        dest="max_results",
+        help="Maximum results (default: 100)",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Show progress on stderr")
     parser.add_argument("query_words", nargs="*", help="PubMed search query")

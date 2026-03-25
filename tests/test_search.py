@@ -453,3 +453,53 @@ class TestSearchAudit:
         event2 = json.loads(lines[1])
         assert event2["cached"] is True
         assert "original_ts" in event2
+
+
+# =============================================================================
+# --max validation and -n alias (Phase 2)
+# =============================================================================
+
+
+class TestSearchMaxValidation:
+    """Test --max rejects invalid values and -n alias works."""
+
+    def test_max_zero_returns_exit_2(self) -> None:
+        """--max 0 should be rejected by argparse (exit 2)."""
+        from pm_tools.search import main
+
+        result = main(["CRISPR", "--max", "0"])
+        assert result == 2
+
+    def test_max_negative_returns_exit_2(self) -> None:
+        """--max -5 should be rejected by argparse (exit 2)."""
+        from pm_tools.search import main
+
+        result = main(["CRISPR", "--max", "-5"])
+        assert result == 2
+
+    def test_n_alias_works(self, mock_esearch_response: str) -> None:
+        """-n 3 should be equivalent to --max 3."""
+        from pm_tools.search import main
+
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_esearch_response
+        mock_response.raise_for_status = MagicMock()
+        mock_client = _mock_client_for(mock_response)
+
+        with (
+            patch("pm_tools.search.get_client", return_value=mock_client),
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            result = main(["CRISPR", "-n", "3"])
+            assert result == 0
+            # Verify retmax=3 was used in URL
+            call_url = mock_client.get.call_args[0][0]
+            assert "retmax=3" in call_url
+
+    def test_max_non_integer_returns_exit_2(self) -> None:
+        """--max abc should be rejected by argparse (exit 2)."""
+        from pm_tools.search import main
+
+        result = main(["CRISPR", "--max", "abc"])
+        assert result == 2

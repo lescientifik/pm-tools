@@ -14,6 +14,7 @@ from pathlib import Path
 
 import httpx
 
+from pm_tools.args import positive_int
 from pm_tools.cache import audit_log, cache_read, cache_write
 from pm_tools.http import get_client
 from pm_tools.types import SearchCacheEntry
@@ -132,8 +133,9 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Search PubMed and return PMIDs.",
     )
     parser.add_argument(
+        "-n",
         "--max",
-        type=int,
+        type=positive_int,
         default=DEFAULT_MAX,
         dest="max_results",
         help="Maximum results (default: 10000)",
