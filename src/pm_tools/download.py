@@ -317,6 +317,8 @@ def _download_one(
                 break
             time.sleep(0.1 * (attempt + 1))
 
+        # HTTP 226 "IM Used" is returned by PMC for delta-encoded responses
+        # (RFC 3229). It indicates success, so we accept it alongside 200.
         if response is None or response.status_code not in (200, 226):
             status_code = response.status_code if response is not None else 0
             logger.warning("PMID %s: HTTP %d from %s", pmid, status_code, url)
@@ -652,7 +654,10 @@ def main(args: list[str] | None = None) -> int:
 
     # Process lines (from --input or stdin) with JSONL auto-detection
     if lines and not articles:
-        is_jsonl = lines[0].startswith("{")
+        try:
+            is_jsonl = isinstance(json.loads(lines[0]), dict)
+        except (json.JSONDecodeError, ValueError):
+            is_jsonl = False
         if is_jsonl:
             articles = list(read_jsonl(io.StringIO("\n".join(lines))))
         else:

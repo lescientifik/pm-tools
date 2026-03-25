@@ -3031,3 +3031,50 @@ class TestOutputDirAlias:
 
         assert exit_code == 0
         assert output_dir.exists()
+
+
+class TestFormatDetectionRobust:
+    """S25: Format detection uses json.loads() instead of startswith('{')."""
+
+    def test_not_json_brace_prefix_detected_as_pmid(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Input starting with '{not-json' must be treated as PMID list, not JSONL."""
+        import io
+        from unittest.mock import MagicMock
+
+        from pm_tools.download import main as download_main
+
+        mock_convert = MagicMock(return_value=[])
+        monkeypatch.setattr("pm_tools.download.convert_pmids", mock_convert)
+        monkeypatch.setattr("pm_tools.download.find_sources", lambda *a, **kw: [])
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("sys.stdin", io.StringIO("{not-json\n"))
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+
+        download_main(["--dry-run"])
+        # Should have gone through convert_pmids (PMID path), not read_jsonl
+        mock_convert.assert_called_once()
+        assert mock_convert.call_args[0][0] == ["{not-json"]
+
+    def test_valid_jsonl_still_detected(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Valid JSONL input is still correctly detected and parsed."""
+        import io
+        from unittest.mock import MagicMock
+
+        from pm_tools.download import main as download_main
+
+        jsonl_line = json.dumps({"pmid": "12345", "pmcid": "PMC111", "doi": "10.1/x"})
+        monkeypatch.setattr("pm_tools.download.find_sources", lambda *a, **kw: [])
+        monkeypatch.setattr("pm_tools.cache.find_pm_dir", lambda: None)
+        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_line + "\n"))
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+
+        # Should NOT call convert_pmids — JSONL already has pmcid/doi
+        mock_convert = MagicMock(return_value=[])
+        monkeypatch.setattr("pm_tools.download.convert_pmids", mock_convert)
+
+        download_main(["--dry-run"])
+        mock_convert.assert_not_called()
