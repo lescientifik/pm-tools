@@ -274,6 +274,9 @@ def filter_with_breakdown(
     journal: str | None = None,
     journal_exact: str | None = None,
     author: str | None = None,
+    title: str | None = None,
+    pmid: str | None = None,
+    min_authors: int | None = None,
     has_abstract: bool = False,
     has_doi: bool = False,
 ) -> tuple[list[dict[str, Any]], list[tuple[str, int]]]:
@@ -294,6 +297,12 @@ def filter_with_breakdown(
         active_filters.append((label, {"journal_exact": journal_exact}))
     if author is not None:
         active_filters.append((f"--author {author}", {"author": author}))
+    if title is not None:
+        active_filters.append((f"--title {title}", {"title": title}))
+    if pmid is not None:
+        active_filters.append((f"--pmid {pmid}", {"pmid": pmid}))
+    if min_authors is not None:
+        active_filters.append((f"--min-authors {min_authors}", {"min_authors": min_authors}))
     if has_abstract:
         active_filters.append(("--has-abstract", {"has_abstract": True}))
     if has_doi:
@@ -348,6 +357,19 @@ def _build_parser() -> argparse.ArgumentParser:
         "--author", default=None, help="Any author contains PATTERN (case-insensitive)"
     )
     parser.add_argument(
+        "--title", default=None, help="Title contains PATTERN (case-insensitive)"
+    )
+    parser.add_argument(
+        "--pmid", default=None, help="PMID exact match (comma-separated for multiple)"
+    )
+    parser.add_argument(
+        "--min-authors",
+        default=None,
+        type=int,
+        dest="min_authors",
+        help="Minimum number of authors",
+    )
+    parser.add_argument(
         "--has-abstract",
         action="store_true",
         dest="has_abstract",
@@ -390,6 +412,9 @@ def main(args: list[str] | None = None) -> int:
         "journal": parsed.journal,
         "journal_exact": parsed.journal_exact,
         "author": parsed.author,
+        "title": parsed.title,
+        "pmid": parsed.pmid,
+        "min_authors": parsed.min_authors,
         "has_abstract": parsed.has_abstract,
         "has_doi": parsed.has_doi,
     }
@@ -412,6 +437,12 @@ def main(args: list[str] | None = None) -> int:
                 criteria["journal_exact"] = filter_kwargs["journal_exact"]
             if filter_kwargs.get("author") is not None:
                 criteria["author"] = filter_kwargs["author"]
+            if filter_kwargs.get("title") is not None:
+                criteria["title"] = filter_kwargs["title"]
+            if filter_kwargs.get("pmid") is not None:
+                criteria["pmid"] = filter_kwargs["pmid"]
+            if filter_kwargs.get("min_authors") is not None:
+                criteria["min_authors"] = filter_kwargs["min_authors"]
             if filter_kwargs.get("has_abstract"):
                 criteria["has_abstract"] = True
             if filter_kwargs.get("has_doi"):
