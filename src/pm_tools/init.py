@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -13,16 +14,21 @@ CACHE_SUBDIRS = ("search", "fetch", "cite", "download")
 
 GITIGNORE_CONTENT = "cache/\n"
 
-HELP_TEXT = """\
-pm init - Initialize audit trail and cache for the current directory
 
-Usage: pm init
-
-Creates a .pm/ directory with:
-  - audit.jsonl  : append-only log of all pm operations (git-trackable)
-  - cache/       : local cache of API responses (gitignored)
-
-Use 'pm audit' to view the audit trail."""
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser for pm init."""
+    parser = argparse.ArgumentParser(
+        prog="pm init",
+        description=(
+            "Initialize audit trail and cache for the current directory.\n\n"
+            "Creates a .pm/ directory with:\n"
+            "  - audit.jsonl  : append-only log of all pm operations (git-trackable)\n"
+            "  - cache/       : local cache of API responses (gitignored)\n\n"
+            "Use 'pm audit' to view the audit trail."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    return parser
 
 
 def init() -> int:
@@ -69,12 +75,10 @@ def main(args: list[str] | None = None) -> int:
     if args is None:
         args = sys.argv[1:]
 
-    for arg in args:
-        if arg in ("--help", "-h"):
-            print(HELP_TEXT)
-            return 0
-        elif arg.startswith("-"):
-            print(f"Error: Unknown option: {arg}", file=sys.stderr)
-            return 2
+    parser = _build_parser()
+    try:
+        parser.parse_args(args)
+    except SystemExit as e:
+        return int(e.code) if e.code is not None else 0
 
     return init()
