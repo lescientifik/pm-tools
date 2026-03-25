@@ -539,25 +539,19 @@ def main(args: list[str] | None = None) -> int:
     except SystemExit as e:
         return int(e.code) if e.code is not None else 0
 
-    # Read XML from stdin
+    # Stream-parse XML from stdin (O(1) memory per article)
     try:
-        xml_input = sys.stdin.read()
+        for i, article in enumerate(parse_xml_stream(sys.stdin.buffer), 1):
+            if ns.csl:
+                output = article_to_csl(article)
+            else:
+                # Filter to legacy fields by default (backward compatibility)
+                output = {k: v for k, v in article.items() if k in LEGACY_FIELDS}
+            print(json.dumps(output, ensure_ascii=False))
+            if ns.verbose:
+                pmid = article.get("pmid", "?")
+                print(f"Parsed article {i}: PMID {pmid}", file=sys.stderr)
     except KeyboardInterrupt:
         return 1
-
-    if not xml_input or not xml_input.strip():
-        return 0
-
-    articles = parse_xml(xml_input)
-    for i, article in enumerate(articles, 1):
-        if ns.csl:
-            output = article_to_csl(article)
-        else:
-            # Filter to legacy fields by default (backward compatibility)
-            output = {k: v for k, v in article.items() if k in LEGACY_FIELDS}
-        print(json.dumps(output, ensure_ascii=False))
-        if ns.verbose:
-            pmid = article.get("pmid", "?")
-            print(f"Parsed article {i}: PMID {pmid}", file=sys.stderr)
 
     return 0

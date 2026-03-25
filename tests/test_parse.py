@@ -3,6 +3,7 @@
 Tests the parse functions at the Python module level:
   - parse_xml(xml_input: str) -> list[ArticleRecord]
   - parse_xml_stream(input_stream) -> Iterator[ArticleRecord]
+  - main(args) CLI entry point
 
 All tests are written RED-first: they MUST fail until the module is implemented.
 """
@@ -10,6 +11,7 @@ All tests are written RED-first: they MUST fail until the module is implemented.
 import io
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -1245,3 +1247,104 @@ class TestParseHelp:
         parser = _build_parser()
         help_text = parser.format_help()
         assert "pm parse" in help_text
+
+
+# =============================================================================
+# CLI: parse.main() (Phase 1.2 — streaming wiring)
+# =============================================================================
+
+
+# Two-article XML fixture for CLI-level tests.
+_TWO_ARTICLE_XML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>111</PMID>
+    <Article>
+      <ArticleTitle>First Title</ArticleTitle>
+      <Journal>
+        <JournalIssue><PubDate><Year>2024</Year></PubDate></JournalIssue>
+        <Title>J One</Title>
+      </Journal>
+      <Abstract><AbstractText>Abstract one.</AbstractText></Abstract>
+      <ELocationID EIdType="doi" ValidYN="Y">10.1/a</ELocationID>
+    </Article>
+  </MedlineCitation>
+</PubmedArticle>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>222</PMID>
+    <Article>
+      <ArticleTitle>Second Title</ArticleTitle>
+      <Journal>
+        <JournalIssue><PubDate><Year>2023</Year></PubDate></JournalIssue>
+        <Title>J Two</Title>
+      </Journal>
+      <Abstract><AbstractText>Abstract two.</AbstractText></Abstract>
+      <ELocationID EIdType="doi" ValidYN="Y">10.2/b</ELocationID>
+    </Article>
+  </MedlineCitation>
+</PubmedArticle>
+</PubmedArticleSet>
+"""
+
+
+def _make_stdin_mock(xml_text: str) -> io.StringIO:
+    """Create a StringIO stdin mock that also exposes a .buffer attribute."""
+    mock_stdin = io.StringIO(xml_text)
+    mock_stdin.buffer = io.BytesIO(xml_text.encode("utf-8"))  # type: ignore[attr-defined]
+    return mock_stdin
+
+
+class TestParseMainCLI:
+    """CLI-level regression tests for parse.main()."""
+
+    def test_multi_article_jsonl_output(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Piping multi-article XML via stdin produces 2 JSONL lines."""
+        from pm_tools.parse import main
+
+        with patch("sys.stdin", _make_stdin_mock(_TWO_ARTICLE_XML)):
+            rc = main([])
+
+        assert rc == 0
+        lines = capsys.readouterr().out.strip().splitlines()
+        assert len(lines) == 2
+        first = json.loads(lines[0])
+        second = json.loads(lines[1])
+        assert first["pmid"] == "111"
+        assert second["pmid"] == "222"
+        # Legacy fields only (no issn, volume, etc.)
+        assert "title" in first
+        assert "abstract" in first
+
+    def test_csl_flag_outputs_csl_json(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--csl flag produces CSL-JSON records with expected keys."""
+        from pm_tools.parse import main
+
+        with patch("sys.stdin", _make_stdin_mock(_TWO_ARTICLE_XML)):
+            rc = main(["--csl"])
+
+        assert rc == 0
+        lines = capsys.readouterr().out.strip().splitlines()
+        assert len(lines) == 2
+        csl = json.loads(lines[0])
+        assert csl["type"] == "article-journal"
+        assert csl["PMID"] == "111"
+        assert "container-title" in csl
+
+    def test_main_uses_stream_not_parse_xml(self) -> None:
+        """parse.main() must call parse_xml_stream, NOT parse_xml."""
+        from pm_tools.parse import main
+
+        with patch("pm_tools.parse.parse_xml_stream") as mock_stream, \
+             patch("pm_tools.parse.parse_xml") as mock_legacy, \
+             patch("sys.stdin", _make_stdin_mock(_TWO_ARTICLE_XML)):
+            mock_stream.return_value = iter([
+                {"pmid": "111", "title": "T1"},
+                {"pmid": "222", "title": "T2"},
+            ])
+            main([])
+
+        mock_stream.assert_called_once()
+        mock_legacy.assert_not_called()
