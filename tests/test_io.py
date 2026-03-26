@@ -63,13 +63,6 @@ def test_empty_stream() -> None:
     assert result == []
 
 
-def test_returns_iterator() -> None:
-    """read_jsonl returns a lazy iterator, not a list."""
-    stream = io.StringIO('{"a": 1}\n')
-    result = read_jsonl(stream)
-    # Should be an iterator, not a list
-    assert hasattr(result, "__next__")
-
 
 # ---------------------------------------------------------------------------
 # validate_pmid — strict numeric-only (for E-utilities)

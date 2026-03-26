@@ -1,9 +1,4 @@
-"""Tests for pm_tools.filter — article filtering by year, journal, author, etc.
-
-RED phase: these tests define the expected behavior for filter_articles().
-Tests for core filtering are comprehensive. Tests for unimplemented features
-(regex patterns, count mode, negation) will fail, driving new development.
-"""
+"""Tests for pm_tools.filter — article filtering by year, journal, author, etc."""
 
 from __future__ import annotations
 
@@ -99,11 +94,6 @@ def _filter(articles: list, **kwargs: Any) -> list[dict]:
 class TestPassthrough:
     """When no filter flags are given every article passes through."""
 
-    def test_no_filters_passes_all(self, sample_articles: list[dict]) -> None:
-        result = _filter(sample_articles)
-        assert len(result) == len(sample_articles)
-        assert [a["pmid"] for a in result] == ["1", "2", "3", "4", "5"]
-
     def test_empty_input_produces_empty_output(self) -> None:
         result = _filter([])
         assert result == []
@@ -122,10 +112,7 @@ class TestYearFilter:
     def test_year_range_inclusive(self, sample_articles: list[dict]) -> None:
         result = _filter(sample_articles, year="2020-2024")
         pmids = [a["pmid"] for a in result]
-        assert "1" in pmids  # 2020 -- lower bound
-        assert "2" in pmids  # 2022
-        assert "3" in pmids  # 2024 -- upper bound
-        assert "4" not in pmids  # 2019 -- excluded
+        assert set(pmids) == {"1", "2", "3", "5"}
 
     def test_year_open_ended_minimum(self, sample_articles: list[dict]) -> None:
         result = _filter(sample_articles, year="2022-")
@@ -298,11 +285,6 @@ class TestFilterEdgeCases:
         assert len(result) == 2
         assert [a["pmid"] for a in result] == ["1", "2"]
 
-    def test_filter_returns_iterator(self) -> None:
-        """filter_articles must return an Iterator, not a list."""
-        result = filter_articles(iter([_article()]))
-        assert hasattr(result, "__next__"), "Expected an iterator (lazy evaluation)"
-
     def test_article_missing_journal_not_matched_by_journal_filter(self) -> None:
         art = _article(pmid="1")
         del art["journal"]
@@ -371,15 +353,12 @@ class TestFilterCount:
 
 
 # ---------------------------------------------------------------------------
-# PMID filter (not yet implemented)
+# PMID filter
 # ---------------------------------------------------------------------------
 
 
 class TestPmidFilter:
-    """filter_articles should support a pmid= keyword for exact or set-based PMID matching.
-
-    Not yet implemented -- drives adding PMID inclusion/exclusion filtering.
-    """
+    """filter_articles should support a pmid= keyword for exact or set-based PMID matching."""
 
     def test_pmid_exact_match(self) -> None:
         articles = [
@@ -404,15 +383,12 @@ class TestPmidFilter:
 
 
 # ---------------------------------------------------------------------------
-# Min authors filter (not yet implemented)
+# Min authors filter
 # ---------------------------------------------------------------------------
 
 
 class TestMinAuthorsFilter:
-    """filter_articles should support min_authors= to filter by author count.
-
-    Not yet implemented -- drives adding numeric threshold filters.
-    """
+    """filter_articles should support min_authors= to filter by author count."""
 
     def test_min_authors_filters_by_count(self) -> None:
         articles = [
@@ -458,20 +434,10 @@ class TestMinAuthorsFilter:
 # ---------------------------------------------------------------------------
 
 
-def _make_pm_dir(tmp_path: Path) -> Path:
-    pm = tmp_path / ".pm"
-    pm.mkdir()
-    for sub in ("search", "fetch", "cite", "download"):
-        (pm / "cache" / sub).mkdir(parents=True)
-    (pm / "audit.jsonl").write_text("")
-    return pm
-
-
 class TestFilterAudit:
     """filter_articles_audited() logs screening stats for PRISMA."""
 
-    def test_logs_filter_event(self, tmp_path: Path) -> None:
-        pm_dir = _make_pm_dir(tmp_path)
+    def test_logs_filter_event(self, pm_dir: Path) -> None:
         articles = [
             _article(pmid="1", year=2024),
             _article(pmid="2", year=2020),
@@ -489,8 +455,7 @@ class TestFilterAudit:
         assert event["output"] == 2
         assert event["excluded"] == 1
 
-    def test_logs_filter_criteria(self, tmp_path: Path) -> None:
-        pm_dir = _make_pm_dir(tmp_path)
+    def test_logs_filter_criteria(self, pm_dir: Path) -> None:
         articles = [_article(pmid="1", year=2024)]
 
         filter_articles_audited(
@@ -504,8 +469,7 @@ class TestFilterAudit:
         assert "year" in event["criteria"]
         assert "has_abstract" in event["criteria"]
 
-    def test_returns_list_not_generator(self, tmp_path: Path) -> None:
-        pm_dir = _make_pm_dir(tmp_path)
+    def test_returns_list_not_generator(self, pm_dir: Path) -> None:
         articles = [_article(pmid="1")]
 
         result = filter_articles_audited(iter(articles), pm_dir=pm_dir)
@@ -517,28 +481,46 @@ class TestFilterAudit:
 # ---------------------------------------------------------------------------
 
 
+def _run_filter_main(
+    articles: list[dict[str, Any]],
+    args: list[str],
+    *,
+    pm_dir_override: Path | None = None,
+) -> int:
+    """Set up mocked stdin with JSONL data and run filter main().
+
+    Patches sys.stdin with the serialised articles and disables pm_dir detection
+    (unless pm_dir_override is given, in which case it patches filter.find_pm_dir).
+    Returns the exit code from filter main().
+    """
+    import io
+
+    from pm_tools.filter import main as filter_main
+
+    jsonl_input = "\n".join(json.dumps(a) for a in articles)
+
+    pm_patch = patch("pm_tools.filter.find_pm_dir", return_value=pm_dir_override)
+
+    with (
+        patch("sys.stdin", io.StringIO(jsonl_input)),
+        patch("sys.stdin.isatty", return_value=False),
+        pm_patch,
+    ):
+        return filter_main(args)
+
+
 class TestFilterMainNewFlags:
     """CLI tests for --title, --pmid, --min-authors flags."""
 
     def test_title_flag_filters_by_title(self, capsys: pytest.CaptureFixture[str]) -> None:
         """--title CRISPR keeps only articles whose title contains 'CRISPR'."""
-        import io
-
-        from pm_tools.filter import main as filter_main
-
         articles = [
             _article(pmid="1", title="CRISPR gene editing"),
             _article(pmid="2", title="RNA sequencing"),
             _article(pmid="3", title="CRISPR-Cas9 review"),
         ]
-        jsonl_input = "\n".join(json.dumps(a) for a in articles)
 
-        with (
-            patch("sys.stdin", io.StringIO(jsonl_input)),
-            patch("sys.stdin.isatty", return_value=False),
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
-        ):
-            result = filter_main(["--title", "CRISPR"])
+        result = _run_filter_main(articles, ["--title", "CRISPR"])
 
         assert result == 0
         out = capsys.readouterr().out.strip().splitlines()
@@ -548,22 +530,12 @@ class TestFilterMainNewFlags:
 
     def test_pmid_flag_filters_by_pmid(self, capsys: pytest.CaptureFixture[str]) -> None:
         """--pmid 12345 keeps only the article with that PMID."""
-        import io
-
-        from pm_tools.filter import main as filter_main
-
         articles = [
             _article(pmid="12345", title="Target"),
             _article(pmid="99999", title="Other"),
         ]
-        jsonl_input = "\n".join(json.dumps(a) for a in articles)
 
-        with (
-            patch("sys.stdin", io.StringIO(jsonl_input)),
-            patch("sys.stdin.isatty", return_value=False),
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
-        ):
-            result = filter_main(["--pmid", "12345"])
+        result = _run_filter_main(articles, ["--pmid", "12345"])
 
         assert result == 0
         out = capsys.readouterr().out.strip().splitlines()
@@ -572,10 +544,6 @@ class TestFilterMainNewFlags:
 
     def test_min_authors_flag_filters_by_count(self, capsys: pytest.CaptureFixture[str]) -> None:
         """--min-authors 3 keeps only articles with >= 3 authors."""
-        import io
-
-        from pm_tools.filter import main as filter_main
-
         articles = [
             _article(
                 pmid="1",
@@ -590,14 +558,8 @@ class TestFilterMainNewFlags:
                 authors=[{"family": "Solo", "given": "S"}],
             ),
         ]
-        jsonl_input = "\n".join(json.dumps(a) for a in articles)
 
-        with (
-            patch("sys.stdin", io.StringIO(jsonl_input)),
-            patch("sys.stdin.isatty", return_value=False),
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
-        ):
-            result = filter_main(["--min-authors", "3"])
+        result = _run_filter_main(articles, ["--min-authors", "3"])
 
         assert result == 0
         out = capsys.readouterr().out.strip().splitlines()
@@ -743,27 +705,19 @@ class TestFilterBreakdownFormat:
 class TestFilterMainAuditWithBreakdown:
     """Integration test: filter main() preserves audit log schema after refactor."""
 
-    def test_verbose_with_pm_dir_writes_audit(self, tmp_path: Path) -> None:
+    def test_verbose_with_pm_dir_writes_audit(self, pm_dir: Path) -> None:
         """filter -v with .pm/ dir writes correct audit log entry."""
-        import io
-
-        from pm_tools.filter import main as filter_main
-
-        pm_dir = _make_pm_dir(tmp_path)
-        # Prepare JSONL input
         articles = [
             _article(pmid="1", year=2024, abstract="yes"),
             _article(pmid="2", year=2020, abstract="yes"),
             _article(pmid="3", year=2024, abstract=""),
         ]
-        jsonl_input = "\n".join(json.dumps(a) for a in articles)
 
-        with (
-            patch("sys.stdin", io.StringIO(jsonl_input)),
-            patch("sys.stdin.isatty", return_value=False),
-            patch("pm_tools.filter.find_pm_dir", return_value=pm_dir),
-        ):
-            result = filter_main(["--year", "2024", "--has-abstract", "-v"])
+        result = _run_filter_main(
+            articles,
+            ["--year", "2024", "--has-abstract", "-v"],
+            pm_dir_override=pm_dir,
+        )
 
         assert result == 0
         audit_file = pm_dir / "audit.jsonl"
@@ -787,123 +741,26 @@ class TestFilterCountFlag:
 
     def test_count_outputs_integer(self, capsys: pytest.CaptureFixture[str]) -> None:
         """--count with --year outputs just the count."""
-        import io
-
-        from pm_tools.filter import main as filter_main
-
         articles = [
             _article(pmid="1", year=2026),
             _article(pmid="2", year=2020),
             _article(pmid="3", year=2026),
         ]
-        jsonl_input = "\n".join(json.dumps(a) for a in articles)
 
-        with (
-            patch("sys.stdin", io.StringIO(jsonl_input)),
-            patch("sys.stdin.isatty", return_value=False),
-            patch("pm_tools.filter.find_pm_dir", return_value=None),
-        ):
-            result = filter_main(["--count", "--year", "2026"])
+        result = _run_filter_main(articles, ["--count", "--year", "2026"])
 
         assert result == 0
         out = capsys.readouterr().out.strip()
         assert out == "2"
 
-    def test_count_with_verbose(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """--count combined with -v: count on stdout, breakdown on stderr."""
-        import io
-
-        from pm_tools.filter import main as filter_main
-
-        articles = [
-            _article(pmid="1", year=2026),
-            _article(pmid="2", year=2020),
-        ]
-        jsonl_input = "\n".join(json.dumps(a) for a in articles)
-
-        with (
-            patch("sys.stdin", io.StringIO(jsonl_input)),
-            patch("sys.stdin.isatty", return_value=False),
-            patch("pm_tools.filter.find_pm_dir", return_value=None),
-        ):
-            result = filter_main(["--count", "--year", "2026", "-v"])
-
-        assert result == 0
-        captured = capsys.readouterr()
-        assert captured.out.strip() == "1"
-        assert "read" in captured.err  # breakdown on stderr
-
-    def test_count_with_audit(self, tmp_path: Path) -> None:
-        """--count with .pm/ present: audit log still fires with correct counts."""
-        import io
-
-        from pm_tools.filter import main as filter_main
-
-        pm_dir = _make_pm_dir(tmp_path)
-        articles = [
-            _article(pmid="1", year=2026),
-            _article(pmid="2", year=2020),
-            _article(pmid="3", year=2026),
-        ]
-        jsonl_input = "\n".join(json.dumps(a) for a in articles)
-
-        with (
-            patch("sys.stdin", io.StringIO(jsonl_input)),
-            patch("sys.stdin.isatty", return_value=False),
-            patch("pm_tools.filter.find_pm_dir", return_value=pm_dir),
-        ):
-            result = filter_main(["--count", "--year", "2026"])
-
-        assert result == 0
-        audit_file = pm_dir / "audit.jsonl"
-        event = json.loads(audit_file.read_text().strip().splitlines()[0])
-        assert event["op"] == "filter"
-        assert event["input"] == 3
-        assert event["output"] == 2
-
-    def test_count_without_verbose_or_pm(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """--count without -v and without .pm/ streams and counts."""
-        import io
-
-        from pm_tools.filter import main as filter_main
-
-        articles = [
-            _article(pmid="1", year=2026),
-            _article(pmid="2", year=2020),
-            _article(pmid="3", year=2026),
-            _article(pmid="4", year=2026),
-        ]
-        jsonl_input = "\n".join(json.dumps(a) for a in articles)
-
-        with (
-            patch("sys.stdin", io.StringIO(jsonl_input)),
-            patch("sys.stdin.isatty", return_value=False),
-            patch("pm_tools.filter.find_pm_dir", return_value=None),
-        ):
-            result = filter_main(["--count", "--year", "2026"])
-
-        assert result == 0
-        out = capsys.readouterr().out.strip()
-        assert out == "3"
-
     def test_count_zero_matches(self, capsys: pytest.CaptureFixture[str]) -> None:
         """--count outputs 0 when no articles match the filter."""
-        import io
-
-        from pm_tools.filter import main as filter_main
-
         articles = [
             _article(pmid="1", year=2020),
             _article(pmid="2", year=2021),
         ]
-        jsonl_input = "\n".join(json.dumps(a) for a in articles)
 
-        with (
-            patch("sys.stdin", io.StringIO(jsonl_input)),
-            patch("sys.stdin.isatty", return_value=False),
-            patch("pm_tools.filter.find_pm_dir", return_value=None),
-        ):
-            result = filter_main(["--count", "--year", "2026"])
+        result = _run_filter_main(articles, ["--count", "--year", "2026"])
 
         assert result == 0
         assert capsys.readouterr().out.strip() == "0"

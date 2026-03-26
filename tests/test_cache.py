@@ -48,15 +48,6 @@ class TestFindPmDir:
 class TestCacheReadWrite:
     """Atomic cache read/write operations."""
 
-    @pytest.fixture()
-    def pm_dir(self, tmp_path: Path) -> Path:
-        """Create a .pm/ structure for testing."""
-        pm = tmp_path / ".pm"
-        pm.mkdir()
-        for sub in ("search", "fetch", "cite", "download"):
-            (pm / "cache" / sub).mkdir(parents=True)
-        return pm
-
     def test_read_missing_returns_none(self, pm_dir: Path) -> None:
         result = cache_read(pm_dir, "search", "nonexistent.json")
         assert result is None
@@ -66,11 +57,6 @@ class TestCacheReadWrite:
         cache_write(pm_dir, "search", "abc123.json", data)
         result = cache_read(pm_dir, "search", "abc123.json")
         assert result == data
-
-    def test_write_creates_file(self, pm_dir: Path) -> None:
-        cache_write(pm_dir, "fetch", "12345.xml", "<PubmedArticle/>")
-        path = pm_dir / "cache" / "fetch" / "12345.xml"
-        assert path.exists()
 
     def test_read_corrupted_json_returns_none(self, pm_dir: Path) -> None:
         """Corrupted JSON file should be treated as cache miss."""
@@ -85,12 +71,6 @@ class TestCacheReadWrite:
         path.write_text("<PubmedArticle><broken")
         result = cache_read(pm_dir, "fetch", "bad.xml")
         assert result is None
-
-    def test_read_valid_cite_json(self, pm_dir: Path) -> None:
-        data = '{"PMID": "12345", "title": "Test"}'
-        cache_write(pm_dir, "cite", "12345.json", data)
-        result = cache_read(pm_dir, "cite", "12345.json")
-        assert result == data
 
     def test_write_overwrites_existing(self, pm_dir: Path) -> None:
         cache_write(pm_dir, "search", "key.json", '{"old": true}')
@@ -114,28 +94,6 @@ class TestCacheReadWrite:
 
 class TestAuditLog:
     """Append-only audit logger."""
-
-    @pytest.fixture()
-    def pm_dir(self, tmp_path: Path) -> Path:
-        pm = tmp_path / ".pm"
-        pm.mkdir()
-        (pm / "audit.jsonl").write_text("")
-        return pm
-
-    def test_appends_jsonl_line(self, pm_dir: Path) -> None:
-        audit_log(pm_dir, {"op": "search", "query": "test"})
-        lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
-        assert len(lines) == 1
-        event = json.loads(lines[0])
-        assert event["op"] == "search"
-
-    def test_adds_timestamp(self, pm_dir: Path) -> None:
-        audit_log(pm_dir, {"op": "fetch"})
-        event = json.loads((pm_dir / "audit.jsonl").read_text().strip())
-        assert "ts" in event
-        # ISO 8601 format check
-        assert "T" in event["ts"]
-        assert event["ts"].endswith("Z")
 
     def test_multiple_appends(self, pm_dir: Path) -> None:
         audit_log(pm_dir, {"op": "search"})

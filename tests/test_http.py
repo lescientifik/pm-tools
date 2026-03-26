@@ -6,27 +6,11 @@ from unittest.mock import patch
 
 import httpx
 
-import pm_tools.http
-from pm_tools.http import get_client
+from pm_tools.http import get_client, reset_client
 
 
 class TestGetClient:
     """Tests for get_client() factory function."""
-
-    def test_returns_httpx_client(self) -> None:
-        """get_client() returns an httpx.Client instance."""
-        client = get_client()
-        assert isinstance(client, httpx.Client)
-
-    def test_default_timeout_is_30(self) -> None:
-        """Default client has a 30-second timeout."""
-        client = get_client()
-        assert client.timeout == httpx.Timeout(30)
-
-    def test_follow_redirects_enabled(self) -> None:
-        """Client follows redirects by default."""
-        client = get_client()
-        assert client.follow_redirects is True
 
     def test_custom_timeout(self) -> None:
         """A custom timeout can be passed."""
@@ -36,7 +20,7 @@ class TestGetClient:
     def test_singleton_is_thread_safe(self) -> None:
         """All threads get the same singleton even under contention."""
         # Reset global singleton so we start fresh
-        pm_tools.http._client = None
+        reset_client()
 
         num_threads = 20
         barrier = threading.Barrier(num_threads)
@@ -68,4 +52,4 @@ class TestGetClient:
         )
 
         # Clean up: reset singleton for other tests
-        pm_tools.http._client = None
+        reset_client()

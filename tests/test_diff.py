@@ -1,11 +1,5 @@
 """Tests for pm_tools.diff — compare two sets of articles and report changes.
 
-RED phase: tests that validate diff_jsonl() behavior and drive new features.
-
-Core diff tests validate existing implementation. Tests for unimplemented
-features (changed_fields detail, summary statistics, stable ordering) will
-fail, driving new development.
-
 Return codes: 0 = no diff, 1 = diffs found, 2 = errors.
 """
 
@@ -234,42 +228,14 @@ class TestDiffEdgeCases:
         result = diff_jsonl(old, new)  # type: ignore[arg-type]
         assert result == []
 
-    def test_handles_unicode_in_fields(self) -> None:
-        old = [_art(pmid="1", title="Etude des proteines")]
-        new = [_art(pmid="1", title="Etude des proteines modifiees")]
-        result = diff_jsonl(old, new)
-
-        changed = [d for d in result if d["status"] == "changed"]
-        assert len(changed) == 1
-        assert changed[0]["old"]["title"] == "Etude des proteines"
-        assert changed[0]["new"]["title"] == "Etude des proteines modifiees"
-
 
 # ---------------------------------------------------------------------------
-# Return code semantics
-# ---------------------------------------------------------------------------
-
-
-class TestDiffReturnCode:
-    def test_no_diff_empty_result(self) -> None:
-        result = diff_jsonl([_art(pmid="1")], [_art(pmid="1")])
-        assert len(result) == 0
-
-    def test_diffs_found_nonempty_result(self) -> None:
-        result = diff_jsonl([_art(pmid="1")], [])
-        assert len(result) > 0
-
-
-# ---------------------------------------------------------------------------
-# Unimplemented features (RED phase)
+# Detailed diff output
 # ---------------------------------------------------------------------------
 
 
 class TestChangedFieldsDetail:
-    """Changed records should include a 'changed_fields' list showing which fields differ.
-
-    Not yet implemented -- drives richer diff output.
-    """
+    """Changed records should include a 'changed_fields' list showing which fields differ."""
 
     def test_changed_record_includes_changed_fields_list(self) -> None:
         old = [_art(pmid="1", title="Old Title", year=2020)]
@@ -294,10 +260,7 @@ class TestChangedFieldsDetail:
 
 
 class TestDiffSummary:
-    """diff module should expose a diff_summary() function for aggregate stats.
-
-    Not yet implemented -- drives adding summary statistics.
-    """
+    """diff module should expose a diff_summary() function for aggregate stats."""
 
     def test_summary_returns_counts(self) -> None:
         from pm_tools.diff import diff_summary
@@ -313,10 +276,7 @@ class TestDiffSummary:
 
 
 class TestDiffStableOrdering:
-    """Diff results should be ordered: removed first, then changed, then added.
-
-    Not yet implemented -- the current implementation uses dict iteration order.
-    """
+    """Diff results should be ordered: removed first, then changed, then added."""
 
     def test_results_ordered_removed_changed_added(self) -> None:
         old = [

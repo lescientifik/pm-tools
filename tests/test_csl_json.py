@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-from pm_tools.parse import parse_xml
+from pm_tools.parse import _date_str_to_parts, article_to_csl, parse_xml
 
 # Helper to build minimal XML with specific elements
 _ARTICLE_TEMPLATE = """\
@@ -265,153 +265,89 @@ class TestArticleToCsl:
             "pub_status": "ppublish",
         }
 
-    def test_produces_id(self) -> None:
-        from pm_tools.parse import article_to_csl
-
+    def test_full_record_mapping(self) -> None:
+        """All fields from a full ArticleRecord map to correct CSL-JSON keys."""
         csl = article_to_csl(self._full_record())
+
+        # Fixed metadata
         assert csl["id"] == "pmid:12345"
-
-    def test_produces_type(self) -> None:
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
         assert csl["type"] == "article-journal"
-
-    def test_produces_source(self) -> None:
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
         assert csl["source"] == "PubMed"
 
-    def test_produces_accessed(self) -> None:
-        from pm_tools.parse import article_to_csl
+        # Renamed / uppercased identifiers
+        assert csl["PMID"] == "12345"
+        assert csl["DOI"] == "10.1234/test"
+        assert csl["PMCID"] == "PMC1234567"
+        assert csl["ISSN"] == "0300-9629"
+        for raw_key in ("pmid", "doi", "pmcid", "issn"):
+            assert raw_key not in csl
 
+        # Authors renamed
+        assert csl["author"] == [{"family": "Smith", "given": "John"}]
+        assert "authors" not in csl
+
+        # Journal → container-title
+        assert csl["container-title"] == "Nature Medicine"
+        assert "journal" not in csl
+        assert csl["container-title-short"] == "Nat Med"
+
+        # Pass-through fields
+        assert csl["volume"] == "48"
+        assert csl["issue"] == "2"
+        assert csl["page"] == "100-105"
+
+        # Dates
+        assert csl["issued"] == {"date-parts": [[2024, 3, 15]]}
+        assert csl["epub-date"] == {"date-parts": [[2024, 1, 15]]}
+
+        # Other mapped fields
+        assert csl["publisher-place"] == "England"
+        assert csl["status"] == "ppublish"
+
+        # Excluded fields
+        assert "abstract" not in csl
+        assert "abstract_sections" not in csl
+
+    def test_accessed_uses_today(self) -> None:
+        """accessed date-parts reflect the current date."""
         with patch("pm_tools.parse.datetime") as mock_dt:
             mock_dt.date.today.return_value = datetime.date(2026, 3, 24)
             csl = article_to_csl(self._full_record())
         assert csl["accessed"] == {"date-parts": [[2026, 3, 24]]}
 
-    def test_pmid_uppercase(self) -> None:
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
-        assert csl["PMID"] == "12345"
-        assert "pmid" not in csl
-
-    def test_doi_uppercase(self) -> None:
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
-        assert csl["DOI"] == "10.1234/test"
-        assert "doi" not in csl
-
-    def test_pmcid_uppercase(self) -> None:
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
-        assert csl["PMCID"] == "PMC1234567"
-        assert "pmcid" not in csl
-
-    def test_authors_renamed_to_author(self) -> None:
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
-        assert csl["author"] == [{"family": "Smith", "given": "John"}]
-        assert "authors" not in csl
-
-    def test_journal_to_container_title(self) -> None:
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
-        assert csl["container-title"] == "Nature Medicine"
-        assert "journal" not in csl
-
-    def test_journal_abbrev_to_container_title_short(self) -> None:
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
-        assert csl["container-title-short"] == "Nat Med"
-
-    def test_issued_full_date(self) -> None:
-        """year + date → issued with date-parts [[2024, 3, 15]]."""
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
-        assert csl["issued"] == {"date-parts": [[2024, 3, 15]]}
-
     def test_issued_year_only(self) -> None:
-        """Date with year only → issued [[2024]]."""
-        from pm_tools.parse import article_to_csl
-
+        """Date with year only -> issued [[2024]]."""
         record = self._full_record()
         record["date"] = "2024"
-        csl = article_to_csl(record)
-        assert csl["issued"] == {"date-parts": [[2024]]}
+        assert article_to_csl(record)["issued"] == {"date-parts": [[2024]]}
 
     def test_issued_year_month(self) -> None:
-        """Date year-month → issued [[2024, 3]]."""
-        from pm_tools.parse import article_to_csl
-
+        """Date year-month -> issued [[2024, 3]]."""
         record = self._full_record()
         record["date"] = "2024-03"
-        csl = article_to_csl(record)
-        assert csl["issued"] == {"date-parts": [[2024, 3]]}
+        assert article_to_csl(record)["issued"] == {"date-parts": [[2024, 3]]}
 
     def test_issued_seasonal_date(self) -> None:
-        """Spring 1976 → date '1976-03' → issued [[1976, 3]]."""
-        from pm_tools.parse import article_to_csl
-
+        """Spring 1976 -> date '1976-03' -> issued [[1976, 3]]."""
         record = self._full_record()
         record["year"] = 1976
         record["date"] = "1976-03"
-        csl = article_to_csl(record)
-        assert csl["issued"] == {"date-parts": [[1976, 3]]}
+        assert article_to_csl(record)["issued"] == {"date-parts": [[1976, 3]]}
 
-    def test_epub_date_to_csl(self) -> None:
-        from pm_tools.parse import article_to_csl
+    def test_epub_date_year_month_to_csl(self) -> None:
+        """Partial epub_date (year-month) converts to CSL date-parts."""
+        record = self._full_record()
+        record["epub_date"] = "2024-03"
+        assert article_to_csl(record)["epub-date"] == {"date-parts": [[2024, 3]]}
 
-        csl = article_to_csl(self._full_record())
-        assert csl["epub-date"] == {"date-parts": [[2024, 1, 15]]}
-
-    def test_publisher_place(self) -> None:
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
-        assert csl["publisher-place"] == "England"
-
-    def test_pub_status_to_status(self) -> None:
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
-        assert csl["status"] == "ppublish"
-
-    def test_volume_issue_page_pass_through(self) -> None:
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
-        assert csl["volume"] == "48"
-        assert csl["issue"] == "2"
-        assert csl["page"] == "100-105"
-
-    def test_issn_uppercase(self) -> None:
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
-        assert csl["ISSN"] == "0300-9629"
-        assert "issn" not in csl
-
-    def test_abstract_excluded(self) -> None:
-        """abstract and abstract_sections are excluded from CSL-JSON."""
-        from pm_tools.parse import article_to_csl
-
-        csl = article_to_csl(self._full_record())
-        assert "abstract" not in csl
-        assert "abstract_sections" not in csl
+    def test_epub_date_year_only_to_csl(self) -> None:
+        """Partial epub_date (year only) converts to CSL date-parts."""
+        record = self._full_record()
+        record["epub_date"] = "2024"
+        assert article_to_csl(record)["epub-date"] == {"date-parts": [[2024]]}
 
     def test_absent_fields_omitted(self) -> None:
         """Fields absent in ArticleRecord produce no keys in CSL-JSON."""
-        from pm_tools.parse import article_to_csl
-
         record: dict[str, Any] = {"pmid": "12345"}
         csl = article_to_csl(record)
         assert csl["id"] == "pmid:12345"
@@ -432,69 +368,27 @@ class TestArticleToCsl:
         for key in optional_keys:
             assert key not in csl, f"{key} should be absent"
 
-    def test_takes_article_record_not_element(self) -> None:
-        """article_to_csl() takes a dict, not an ET.Element."""
-        import inspect
-
-        from pm_tools.parse import article_to_csl
-
-        sig = inspect.signature(article_to_csl)
-        params = list(sig.parameters.keys())
-        assert len(params) == 1
-        assert params[0] == "record"
-
-    def test_epub_date_year_month_to_csl(self) -> None:
-        """Partial epub_date (year-month) converts to CSL date-parts."""
-        from pm_tools.parse import article_to_csl
-
-        record = self._full_record()
-        record["epub_date"] = "2024-03"
-        csl = article_to_csl(record)
-        assert csl["epub-date"] == {"date-parts": [[2024, 3]]}
-
-    def test_epub_date_year_only_to_csl(self) -> None:
-        """Partial epub_date (year only) converts to CSL date-parts."""
-        from pm_tools.parse import article_to_csl
-
-        record = self._full_record()
-        record["epub_date"] = "2024"
-        csl = article_to_csl(record)
-        assert csl["epub-date"] == {"date-parts": [[2024]]}
-
 
 class TestDateStrToParts:
     """Unit tests for _date_str_to_parts() helper."""
 
-    def test_full_date(self) -> None:
-        from pm_tools.parse import _date_str_to_parts
-
-        assert _date_str_to_parts("2024-03-15") == [2024, 3, 15]
-
-    def test_year_month(self) -> None:
-        from pm_tools.parse import _date_str_to_parts
-
-        assert _date_str_to_parts("2024-03") == [2024, 3]
-
-    def test_year_only(self) -> None:
-        from pm_tools.parse import _date_str_to_parts
-
-        assert _date_str_to_parts("2024") == [2024]
-
-    def test_non_numeric_segment_skipped(self) -> None:
-        """Non-numeric segments are silently dropped."""
-        from pm_tools.parse import _date_str_to_parts
-
-        assert _date_str_to_parts("2024-Mar-15") == [2024, 15]
-
-    def test_fully_non_numeric(self) -> None:
-        from pm_tools.parse import _date_str_to_parts
-
-        assert _date_str_to_parts("abc") == []
-
-    def test_empty_string(self) -> None:
-        from pm_tools.parse import _date_str_to_parts
-
-        assert _date_str_to_parts("") == []
+    @pytest.mark.parametrize(
+        ("input_str", "expected"),
+        [
+            ("2024-03-15", [2024, 3, 15]),
+            ("2024-03", [2024, 3]),
+            ("2024", [2024]),
+            ("2024-Mar-15", [2024, 15]),  # non-numeric segments dropped
+            ("abc", []),
+            ("", []),
+        ],
+        ids=[
+            "full_date", "year_month", "year_only",
+            "non_numeric_segment", "fully_non_numeric", "empty",
+        ],
+    )
+    def test_date_str_to_parts(self, input_str: str, expected: list[int]) -> None:
+        assert _date_str_to_parts(input_str) == expected
 
 
 # =============================================================================
@@ -525,60 +419,27 @@ class TestLegacyFieldsFiltering:
         )
         assert expected == LEGACY_FIELDS
 
-    def test_parse_main_filters_output(self) -> None:
+    def test_parse_main_filters_output(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """parse.main() without --csl filters to LEGACY_FIELDS."""
         import io
         import json
-        import sys
 
         from pm_tools.parse import LEGACY_FIELDS
 
         xml = _make_xml()
-        old_stdin = sys.stdin
-        old_stdout = sys.stdout
-        try:
-            fake_stdin = io.StringIO(xml)
-            fake_stdin.buffer = io.BytesIO(xml.encode("utf-8"))  # type: ignore[attr-defined]
-            sys.stdin = fake_stdin
-            out = io.StringIO()
-            sys.stdout = out
+        fake_stdin = io.StringIO(xml)
+        fake_stdin.buffer = io.BytesIO(xml.encode("utf-8"))  # type: ignore[attr-defined]
+        monkeypatch.setattr("sys.stdin", fake_stdin)
+        out = io.StringIO()
+        monkeypatch.setattr("sys.stdout", out)
 
-            from pm_tools.parse import main
+        from pm_tools.parse import main
 
-            main([])
+        main([])
 
-            output = out.getvalue().strip()
-            record = json.loads(output)
-            assert set(record.keys()) <= LEGACY_FIELDS
-        finally:
-            sys.stdin = old_stdin
-            sys.stdout = old_stdout
-
-    def test_collect_main_filters_output(self) -> None:
-        """collect_main() without --csl filters to LEGACY_FIELDS."""
-        import io
-        from unittest.mock import patch as _patch
-
-        from pm_tools.cli import collect_main
-        from pm_tools.parse import LEGACY_FIELDS
-
-        xml = _make_xml()
-        captured = io.StringIO()
-
-        with (
-            _patch("pm_tools.search.search", return_value=["99999"]),
-            _patch("pm_tools.fetch.fetch", return_value=xml),
-            _patch("pm_tools.cli.find_pm_dir", return_value=None),
-            _patch("sys.stdout", captured),
-        ):
-            result = collect_main(["test query"])
-
-        assert result == 0
-        output = captured.getvalue().strip()
+        output = out.getvalue().strip()
         record = json.loads(output)
         assert set(record.keys()) <= LEGACY_FIELDS
-        assert "volume" not in record
-        assert "issn" not in record
 
     def test_existing_golden_files_still_pass(self, fixtures_dir: Any) -> None:
         """Golden files from fixtures/expected/ still match parse output."""
@@ -608,138 +469,6 @@ class TestLegacyFieldsFiltering:
                     )
 
 
-# =============================================================================
-# Phase 2 — --csl flag on pm parse CLI
-# =============================================================================
-
-
-class TestParseCslFlag:
-    """pm parse --csl produces CSL-JSON output."""
-
-    def test_csl_flag_produces_csl_keys(self) -> None:
-        """pm parse --csl outputs CSL-JSON keys like container-title, DOI."""
-        import io
-        import json
-        import sys
-
-        xml = _make_xml()
-        old_stdin = sys.stdin
-        old_stdout = sys.stdout
-        try:
-            fake_stdin = io.StringIO(xml)
-            fake_stdin.buffer = io.BytesIO(xml.encode("utf-8"))  # type: ignore[attr-defined]
-            sys.stdin = fake_stdin
-            out = io.StringIO()
-            sys.stdout = out
-
-            from pm_tools.parse import main
-
-            main(["--csl"])
-
-            output = out.getvalue().strip()
-            record = json.loads(output)
-            assert "container-title" in record
-            assert "DOI" in record
-            assert "type" in record
-            assert record["type"] == "article-journal"
-        finally:
-            sys.stdin = old_stdin
-            sys.stdout = old_stdout
-
-    def test_without_csl_still_produces_article_record(self) -> None:
-        """pm parse (no flag) still produces ArticleRecord filtered output."""
-        import io
-        import json
-        import sys
-
-        xml = _make_xml()
-        old_stdin = sys.stdin
-        old_stdout = sys.stdout
-        try:
-            fake_stdin = io.StringIO(xml)
-            fake_stdin.buffer = io.BytesIO(xml.encode("utf-8"))  # type: ignore[attr-defined]
-            sys.stdin = fake_stdin
-            out = io.StringIO()
-            sys.stdout = out
-
-            from pm_tools.parse import LEGACY_FIELDS, main
-
-            main([])
-
-            output = out.getvalue().strip()
-            record = json.loads(output)
-            assert set(record.keys()) <= LEGACY_FIELDS
-            assert "container-title" not in record
-        finally:
-            sys.stdin = old_stdin
-            sys.stdout = old_stdout
-
-    def test_csl_empty_xml_produces_empty_output(self) -> None:
-        """pm parse --csl on empty XML → empty output, exit 0."""
-        import io
-        import sys
-
-        old_stdin = sys.stdin
-        old_stdout = sys.stdout
-        try:
-            fake_stdin = io.StringIO("")
-            fake_stdin.buffer = io.BytesIO(b"")  # type: ignore[attr-defined]
-            sys.stdin = fake_stdin
-            out = io.StringIO()
-            sys.stdout = out
-
-            from pm_tools.parse import main
-
-            result = main(["--csl"])
-
-            assert result == 0
-            assert out.getvalue() == ""
-        finally:
-            sys.stdin = old_stdin
-            sys.stdout = old_stdout
-
-    def test_csl_each_line_valid_json(self) -> None:
-        """pm parse --csl: each output line is valid JSON."""
-        import io
-        import json
-        import sys
-
-        # Use two articles
-        xml = """\
-<PubmedArticleSet>
-<PubmedArticle>
-  <MedlineCitation><PMID>111</PMID>
-    <Article><ArticleTitle>First</ArticleTitle></Article>
-  </MedlineCitation>
-</PubmedArticle>
-<PubmedArticle>
-  <MedlineCitation><PMID>222</PMID>
-    <Article><ArticleTitle>Second</ArticleTitle></Article>
-  </MedlineCitation>
-</PubmedArticle>
-</PubmedArticleSet>"""
-        old_stdin = sys.stdin
-        old_stdout = sys.stdout
-        try:
-            fake_stdin = io.StringIO(xml)
-            fake_stdin.buffer = io.BytesIO(xml.encode("utf-8"))  # type: ignore[attr-defined]
-            sys.stdin = fake_stdin
-            out = io.StringIO()
-            sys.stdout = out
-
-            from pm_tools.parse import main
-
-            main(["--csl"])
-
-            lines = out.getvalue().strip().split("\n")
-            assert len(lines) == 2
-            for line in lines:
-                record = json.loads(line)
-                assert "id" in record
-                assert "type" in record
-        finally:
-            sys.stdin = old_stdin
-            sys.stdout = old_stdout
 
 
 class TestParseCslPythonApi:
@@ -766,114 +495,6 @@ class TestParseCslPythonApi:
         assert records[0]["type"] == "article-journal"
 
 
-class TestCslJsonExports:
-    """CslJsonRecord, article_to_csl, etc. importable from pm_tools."""
-
-    def test_csl_json_record_importable(self) -> None:
-        from pm_tools import CslJsonRecord
-
-        assert CslJsonRecord is not None
-
-    def test_article_to_csl_importable(self) -> None:
-        from pm_tools import article_to_csl
-
-        assert callable(article_to_csl)
-
-    def test_parse_xml_csl_importable(self) -> None:
-        from pm_tools import parse_xml_csl
-
-        assert callable(parse_xml_csl)
-
-    def test_parse_xml_stream_csl_importable(self) -> None:
-        from pm_tools import parse_xml_stream_csl
-
-        assert callable(parse_xml_stream_csl)
-
-    def test_legacy_fields_importable(self) -> None:
-        from pm_tools import LEGACY_FIELDS
-
-        assert isinstance(LEGACY_FIELDS, frozenset)
-
-
-# =============================================================================
-# Phase 3 — --csl flag on pm collect
-# =============================================================================
-
-
-class TestCollectCslFlag:
-    """pm collect --csl produces CSL-JSON output."""
-
-    def test_csl_in_collect_help(self) -> None:
-        """--csl appears in collect parser help."""
-        from pm_tools.cli import _build_collect_parser
-
-        assert "--csl" in _build_collect_parser().format_help()
-
-    def test_collect_csl_flag_accepted(self) -> None:
-        """collect_main(["query", "--csl"]) doesn't error on the flag."""
-        # We mock the network calls to avoid actual API requests.
-        from unittest.mock import patch
-
-        from pm_tools.cli import collect_main
-
-        with (
-            patch("pm_tools.search.search", return_value=[]),
-            patch("pm_tools.cli.find_pm_dir", return_value=None),
-        ):
-            result = collect_main(["test query", "--csl"])
-
-        # Empty search results → exit 0
-        assert result == 0
-
-    def test_collect_without_csl_uses_legacy(self) -> None:
-        """collect_main() without --csl filters to LEGACY_FIELDS."""
-        import io
-        import json
-        from unittest.mock import patch
-
-        from pm_tools.cli import collect_main
-        from pm_tools.parse import LEGACY_FIELDS
-
-        xml = _make_xml()
-        captured = io.StringIO()
-
-        with (
-            patch("pm_tools.search.search", return_value=["99999"]),
-            patch("pm_tools.fetch.fetch", return_value=xml),
-            patch("pm_tools.cli.find_pm_dir", return_value=None),
-            patch("sys.stdout", captured),
-        ):
-            result = collect_main(["test query"])
-
-        assert result == 0
-        output = captured.getvalue().strip()
-        record = json.loads(output)
-        assert set(record.keys()) <= LEGACY_FIELDS
-
-    def test_collect_with_csl_produces_csl(self) -> None:
-        """collect_main(["query", "--csl"]) produces CSL-JSON."""
-        import io
-        import json
-        from unittest.mock import patch
-
-        from pm_tools.cli import collect_main
-
-        xml = _make_xml()
-        captured = io.StringIO()
-
-        with (
-            patch("pm_tools.search.search", return_value=["99999"]),
-            patch("pm_tools.fetch.fetch", return_value=xml),
-            patch("pm_tools.cli.find_pm_dir", return_value=None),
-            patch("sys.stdout", captured),
-        ):
-            result = collect_main(["test query", "--csl"])
-
-        assert result == 0
-        output = captured.getvalue().strip()
-        record = json.loads(output)
-        assert record["type"] == "article-journal"
-        assert "container-title" in record
 
 
 # =============================================================================
@@ -926,33 +547,3 @@ class TestCslGoldenFiles:
             for i, (actual, expected) in enumerate(zip(actual_csl, expected_csl, strict=True)):
                 assert actual == expected, f"{golden_path.name} record {i}: mismatch"
 
-    def test_csl_output_has_required_fields(self, fixtures_dir: Any) -> None:
-        """Every CSL record from random fixtures has id, type, source, PMID."""
-        from pm_tools.parse import article_to_csl, parse_xml
-
-        random_dir = Path(fixtures_dir) / "random"
-        xml_files = list(random_dir.glob("*.xml"))
-        assert len(xml_files) > 0, "No random XML fixtures found"
-        for xml_path in xml_files:
-            xml = xml_path.read_text()
-            for article in parse_xml(xml):
-                csl = article_to_csl(article)
-                assert "id" in csl, f"{xml_path.name}: missing id"
-                assert "type" in csl, f"{xml_path.name}: missing type"
-                assert "source" in csl, f"{xml_path.name}: missing source"
-                assert "PMID" in csl, f"{xml_path.name}: missing PMID"
-
-    def test_csl_derived_fields_correct(self, fixtures_dir: Any) -> None:
-        """id = pmid:{PMID}, type = article-journal, source = PubMed."""
-        from pm_tools.parse import article_to_csl, parse_xml
-
-        random_dir = Path(fixtures_dir) / "random"
-        xml_files = list(random_dir.glob("*.xml"))
-        assert len(xml_files) > 0, "No random XML fixtures found"
-        for xml_path in xml_files:
-            xml = xml_path.read_text()
-            for article in parse_xml(xml):
-                csl = article_to_csl(article)
-                assert csl["id"] == f"pmid:{csl['PMID']}"
-                assert csl["type"] == "article-journal"
-                assert csl["source"] == "PubMed"

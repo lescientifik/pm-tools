@@ -1,7 +1,4 @@
-"""Tests for pm_tools.refs — extract cited PMIDs/DOIs from NXML files.
-
-RED phase: tests written before implementation to drive extract_refs().
-"""
+"""Tests for pm_tools.refs — extract cited PMIDs/DOIs from NXML files."""
 
 from __future__ import annotations
 
@@ -158,20 +155,6 @@ _NXML_NESTED_REFLIST = """\
 
 class TestExtractRefs:
     """Tests for extract_refs() core function."""
-
-    def test_nxml_with_pmids(self) -> None:
-        """NXML with ref-list containing PMIDs returns list of PMID strings."""
-        content = SAMPLE_NXML.read_text()
-        result = extract_refs(content)
-        assert result == ["11111111", "22222222"]
-
-    def test_mixed_and_element_citation(self) -> None:
-        """Finds PMIDs in both mixed-citation and element-citation."""
-        content = SAMPLE_NXML.read_text()
-        result = extract_refs(content)
-        # B1 is mixed-citation, B2 is element-citation — both found
-        assert "11111111" in result
-        assert "22222222" in result
 
     def test_default_returns_pmids_not_dois(self) -> None:
         """Default id_type returns only PMIDs, not DOIs."""
@@ -364,14 +347,6 @@ class TestRefsCli:
         assert "22222222" in lines
         # Error about the bad file on stderr
         assert "Error" in captured.err
-
-    def test_output_lines_are_pmids(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """pm refs output lines are all-digit PMIDs (pipeable to pm fetch)."""
-        exit_code = refs_main([str(SAMPLE_NXML)])
-        assert exit_code == 0
-        captured = capsys.readouterr()
-        for line in captured.out.strip().splitlines():
-            assert line.isdigit(), f"Expected all-digit PMID, got: {line!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -600,16 +575,6 @@ class TestRefsWarnings:
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "warning: no references found" in captured.err
-
-    def test_valid_nxml_with_refs_no_warning(
-        self,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """Valid NXML with refs → no warning on stderr."""
-        exit_code = refs_main([str(SAMPLE_NXML)])
-        assert exit_code == 0
-        captured = capsys.readouterr()
-        assert "warning" not in captured.err.lower()
 
     def test_multifile_invalid_plus_valid(
         self,

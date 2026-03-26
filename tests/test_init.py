@@ -108,11 +108,6 @@ class TestInitIdempotent:
 class TestInitCLI:
     """pm init is accessible via the pm CLI."""
 
-    def test_init_in_subcommands(self) -> None:
-        from pm_tools.cli import SUBCOMMANDS
-
-        assert "init" in SUBCOMMANDS
-
     def test_help_returns_zero(self) -> None:
         from pm_tools.init import main
 

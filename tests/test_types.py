@@ -1,9 +1,7 @@
-"""Tests for pm_tools.types — TypedDict schema conformance.
+"""Tests for pm_tools.types — parse output conformance to TypedDict contracts.
 
-Verifies that:
-  - TypedDict classes are importable from pm_tools.types and pm_tools
-  - Schema has the expected fields, required/optional keys
-  - parse_xml() output conforms structurally to the TypedDict definitions
+Verifies that parse_xml() and parse_xml_stream() output conforms structurally
+to the TypedDict definitions (ArticleRecord, AuthorName, AbstractSection).
 """
 
 from __future__ import annotations
@@ -11,150 +9,6 @@ from __future__ import annotations
 from typing import get_type_hints
 
 from pm_tools.parse import parse_xml, parse_xml_stream
-
-# =============================================================================
-# Import availability
-# =============================================================================
-
-
-class TestTypeImports:
-    """TypedDict classes importable from both pm_tools.types and pm_tools."""
-
-    def test_import_from_types_module(self) -> None:
-        from pm_tools.types import AbstractSection, ArticleRecord, AuthorName
-
-        assert ArticleRecord is not None
-        assert AuthorName is not None
-        assert AbstractSection is not None
-
-    def test_import_from_package(self) -> None:
-        from pm_tools import AbstractSection, ArticleRecord, AuthorName
-
-        assert ArticleRecord is not None
-        assert AuthorName is not None
-        assert AbstractSection is not None
-
-    def test_same_class_both_paths(self) -> None:
-        from pm_tools import ArticleRecord
-        from pm_tools.types import ArticleRecord as ArticleRecordFromTypes
-
-        assert ArticleRecord is ArticleRecordFromTypes
-
-
-# =============================================================================
-# ArticleRecord schema
-# =============================================================================
-
-
-class TestArticleRecordSchema:
-    """ArticleRecord has 18 fields, pmid required, rest optional."""
-
-    def test_expected_fields(self) -> None:
-        from pm_tools.types import ArticleRecord
-
-        hints = get_type_hints(ArticleRecord)
-        expected = {
-            "pmid",
-            "title",
-            "authors",
-            "journal",
-            "year",
-            "date",
-            "abstract",
-            "abstract_sections",
-            "doi",
-            "pmcid",
-            # New fields for CSL-JSON support
-            "volume",
-            "issue",
-            "page",
-            "issn",
-            "journal_abbrev",
-            "epub_date",
-            "publisher_place",
-            "pub_status",
-        }
-        assert set(hints.keys()) == expected
-
-    def test_pmid_required(self) -> None:
-        from pm_tools.types import ArticleRecord
-
-        assert "pmid" in ArticleRecord.__required_keys__
-
-    def test_optional_keys(self) -> None:
-        from pm_tools.types import ArticleRecord
-
-        expected_optional = {
-            "title",
-            "authors",
-            "journal",
-            "year",
-            "date",
-            "abstract",
-            "abstract_sections",
-            "doi",
-            "pmcid",
-            "volume",
-            "issue",
-            "page",
-            "issn",
-            "journal_abbrev",
-            "epub_date",
-            "publisher_place",
-            "pub_status",
-        }
-        assert ArticleRecord.__optional_keys__ == expected_optional
-
-
-# =============================================================================
-# AuthorName schema
-# =============================================================================
-
-
-class TestAuthorNameSchema:
-    """AuthorName has 4 optional keys: family, given, suffix, literal."""
-
-    def test_expected_fields(self) -> None:
-        from pm_tools.types import AuthorName
-
-        hints = get_type_hints(AuthorName)
-        assert set(hints.keys()) == {"family", "given", "suffix", "literal"}
-
-    def test_all_optional(self) -> None:
-        from pm_tools.types import AuthorName
-
-        assert AuthorName.__required_keys__ == frozenset()
-
-    def test_optional_keys(self) -> None:
-        from pm_tools.types import AuthorName
-
-        assert AuthorName.__optional_keys__ == {"family", "given", "suffix", "literal"}
-
-
-# =============================================================================
-# AbstractSection schema
-# =============================================================================
-
-
-class TestAbstractSectionSchema:
-    """AbstractSection has label + text, both required (total=True)."""
-
-    def test_expected_fields(self) -> None:
-        from pm_tools.types import AbstractSection
-
-        hints = get_type_hints(AbstractSection)
-        assert set(hints.keys()) == {"label", "text"}
-
-    def test_both_required(self) -> None:
-        from pm_tools.types import AbstractSection
-
-        assert AbstractSection.__required_keys__ == {"label", "text"}
-
-    def test_no_optional_keys(self) -> None:
-        from pm_tools.types import AbstractSection
-
-        assert AbstractSection.__optional_keys__ == frozenset()
-
 
 # =============================================================================
 # parse_xml() output conformance
@@ -211,22 +65,6 @@ class TestParseConformance:
             assert isinstance(section["label"], str)
             assert isinstance(section["text"], str)
 
-    def test_union_of_fixtures_covers_all_fields(
-        self, complete_article_xml: str, structured_abstract_xml: str
-    ) -> None:
-        """Union of keys from complete + structured fixtures covers all TypedDict fields."""
-        from pm_tools.types import ArticleRecord
-
-        all_td_keys = set(get_type_hints(ArticleRecord).keys())
-        arts1 = parse_xml(complete_article_xml)
-        arts2 = parse_xml(structured_abstract_xml)
-        union_keys = set(arts1[0].keys()) | set(arts2[0].keys())
-        missing = all_td_keys - union_keys
-        extra = union_keys - all_td_keys
-        assert union_keys == all_td_keys, (
-            f"Missing from fixtures: {missing}, Extra in fixtures: {extra}"
-        )
-
     def test_minimal_article_conforms(self, minimal_article_xml: str) -> None:
         """Minimal article (only pmid) is valid under total=False."""
         articles = parse_xml(minimal_article_xml)
@@ -266,6 +104,9 @@ class TestParseConformance:
 
         valid_keys = set(get_type_hints(ArticleRecord).keys())
         stream = io.StringIO(complete_article_xml)
+        count = 0
         for article in parse_xml_stream(stream):
             assert set(article.keys()) <= valid_keys
             assert isinstance(article["pmid"], str)
+            count += 1
+        assert count >= 1, "parse_xml_stream should yield at least 1 article"

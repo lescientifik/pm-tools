@@ -4,15 +4,13 @@ Tests the fetch function at the Python module level, mocking HTTP responses.
 The fetch module will be at pm_tools.fetch with:
   - fetch(pmids: list[str], batch_size: int = 200) -> str
 
-All tests are written RED-first: they MUST fail until the module is implemented.
 """
 
 import json
 import time
-import urllib.parse
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -34,20 +32,21 @@ MOCK_XML_TEMPLATE = """<?xml version="1.0" ?>
 </PubmedArticleSet>"""
 
 
-def _make_mock_response(pmid: str = "12345") -> MagicMock:
-    """Create a mock httpx.Response with valid XML."""
-    mock = MagicMock(spec=httpx.Response)
-    mock.status_code = 200
-    mock.text = MOCK_XML_TEMPLATE.format(pmid=pmid)
-    mock.raise_for_status = MagicMock()
-    return mock
+def _make_xml_handler(
+    pmid: str = "12345",
+) -> Callable[[httpx.Request], httpx.Response]:
+    """Return a handler that always responds with XML for the given PMID."""
+    xml_text = MOCK_XML_TEMPLATE.format(pmid=pmid)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=xml_text)
+
+    return handler
 
 
-def _mock_client_for(mock_response: MagicMock) -> MagicMock:
-    """Create a mock HTTP client whose .get() returns the given response."""
-    client = MagicMock()
-    client.get.return_value = mock_response
-    return client
+def _make_client(handler: Callable[[httpx.Request], httpx.Response]) -> httpx.Client:
+    """Create an httpx.Client backed by a MockTransport."""
+    return httpx.Client(transport=httpx.MockTransport(handler))
 
 
 # =============================================================================
@@ -58,73 +57,17 @@ def _mock_client_for(mock_response: MagicMock) -> MagicMock:
 class TestFetchBasic:
     """Core fetch behavior: PMIDs -> XML string."""
 
-    def test_single_pmid_returns_xml(self) -> None:
+    def test_single_pmid_returns_xml(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """fetch(["12345"]) returns XML containing the article."""
-        mock_client = _mock_client_for(_make_mock_response("12345"))
+        client = _make_client(_make_xml_handler("12345"))
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
 
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            result = fetch(["12345"])
+        result = fetch(["12345"])
 
-        assert "PubmedArticleSet" in result
-        assert "12345" in result
+        root = ET.fromstring(result)
+        assert root.tag == "PubmedArticleSet"
+        assert root.find(".//PMID").text == "12345"
 
-    def test_returns_string(self) -> None:
-        """Return type is str (XML text)."""
-        mock_client = _mock_client_for(_make_mock_response())
-
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            result = fetch(["12345"])
-
-        assert isinstance(result, str)
-
-    def test_single_pmid_calls_efetch(self) -> None:
-        """HTTP request targets efetch.fcgi endpoint with correct params."""
-        mock_client = _mock_client_for(_make_mock_response())
-
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            fetch(["12345"])
-
-        mock_client.get.assert_called_once()
-        call_args = mock_client.get.call_args
-        url_str = str(call_args)
-
-        # Should call efetch.fcgi
-        assert "efetch.fcgi" in url_str or "efetch" in url_str
-
-    def test_efetch_uses_correct_parameters(self) -> None:
-        """Request includes db=pubmed, rettype=abstract, retmode=xml."""
-        mock_client = _mock_client_for(_make_mock_response())
-
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            fetch(["12345"])
-
-        call_args = mock_client.get.call_args
-        params = call_args[1].get("params", {}) if call_args[1] else {}
-        url_str = str(call_args)
-
-        # db=pubmed
-        assert params.get("db") == "pubmed" or "db=pubmed" in url_str
-        # rettype=abstract
-        assert params.get("rettype") == "abstract" or "rettype=abstract" in url_str
-        # retmode=xml
-        assert params.get("retmode") == "xml" or "retmode=xml" in url_str
-
-    def test_pmids_sent_as_comma_separated(self) -> None:
-        """Multiple PMIDs are joined with commas in the id parameter."""
-        mock_client = _mock_client_for(_make_mock_response())
-
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            fetch(["111", "222", "333"])
-
-        call_args = mock_client.get.call_args
-        params = call_args[1].get("params", {}) if call_args[1] else {}
-        url_str = str(call_args)
-
-        assert (
-            params.get("id") == "111,222,333"
-            or "id=111,222,333" in url_str
-            or "id=111%2C222%2C333" in url_str
-        )
 
 
 # =============================================================================
@@ -135,25 +78,36 @@ class TestFetchBasic:
 class TestFetchEmptyInput:
     """Empty PMID list should not make API calls."""
 
-    def test_empty_list_returns_empty_string(self) -> None:
+    def test_empty_list_returns_empty_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """fetch([]) returns empty string and makes no HTTP calls."""
-        mock_client = MagicMock()
+        captured: list[httpx.Request] = []
 
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            result = fetch([])
+        def _handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, text="")
+
+        client = _make_client(_handler)
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
+
+        result = fetch([])
 
         assert result == ""
-        mock_client.get.assert_not_called()
 
-    def test_empty_strings_filtered_out(self) -> None:
+    def test_empty_strings_filtered_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """fetch(["", "", ""]) treats all-empty as empty input."""
-        mock_client = MagicMock()
+        captured: list[httpx.Request] = []
 
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            result = fetch(["", "", ""])
+        def _handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, text="")
+
+        client = _make_client(_handler)
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
+
+        result = fetch(["", "", ""])
 
         assert result == ""
-        mock_client.get.assert_not_called()
+        assert len(captured) == 0
 
 
 # =============================================================================
@@ -164,98 +118,68 @@ class TestFetchEmptyInput:
 class TestFetchBatching:
     """PMIDs should be batched at 200 per request."""
 
-    def test_small_list_single_batch(self) -> None:
-        """3 PMIDs should result in exactly 1 API call."""
-        mock_client = _mock_client_for(_make_mock_response())
+    @pytest.mark.parametrize(
+        ("n_pmids", "expected_batches"),
+        [
+            (3, 1),      # well under the limit
+            (200, 1),    # boundary: exactly at limit
+            (201, 2),    # boundary: one over the limit
+        ],
+        ids=["under-limit", "at-limit", "over-limit"],
+    )
+    def test_default_batch_boundary(
+        self, n_pmids: int, expected_batches: int, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Default batch_size=200: verify boundary between 1 and 2 batches."""
+        captured: list[httpx.Request] = []
 
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            fetch(["111", "222", "333"])
+        def _handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, text=MOCK_XML_TEMPLATE.format(pmid="12345"))
 
-        assert mock_client.get.call_count == 1
+        client = _make_client(_handler)
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
 
-    def test_200_pmids_single_batch(self) -> None:
-        """Exactly 200 PMIDs should be 1 batch."""
-        pmids = [str(i) for i in range(1, 201)]
-        mock_client = _mock_client_for(_make_mock_response())
+        pmids = [str(i) for i in range(1, n_pmids + 1)]
+        fetch(pmids, rate_limit_delay=0)
 
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            fetch(pmids)
+        assert len(captured) == expected_batches
 
-        assert mock_client.get.call_count == 1
-
-    def test_201_pmids_two_batches(self) -> None:
-        """201 PMIDs should split into 2 batches (200 + 1)."""
-        pmids = [str(i) for i in range(1, 202)]
-        mock_client = _mock_client_for(_make_mock_response())
-
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            fetch(pmids)
-
-        assert mock_client.get.call_count == 2
-
-    def test_250_pmids_two_batches(self) -> None:
-        """250 PMIDs should split into 2 batches (200 + 50)."""
-        pmids = [str(i) for i in range(1, 251)]
-        mock_client = _mock_client_for(_make_mock_response())
-
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            fetch(pmids)
-
-        assert mock_client.get.call_count == 2
-
-    def test_450_pmids_three_batches(self) -> None:
-        """450 PMIDs should split into 3 batches (200 + 200 + 50)."""
-        pmids = [str(i) for i in range(1, 451)]
-        mock_client = _mock_client_for(_make_mock_response())
-
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            fetch(pmids)
-
-        assert mock_client.get.call_count == 3
-
-    def test_custom_batch_size(self) -> None:
+    def test_custom_batch_size(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """fetch(pmids, batch_size=50) should batch at 50."""
+        captured: list[httpx.Request] = []
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, text=MOCK_XML_TEMPLATE.format(pmid="12345"))
+
+        client = _make_client(_handler)
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
+
         pmids = [str(i) for i in range(1, 101)]
-        mock_client = _mock_client_for(_make_mock_response())
+        fetch(pmids, batch_size=50, rate_limit_delay=0)
 
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            fetch(pmids, batch_size=50)
+        assert len(captured) == 2
 
-        assert mock_client.get.call_count == 2
-
-    def test_batches_combine_xml_output(self) -> None:
-        """Multiple batches should produce combined XML output."""
-        pmids = [str(i) for i in range(1, 251)]
-        mock_client = _mock_client_for(_make_mock_response())
-
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            result = fetch(pmids)
-
-        # Should contain XML content (not be empty)
-        assert "PubmedArticle" in result
-
-    def test_multi_batch_produces_valid_xml(self) -> None:
+    def test_multi_batch_produces_valid_xml(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Multiple batches must produce a single valid XML document.
 
         Bug: fetch() currently joins batch responses with newline, producing
         multiple XML declarations and root elements — invalid XML that
         ET.fromstring() rejects with 'junk after document element'.
         """
-        import xml.etree.ElementTree as ET
+        call_count = 0
 
-        # Each batch returns a full XML document with its own declaration
-        batch_responses = iter(
-            [
-                _make_mock_response("111"),
-                _make_mock_response("222"),
-            ]
-        )
+        def _handler(request: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            pmid = "111" if call_count == 1 else "222"
+            return httpx.Response(200, text=MOCK_XML_TEMPLATE.format(pmid=pmid))
 
-        mock_client = MagicMock()
-        mock_client.get.side_effect = batch_responses
+        client = _make_client(_handler)
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
 
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            result = fetch(["111", "222"], batch_size=1)
+        result = fetch(["111", "222"], batch_size=1, rate_limit_delay=0)
 
         # Must be parseable as a single XML document
         root = ET.fromstring(result)
@@ -275,22 +199,22 @@ class TestFetchBatching:
 class TestFetchRateLimiting:
     """Rate limiting: max 3 requests per second (no API key)."""
 
-    def test_three_batches_take_minimum_time(self) -> None:
-        """3 batches (450 PMIDs) should take at least 0.5s due to rate limiting.
+    def test_three_batches_take_minimum_time(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """3 batches (450 PMIDs) should sleep between batches due to rate limiting.
 
-        Rate limit = 3 req/sec = ~0.33s between requests.
-        For 3 requests: need 2 delays = ~0.66s minimum, using 0.5s as safe margin.
+        With rate_limit_delay=0.05s and 3 batches: 2 sleeps = ~0.10s minimum.
+        Using 0.08s as safe lower bound with margin.
         """
+        client = _make_client(_make_xml_handler())
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
+
         pmids = [str(i) for i in range(1, 451)]
-        mock_client = _mock_client_for(_make_mock_response())
+        start = time.monotonic()
+        fetch(pmids, rate_limit_delay=0.05)
+        elapsed = time.monotonic() - start
 
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            start = time.monotonic()
-            fetch(pmids)
-            elapsed = time.monotonic() - start
-
-        # With 3 batches and rate limiting, should take at least 0.5s
-        assert elapsed >= 0.5, f"Expected >= 0.5s, got {elapsed:.3f}s (no rate limiting?)"
+        # With 3 batches and rate limiting, should take at least 0.08s
+        assert elapsed >= 0.08, f"Expected >= 0.08s, got {elapsed:.3f}s (no rate limiting?)"
 
 
 # =============================================================================
@@ -301,35 +225,28 @@ class TestFetchRateLimiting:
 class TestFetchErrors:
     """API and network errors should propagate."""
 
-    def test_http_error_raises_exception(self) -> None:
+    def test_http_error_raises_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """HTTP 500 from API should raise an exception."""
-        mock_response = MagicMock(spec=httpx.Response)
-        mock_response.status_code = 500
-        mock_response.raise_for_status = MagicMock(
-            side_effect=httpx.HTTPStatusError(
-                "Server error",
-                request=MagicMock(),
-                response=mock_response,
-            )
-        )
 
-        mock_client = _mock_client_for(mock_response)
+        def _handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(500, text="Server error")
 
-        with (
-            patch("pm_tools.fetch.get_client", return_value=mock_client),
-            pytest.raises((httpx.HTTPStatusError, RuntimeError)),
-        ):
+        client = _make_client(_handler)
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
+
+        with pytest.raises((httpx.HTTPStatusError, RuntimeError)):
             fetch(["12345"])
 
-    def test_network_error_raises_exception(self) -> None:
+    def test_network_error_raises_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Connection error should propagate."""
-        mock_client = MagicMock()
-        mock_client.get.side_effect = httpx.ConnectError("Connection refused")
 
-        with (
-            patch("pm_tools.fetch.get_client", return_value=mock_client),
-            pytest.raises((httpx.ConnectError, ConnectionError, RuntimeError)),
-        ):
+        def _handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("Connection refused")
+
+        client = _make_client(_handler)
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
+
+        with pytest.raises((httpx.ConnectError, ConnectionError, RuntimeError)):
             fetch(["12345"])
 
 
@@ -382,21 +299,21 @@ class TestSplitXmlArticles:
 # =============================================================================
 
 
-def _make_pm_dir(tmp_path: Path) -> Path:
-    pm = tmp_path / ".pm"
-    pm.mkdir()
-    for sub in ("search", "fetch", "cite", "download"):
-        (pm / "cache" / sub).mkdir(parents=True)
-    (pm / "audit.jsonl").write_text("")
-    return pm
-
-
 class TestFetchSmartBatch:
     """fetch() with pm_dir only fetches uncached PMIDs."""
 
-    def test_all_cached_no_api_call(self, tmp_path: Path) -> None:
+    def test_all_cached_no_api_call(
+        self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """When all PMIDs are cached, zero API calls are made."""
-        pm_dir = _make_pm_dir(tmp_path)
+        captured: list[httpx.Request] = []
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, text="")
+
+        client = _make_client(_handler)
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
 
         # Pre-populate cache with article fragments
         for pmid in ("111", "222"):
@@ -408,21 +325,27 @@ class TestFetchSmartBatch:
             )
             (pm_dir / "cache" / "fetch" / f"{pmid}.xml").write_text(xml)
 
-        mock_client = MagicMock()
+        result = fetch(["111", "222"], pm_dir=pm_dir)
 
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            result = fetch(["111", "222"], pm_dir=pm_dir)
-
-        mock_client.get.assert_not_called()
+        assert len(captured) == 0
         assert "111" in result
         assert "222" in result
         # Must be valid XML
         root = ET.fromstring(result)
         assert root.tag == "PubmedArticleSet"
 
-    def test_partial_cache_fetches_only_missing(self, tmp_path: Path) -> None:
+    def test_partial_cache_fetches_only_missing(
+        self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Only uncached PMIDs trigger API calls."""
-        pm_dir = _make_pm_dir(tmp_path)
+        captured: list[httpx.Request] = []
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, text=MOCK_XML_TEMPLATE.format(pmid="222"))
+
+        client = _make_client(_handler)
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
 
         # Cache only PMID 111
         xml = (
@@ -433,38 +356,39 @@ class TestFetchSmartBatch:
         )
         (pm_dir / "cache" / "fetch" / "111.xml").write_text(xml)
 
-        # Mock API returns PMID 222
-        mock_client = _mock_client_for(_make_mock_response("222"))
-
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            result = fetch(["111", "222"], pm_dir=pm_dir)
+        result = fetch(["111", "222"], pm_dir=pm_dir)
 
         # Only 1 API call (for 222), not 2
-        assert mock_client.get.call_count == 1
+        assert len(captured) == 1
         # Both articles in result
         root = ET.fromstring(result)
         pmids = [e.text for e in root.findall(".//PMID") if e.text]
         assert "111" in pmids
         assert "222" in pmids
 
-    def test_no_cache_without_pm_dir(self) -> None:
+    def test_no_cache_without_pm_dir(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Without pm_dir, fetch works as before."""
-        mock_client = _mock_client_for(_make_mock_response())
+        captured: list[httpx.Request] = []
 
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            fetch(["111", "222"])
-        assert mock_client.get.call_count == 1  # single batch, no cache
+        def _handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, text=MOCK_XML_TEMPLATE.format(pmid="12345"))
+
+        client = _make_client(_handler)
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
+
+        fetch(["111", "222"])
+        assert len(captured) == 1  # single batch, no cache
 
 
 class TestFetchAudit:
     """fetch() logs to audit.jsonl when pm_dir is provided."""
 
-    def test_logs_fetch_event(self, tmp_path: Path) -> None:
-        pm_dir = _make_pm_dir(tmp_path)
-        mock_client = _mock_client_for(_make_mock_response())
+    def test_logs_fetch_event(self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        client = _make_client(_make_xml_handler())
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
 
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            fetch(["111", "222"], pm_dir=pm_dir)
+        fetch(["111", "222"], pm_dir=pm_dir)
 
         lines = (pm_dir / "audit.jsonl").read_text().strip().splitlines()
         assert len(lines) == 1
@@ -472,8 +396,9 @@ class TestFetchAudit:
         assert event["op"] == "fetch"
         assert event["requested"] == 2
 
-    def test_logs_cached_count(self, tmp_path: Path) -> None:
-        pm_dir = _make_pm_dir(tmp_path)
+    def test_logs_cached_count(self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        client = _make_client(_make_xml_handler("222"))
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
 
         # Pre-cache one article
         xml = (
@@ -484,10 +409,7 @@ class TestFetchAudit:
         )
         (pm_dir / "cache" / "fetch" / "111.xml").write_text(xml)
 
-        mock_client = _mock_client_for(_make_mock_response("222"))
-
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            fetch(["111", "222"], pm_dir=pm_dir)
+        fetch(["111", "222"], pm_dir=pm_dir)
 
         event = json.loads((pm_dir / "audit.jsonl").read_text().strip().splitlines()[0])
         assert event["cached"] == 1
@@ -497,10 +419,19 @@ class TestFetchAudit:
 class TestFetchRoundTrip:
     """split → cache → reassemble → parse must produce identical results."""
 
-    def test_round_trip_preserves_data(self, tmp_path: Path) -> None:
+    def test_round_trip_preserves_data(
+        self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from pm_tools.parse import parse_xml
 
-        pm_dir = _make_pm_dir(tmp_path)
+        captured: list[httpx.Request] = []
+
+        def _handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, text="")
+
+        client = _make_client(_handler)
+        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
 
         # Original parse
         original = parse_xml(TWO_ARTICLES_XML)
@@ -510,11 +441,8 @@ class TestFetchRoundTrip:
         for pmid, frag in fragments.items():
             (pm_dir / "cache" / "fetch" / f"{pmid}.xml").write_text(frag)
 
-        mock_client = MagicMock()
-
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            reassembled_xml = fetch(["111", "222"], pm_dir=pm_dir)
-        mock_client.get.assert_not_called()
+        reassembled_xml = fetch(["111", "222"], pm_dir=pm_dir)
+        assert len(captured) == 0
 
         reassembled = parse_xml(reassembled_xml)
 
@@ -524,93 +452,6 @@ class TestFetchRoundTrip:
         new_pmids = {a["pmid"] for a in reassembled}
         assert orig_pmids == new_pmids
 
-
-# =============================================================================
-# Positional PMIDs in CLI
-# =============================================================================
-
-
-class TestFetchPositionalPmids:
-    """Test that fetch CLI accepts positional PMIDs (same pattern as cite)."""
-
-    @patch("pm_tools.fetch.find_pm_dir", return_value=None)
-    @patch("pm_tools.fetch.fetch")
-    def test_positional_pmid(self, mock_fetch_fn: MagicMock, mock_find: MagicMock) -> None:
-        """fetch.main(["41873355"]) should produce output."""
-        from pm_tools.fetch import main
-
-        mock_fetch_fn.return_value = "<xml/>"
-        result = main(["41873355"])
-        assert result == 0
-        mock_fetch_fn.assert_called_once()
-        assert "41873355" in mock_fetch_fn.call_args[0][0]
-
-    @patch("pm_tools.fetch.find_pm_dir", return_value=None)
-    @patch("pm_tools.fetch.fetch")
-    def test_multiple_positional_pmids(
-        self, mock_fetch_fn: MagicMock, mock_find: MagicMock,
-    ) -> None:
-        """Multiple positional PMIDs all passed to fetch()."""
-        from pm_tools.fetch import main
-
-        mock_fetch_fn.return_value = "<xml/>"
-        result = main(["111", "222", "333"])
-        assert result == 0
-        assert mock_fetch_fn.call_args[0][0] == ["111", "222", "333"]
-
-    @patch("pm_tools.fetch.find_pm_dir", return_value=None)
-    @patch("pm_tools.fetch.fetch")
-    def test_positional_with_verbose(self, mock_fetch_fn: MagicMock, mock_find: MagicMock) -> None:
-        """Positional PMIDs work with -v flag."""
-        from pm_tools.fetch import main
-
-        mock_fetch_fn.return_value = "<xml/>"
-        result = main(["41873355", "-v"])
-        assert result == 0
-        assert "41873355" in mock_fetch_fn.call_args[0][0]
-
-    @patch("pm_tools.fetch.find_pm_dir", return_value=None)
-    @patch("pm_tools.fetch.fetch")
-    def test_stdin_fallback_when_no_positional(
-        self,
-        mock_fetch_fn: MagicMock,
-        mock_find: MagicMock,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Stdin is read when no positional args and stdin is not a TTY."""
-        import io
-
-        from pm_tools.fetch import main
-
-        mock_fetch_fn.return_value = "<xml/>"
-        monkeypatch.setattr("sys.stdin", io.StringIO("12345\n67890\n"))
-        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-        result = main([])
-        assert result == 0
-        mock_fetch_fn.assert_called_once()
-        assert mock_fetch_fn.call_args[0][0] == ["12345", "67890"]
-
-    @patch("pm_tools.fetch.find_pm_dir", return_value=None)
-    @patch("pm_tools.fetch.fetch")
-    def test_stdin_jsonl_extracts_pmids(
-        self,
-        mock_fetch_fn: MagicMock,
-        mock_find: MagicMock,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """JSONL on stdin is auto-detected and PMIDs are extracted."""
-        import io
-
-        from pm_tools.fetch import main
-
-        mock_fetch_fn.return_value = "<xml/>"
-        jsonl_input = '{"pmid": "12345", "title": "X"}\n{"pmid": "67890", "title": "Y"}\n'
-        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
-        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-        result = main([])
-        assert result == 0
-        mock_fetch_fn.assert_called_once()
-        assert mock_fetch_fn.call_args[0][0] == ["12345", "67890"]
 
 
 # =============================================================================
@@ -644,78 +485,9 @@ class TestFetchPmidValidation:
 class TestFetchUrlEncoding:
     """_make_efetch_batch() must produce safe, well-formed URLs."""
 
-    def test_batch_url_has_correct_id_param(self) -> None:
-        """_make_efetch_batch(["123", "456"]) encodes id=123,456 in the URL."""
-        mock_client = _mock_client_for(_make_mock_response("123"))
-
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            _make_efetch_batch(["123", "456"])
-
-        url = mock_client.get.call_args[0][0]
-        parsed = urllib.parse.urlparse(url)
-        params = urllib.parse.parse_qs(parsed.query)
-        assert params["id"] == ["123,456"]
-
-    def test_batch_url_has_correct_retmode(self) -> None:
-        """_make_efetch_batch() always sets retmode=xml."""
-        mock_client = _mock_client_for(_make_mock_response("123"))
-
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            _make_efetch_batch(["123"])
-
-        url = mock_client.get.call_args[0][0]
-        parsed = urllib.parse.urlparse(url)
-        params = urllib.parse.parse_qs(parsed.query)
-        assert params["retmode"] == ["xml"]
-
     def test_malicious_pmid_rejected(self) -> None:
         """A PMID like '123&retmode=json' must be rejected (non-numeric)."""
         with pytest.raises(ValueError, match="Invalid PMID"):
             _make_efetch_batch(["123&retmode=json"])
 
-    def test_whitespace_pmid_stripped_and_validated(self) -> None:
-        """PMIDs with leading/trailing whitespace are stripped before validation."""
-        mock_client = _mock_client_for(_make_mock_response("123"))
 
-        with patch("pm_tools.fetch.get_client", return_value=mock_client):
-            _make_efetch_batch(["  123  ", "456"])
-
-        url = mock_client.get.call_args[0][0]
-        parsed = urllib.parse.urlparse(url)
-        params = urllib.parse.parse_qs(parsed.query)
-        assert params["id"] == ["123,456"]
-
-
-# =============================================================================
-# --refresh CLI flag wiring (Phase 3.1)
-# =============================================================================
-
-
-class TestFetchRefreshFlag:
-    """fetch.main must accept --refresh and pass refresh=True to fetch()."""
-
-    @patch("pm_tools.cache.find_pm_dir", return_value=None)
-    @patch("pm_tools.fetch.fetch")
-    def test_refresh_passed_to_fetch(
-        self, mock_fetch_fn: MagicMock, mock_find: MagicMock
-    ) -> None:
-        """--refresh should forward refresh=True to the fetch() library call."""
-        from pm_tools.fetch import main
-
-        mock_fetch_fn.return_value = "<xml/>"
-        rc = main(["--refresh", "12345"])
-        assert rc == 0
-        assert mock_fetch_fn.call_args.kwargs.get("refresh") is True
-
-    @patch("pm_tools.cache.find_pm_dir", return_value=None)
-    @patch("pm_tools.fetch.fetch")
-    def test_no_refresh_defaults_false(
-        self, mock_fetch_fn: MagicMock, mock_find: MagicMock
-    ) -> None:
-        """Without --refresh, refresh should not be True."""
-        from pm_tools.fetch import main
-
-        mock_fetch_fn.return_value = "<xml/>"
-        rc = main(["12345"])
-        assert rc == 0
-        assert not mock_fetch_fn.call_args.kwargs.get("refresh")

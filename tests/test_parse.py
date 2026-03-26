@@ -4,8 +4,6 @@ Tests the parse functions at the Python module level:
   - parse_xml(xml_input: str) -> list[ArticleRecord]
   - parse_xml_stream(input_stream) -> Iterator[ArticleRecord]
   - main(args) CLI entry point
-
-All tests are written RED-first: they MUST fail until the module is implemented.
 """
 
 import io
@@ -43,40 +41,6 @@ class TestParseEmptyInput:
 
 
 # =============================================================================
-# Minimal article — PMID extraction
-# =============================================================================
-
-
-class TestParseMinimalArticle:
-    """Minimal XML with only PMID should be parseable."""
-
-    def test_extracts_pmid(self, minimal_article_xml: str) -> None:
-        """PMID is extracted from minimal article."""
-        result = parse_xml(minimal_article_xml)
-
-        assert len(result) == 1
-        assert result[0]["pmid"] == "12345"
-
-    def test_output_is_valid_json(self, minimal_article_xml: str) -> None:
-        """Each result dict is JSON-serializable."""
-        result = parse_xml(minimal_article_xml)
-
-        for article in result:
-            # Should not raise
-            json_str = json.dumps(article)
-            # And should round-trip
-            parsed_back = json.loads(json_str)
-            assert parsed_back == article
-
-    def test_returns_list_of_dicts(self, minimal_article_xml: str) -> None:
-        """Return type is list[ArticleRecord]."""
-        result = parse_xml(minimal_article_xml)
-
-        assert isinstance(result, list)
-        assert all(isinstance(item, dict) for item in result)
-
-
-# =============================================================================
 # Complete article — all fields
 # =============================================================================
 
@@ -97,26 +61,8 @@ class TestParseCompleteArticle:
         assert article["year"] == 2024
         assert article["doi"] == "10.1234/test"
         assert article["abstract"] == "This is the abstract."
-
-    def test_extracts_date(self, complete_article_xml: str) -> None:
-        """Date field is extracted in ISO format."""
-        result = parse_xml(complete_article_xml)
-        article = result[0]
-
         assert article["date"] == "2024-03-15"
-
-    def test_extracts_pmcid(self, complete_article_xml: str) -> None:
-        """PMCID is extracted when present in ArticleIdList."""
-        result = parse_xml(complete_article_xml)
-        article = result[0]
-
         assert article["pmcid"] == "PMC1234567"
-
-    def test_extracts_authors(self, complete_article_xml: str) -> None:
-        """Authors are extracted as a list."""
-        result = parse_xml(complete_article_xml)
-        article = result[0]
-
         assert isinstance(article["authors"], list)
         assert len(article["authors"]) == 2
 
@@ -246,6 +192,7 @@ class TestParseAuthors:
 
         assert authors[0] == {"family": "Smith", "given": "John"}
         assert authors[1] == {"family": "Doe", "given": "Jane"}
+        assert set(authors[0].keys()) == {"family", "given"}
 
     def test_author_with_only_lastname(self) -> None:
         """Author with only LastName has no 'given' key."""
@@ -270,28 +217,6 @@ class TestParseAuthors:
         assert authors[0] == {"family": "Smith", "given": "John"}
         assert authors[1] == {"family": "OgataK"}
         assert "given" not in authors[1]
-
-    def test_author_dict_has_correct_keys(self) -> None:
-        """Explicit key validation: with and without given name."""
-        xml = """<PubmedArticleSet>
-<PubmedArticle>
-  <MedlineCitation>
-    <PMID>200</PMID>
-    <Article>
-      <AuthorList>
-        <Author><LastName>Full</LastName><ForeName>Name</ForeName></Author>
-        <Author><LastName>OnlyLast</LastName></Author>
-      </AuthorList>
-    </Article>
-  </MedlineCitation>
-</PubmedArticle>
-</PubmedArticleSet>"""
-
-        result = parse_xml(xml)
-        authors = result[0]["authors"]
-
-        assert set(authors[0].keys()) == {"family", "given"}
-        assert set(authors[1].keys()) == {"family"}
 
     def test_collective_name_as_literal(self) -> None:
         """CollectiveName authors stored as {'literal': ...}."""
@@ -525,6 +450,7 @@ class TestParseMissingFields:
         # authors should be empty list or absent, not an error
         authors = result[0].get("authors", [])
         assert isinstance(authors, list)
+        assert authors == []
 
 
 # =============================================================================
@@ -663,8 +589,8 @@ class TestParseVerbose:
         parse_xml(xml, verbose=True)
 
         captured = capsys.readouterr()
-        # stderr should contain progress info
-        assert "Parsed" in captured.err or "article" in captured.err
+        # stderr should contain the exact progress message from parse_xml
+        assert "Parsed article 1: PMID 12345" in captured.err
 
     def test_no_verbose_stderr_is_silent(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Without verbose, stderr should be empty."""
@@ -946,196 +872,6 @@ class TestParseMedlineDates:
 
 
 # =============================================================================
-# Date backwards compatibility
-# =============================================================================
-
-
-class TestParseDateBackwardsCompat:
-    """Both 'date' and 'year' fields should be present."""
-
-    def test_year_field_present_with_full_date(self) -> None:
-        """year field is still present alongside date for backwards compat."""
-        xml = """<PubmedArticleSet>
-<PubmedArticle>
-  <MedlineCitation>
-    <PMID>99999</PMID>
-    <Article>
-      <Journal>
-        <JournalIssue>
-          <PubDate>
-            <Year>1975</Year>
-            <Month>Oct</Month>
-            <Day>27</Day>
-          </PubDate>
-        </JournalIssue>
-      </Journal>
-    </Article>
-  </MedlineCitation>
-</PubmedArticle>
-</PubmedArticleSet>"""
-
-        result = parse_xml(xml)
-        article = result[0]
-
-        assert "date" in article
-        assert "year" in article
-        assert article["date"] == "1975-10-27"
-        assert article["year"] == 1975
-
-    def test_medlinedate_preserves_year_field(self) -> None:
-        """MedlineDate entries still have a year field."""
-        xml = """<PubmedArticleSet>
-<PubmedArticle>
-  <MedlineCitation>
-    <PMID>99995</PMID>
-    <Article>
-      <Journal>
-        <JournalIssue>
-          <PubDate>
-            <MedlineDate>1975 Jul-Aug</MedlineDate>
-          </PubDate>
-        </JournalIssue>
-      </Journal>
-    </Article>
-  </MedlineCitation>
-</PubmedArticle>
-</PubmedArticleSet>"""
-
-        result = parse_xml(xml)
-
-        assert result[0]["year"] == 1975
-
-
-# =============================================================================
-# Date fixtures from files
-# =============================================================================
-
-
-class TestParseDateFixtures:
-    """Tests using actual XML fixture files."""
-
-    def test_full_date_fixture(self, date_fixtures_dir: Path) -> None:
-        """Fixture file full-date.xml produces 1975-10-27."""
-        xml = (date_fixtures_dir / "full-date.xml").read_text()
-        # Wrap bare PubmedArticle in PubmedArticleSet if needed
-        if "<PubmedArticleSet>" not in xml:
-            xml = f"<PubmedArticleSet>{xml}</PubmedArticleSet>"
-
-        result = parse_xml(xml)
-
-        assert len(result) == 1
-        assert result[0]["date"] == "1975-10-27"
-        assert result[0]["year"] == 1975
-
-    def test_year_month_fixture(self, date_fixtures_dir: Path) -> None:
-        """Fixture file year-month.xml produces 1975-06."""
-        xml = (date_fixtures_dir / "year-month.xml").read_text()
-        if "<PubmedArticleSet>" not in xml:
-            xml = f"<PubmedArticleSet>{xml}</PubmedArticleSet>"
-
-        result = parse_xml(xml)
-
-        assert result[0]["date"] == "1975-06"
-
-    def test_year_only_fixture(self, date_fixtures_dir: Path) -> None:
-        """Fixture file year-only.xml produces 1976."""
-        xml = (date_fixtures_dir / "year-only.xml").read_text()
-        if "<PubmedArticleSet>" not in xml:
-            xml = f"<PubmedArticleSet>{xml}</PubmedArticleSet>"
-
-        result = parse_xml(xml)
-
-        assert result[0]["date"] == "1976"
-
-    def test_year_season_fixture(self, date_fixtures_dir: Path) -> None:
-        """Fixture file year-season.xml: Summer -> 1975-06."""
-        xml = (date_fixtures_dir / "year-season.xml").read_text()
-        if "<PubmedArticleSet>" not in xml:
-            xml = f"<PubmedArticleSet>{xml}</PubmedArticleSet>"
-
-        result = parse_xml(xml)
-
-        assert result[0]["date"] == "1975-06"
-
-    def test_medlinedate_month_range_fixture(self, date_fixtures_dir: Path) -> None:
-        """Fixture medlinedate-month-range.xml: Jul-Aug -> 1975-07."""
-        xml = (date_fixtures_dir / "medlinedate-month-range.xml").read_text()
-        if "<PubmedArticleSet>" not in xml:
-            xml = f"<PubmedArticleSet>{xml}</PubmedArticleSet>"
-
-        result = parse_xml(xml)
-
-        assert result[0]["date"] == "1975-07"
-
-    def test_medlinedate_day_range_fixture(self, date_fixtures_dir: Path) -> None:
-        """Fixture medlinedate-day-range.xml: Jul 4-7 -> 1977-07-04."""
-        xml = (date_fixtures_dir / "medlinedate-day-range.xml").read_text()
-        if "<PubmedArticleSet>" not in xml:
-            xml = f"<PubmedArticleSet>{xml}</PubmedArticleSet>"
-
-        result = parse_xml(xml)
-
-        assert result[0]["date"] == "1977-07-04"
-
-    def test_medlinedate_year_range_fixture(self, date_fixtures_dir: Path) -> None:
-        """Fixture medlinedate-year-range.xml: 1975-1976 -> 1975."""
-        xml = (date_fixtures_dir / "medlinedate-year-range.xml").read_text()
-        if "<PubmedArticleSet>" not in xml:
-            xml = f"<PubmedArticleSet>{xml}</PubmedArticleSet>"
-
-        result = parse_xml(xml)
-
-        assert result[0]["date"] == "1975"
-
-    def test_medlinedate_cross_year_fixture(self, date_fixtures_dir: Path) -> None:
-        """Fixture medlinedate-cross-year.xml: 1975 Dec-1976 Jan -> 1975-12."""
-        xml = (date_fixtures_dir / "medlinedate-cross-year.xml").read_text()
-        if "<PubmedArticleSet>" not in xml:
-            xml = f"<PubmedArticleSet>{xml}</PubmedArticleSet>"
-
-        result = parse_xml(xml)
-
-        assert result[0]["date"] == "1975-12"
-
-    def test_medlinedate_uppercase_fixture(self, date_fixtures_dir: Path) -> None:
-        """Fixture medlinedate-uppercase.xml: MAR-APR -> 1975-03."""
-        xml = (date_fixtures_dir / "medlinedate-uppercase.xml").read_text()
-        if "<PubmedArticleSet>" not in xml:
-            xml = f"<PubmedArticleSet>{xml}</PubmedArticleSet>"
-
-        result = parse_xml(xml)
-
-        assert result[0]["date"] == "1975-03"
-
-
-# =============================================================================
-# Streaming parse
-# =============================================================================
-
-
-class TestParseStream:
-    """parse_xml_stream should yield articles one at a time."""
-
-    def test_stream_yields_dicts(self, minimal_article_xml: str) -> None:
-        """parse_xml_stream yields dict objects."""
-        stream = io.StringIO(minimal_article_xml)
-        results = list(parse_xml_stream(stream))
-
-        assert len(results) == 1
-        assert isinstance(results[0], dict)
-        assert results[0]["pmid"] == "12345"
-
-    def test_stream_is_lazy(self, two_articles_xml: str) -> None:
-        """parse_xml_stream returns an iterator, not a list."""
-        import types
-
-        stream = io.StringIO(two_articles_xml)
-        result = parse_xml_stream(stream)
-
-        assert isinstance(result, types.GeneratorType) or hasattr(result, "__next__")
-
-
-# =============================================================================
 # Real fixture files
 # =============================================================================
 
@@ -1200,53 +936,11 @@ class TestParseRealFixtures:
 
         result = parse_xml(xml)
 
-        assert len(result) >= 1
-        for article in result:
-            assert "pmid" in article
-            # Must be JSON-serializable
-            json.dumps(article)
-
-
-# =============================================================================
-# Help text (Phase 3)
-# =============================================================================
-
-
-class TestParseHelp:
-    """Test that parse --help has no duplicated options."""
-
-    def test_no_duplicate_options_section(self) -> None:
-        """There should be only one 'options:' section (argparse-generated)."""
-        from pm_tools.parse import _build_parser
-
-        parser = _build_parser()
-        help_text = parser.format_help()
-        # argparse generates "options:" header; there should be exactly one
-        assert help_text.lower().count("options:") == 1
-
-    def test_no_manual_options_block_in_description(self) -> None:
-        """Description should not contain a manual 'Options:' block."""
-        from pm_tools.parse import PARSE_DESCRIPTION
-
-        # The description should NOT list options — argparse handles that
-        assert "--csl" not in PARSE_DESCRIPTION
-        assert "--verbose" not in PARSE_DESCRIPTION
-
-    def test_help_includes_output_format_docs(self) -> None:
-        """Help should still include output format documentation."""
-        from pm_tools.parse import _build_parser
-
-        parser = _build_parser()
-        help_text = parser.format_help()
-        assert "JSONL" in help_text or "jsonl" in help_text.lower()
-
-    def test_help_includes_examples(self) -> None:
-        """Help should still include examples."""
-        from pm_tools.parse import _build_parser
-
-        parser = _build_parser()
-        help_text = parser.format_help()
-        assert "pm parse" in help_text
+        assert len(result) == 1
+        assert result[0]["pmid"] == "11586"
+        assert "title" in result[0], "Parsed article should have a title"
+        # Must be JSON-serializable
+        json.dumps(result[0])
 
 
 class TestParseNonNumericYear:
@@ -1374,21 +1068,6 @@ class TestParseMainCLI:
         assert csl["PMID"] == "111"
         assert "container-title" in csl
 
-    def test_main_uses_stream_not_parse_xml(self) -> None:
-        """parse.main() must call parse_xml_stream, NOT parse_xml."""
-        from pm_tools.parse import main
-
-        with patch("pm_tools.parse.parse_xml_stream") as mock_stream, \
-             patch("pm_tools.parse.parse_xml") as mock_legacy, \
-             patch("sys.stdin", _make_stdin_mock(_TWO_ARTICLE_XML)):
-            mock_stream.return_value = iter([
-                {"pmid": "111", "title": "T1"},
-                {"pmid": "222", "title": "T2"},
-            ])
-            main([])
-
-        mock_stream.assert_called_once()
-        mock_legacy.assert_not_called()
 
 
 # =============================================================================

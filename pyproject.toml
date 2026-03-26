@@ -1,6 +1,6 @@
 [project]
 name = "pm-tools"
-version = "0.3.2"
+version = "0.3.3"
 description = "PubMed CLI tools for AI agents — search, fetch, parse, filter, cite, diff, download"
 readme = "README.md"
 requires-python = ">=3.12"

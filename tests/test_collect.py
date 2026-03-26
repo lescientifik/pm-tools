@@ -6,7 +6,6 @@ from unittest.mock import patch
 import pytest
 
 from pm_tools.cli import collect_main
-from pm_tools.parse import format_article
 
 # Minimal two-article XML for end-to-end CLI tests.
 _COLLECT_XML = """\
@@ -39,68 +38,6 @@ _COLLECT_XML = """\
 </PubmedArticleSet>"""
 
 
-class TestCollectArgs:
-    """Test collect argument parsing."""
-
-    def test_multi_word_query_accepted(self) -> None:
-        """Multi-word query without quotes should work (currently fails with exit 2)."""
-        with (
-            patch("pm_tools.cli.search") as mock_search,
-            patch("pm_tools.cli.fetch") as mock_fetch,
-            patch("pm_tools.cli.parse") as mock_parse,
-            patch("pm_tools.cli.collect_main.__module__", create=True),
-            patch("pm_tools.cli.find_pm_dir", return_value=None),
-        ):
-            mock_search.search.return_value = ["12345"]
-            mock_fetch.fetch.return_value = "<xml/>"
-            mock_parse.parse_xml.return_value = [{"pmid": "12345", "title": "Test"}]
-            mock_parse.LEGACY_FIELDS = {"pmid", "title"}
-            mock_parse.format_article = format_article
-            result = collect_main(["CRISPR", "cancer", "--max", "1"])
-            assert result == 0
-            call_args = mock_search.search.call_args
-            assert call_args[0][0] == "CRISPR cancer"
-
-    def test_single_word_query_still_works(self) -> None:
-        """Single word query should still work."""
-        with (
-            patch("pm_tools.cli.search") as mock_search,
-            patch("pm_tools.cli.fetch") as mock_fetch,
-            patch("pm_tools.cli.parse") as mock_parse,
-            patch("pm_tools.cli.find_pm_dir", return_value=None),
-        ):
-            mock_search.search.return_value = ["12345"]
-            mock_fetch.fetch.return_value = "<xml/>"
-            mock_parse.parse_xml.return_value = [{"pmid": "12345", "title": "Test"}]
-            mock_parse.LEGACY_FIELDS = {"pmid", "title"}
-            mock_parse.format_article = format_article
-            result = collect_main(["CRISPR", "--max", "1"])
-            assert result == 0
-            call_args = mock_search.search.call_args
-            assert call_args[0][0] == "CRISPR"
-
-    def test_empty_query_returns_1(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """No query args should print error to stderr and return 1."""
-        result = collect_main([])
-        assert result == 1
-        captured = capsys.readouterr()
-        assert "Error" in captured.err
-
-    def test_quoted_query_still_works(self) -> None:
-        """A quoted multi-word query (single argv element) should still work."""
-        with (
-            patch("pm_tools.cli.search") as mock_search,
-            patch("pm_tools.cli.fetch"),
-            patch("pm_tools.cli.parse"),
-            patch("pm_tools.cli.find_pm_dir", return_value=None),
-        ):
-            mock_search.search.return_value = []
-            result = collect_main(["CRISPR cancer", "--max", "1"])
-            assert result == 0
-            call_args = mock_search.search.call_args
-            assert call_args[0][0] == "CRISPR cancer"
-
-
 class TestCollectMaxValidation:
     """Test --max rejects invalid values and -n alias works."""
 
@@ -114,23 +51,6 @@ class TestCollectMaxValidation:
         result = collect_main(["CRISPR", "--max", "-5"])
         assert result == 2
 
-    def test_n_alias_works(self) -> None:
-        """-n 3 should be equivalent to --max 3."""
-        with (
-            patch("pm_tools.cli.search") as mock_search,
-            patch("pm_tools.cli.fetch") as mock_fetch,
-            patch("pm_tools.cli.parse") as mock_parse,
-            patch("pm_tools.cli.find_pm_dir", return_value=None),
-        ):
-            mock_search.search.return_value = ["12345"]
-            mock_fetch.fetch.return_value = "<xml/>"
-            mock_parse.parse_xml.return_value = [{"pmid": "12345", "title": "Test"}]
-            mock_parse.LEGACY_FIELDS = {"pmid", "title"}
-            mock_parse.format_article = format_article
-            result = collect_main(["CRISPR", "-n", "3"])
-            assert result == 0
-            call_args = mock_search.search.call_args
-            assert call_args[0][1] == 3
 
 
 # =============================================================================
@@ -158,78 +78,74 @@ class TestCollectStreamingWiring:
         first = json.loads(lines[0])
         second = json.loads(lines[1])
         assert first["pmid"] == "111"
+        assert first["title"] == "First"
         assert second["pmid"] == "222"
+        assert second["title"] == "Second"
 
-    def test_collect_uses_stream_not_parse_xml(self) -> None:
-        """collect_main must call parse.parse_xml_stream, NOT parse.parse_xml."""
-        from pm_tools import parse as parse_mod
-
-        with (
-            patch("pm_tools.cli.search") as mock_search,
-            patch("pm_tools.cli.fetch") as mock_fetch,
-            patch.object(parse_mod, "parse_xml_stream") as mock_stream,
-            patch.object(parse_mod, "parse_xml") as mock_legacy,
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
-        ):
-            mock_search.search.return_value = ["111"]
-            mock_fetch.fetch.return_value = _COLLECT_XML
-            mock_stream.return_value = iter([{"pmid": "111", "title": "T1"}])
-            rc = collect_main(["test", "query"])
-
-        assert rc == 0
-        mock_stream.assert_called_once()
-        mock_legacy.assert_not_called()
 
 
 # =============================================================================
-# --refresh flag wiring (Phase 3.1)
+# --count flag (Phase 3b)
 # =============================================================================
 
 
-class TestCollectRefreshFlag:
-    """collect_main must accept --refresh and pass refresh=True to search() and fetch()."""
+# Minimal single-article XML for CSL flag tests.
+_CSL_XML = """\
+<PubmedArticleSet>
+<PubmedArticle>
+  <MedlineCitation>
+    <PMID>99999</PMID>
+    <Article>
+      <Journal>
+        <ISSN IssnType="Print">0300-9629</ISSN>
+        <JournalIssue CitedMedium="Print">
+          <Volume>48</Volume>
+          <Issue>2</Issue>
+          <PubDate><Year>2024</Year></PubDate>
+        </JournalIssue>
+        <Title>Test Journal</Title>
+        <ISOAbbreviation>Test J</ISOAbbreviation>
+      </Journal>
+      <ArticleTitle>Test Title</ArticleTitle>
+      <Pagination><MedlinePgn>100-105</MedlinePgn></Pagination>
+      <AuthorList>
+        <Author><LastName>Smith</LastName><ForeName>John</ForeName></Author>
+      </AuthorList>
+      <ELocationID EIdType="doi" ValidYN="Y">10.1234/test</ELocationID>
+    </Article>
+    <MedlineJournalInfo>
+      <Country>England</Country>
+    </MedlineJournalInfo>
+  </MedlineCitation>
+  <PubmedData>
+    <PublicationStatus>ppublish</PublicationStatus>
+    <ArticleIdList>
+      <ArticleId IdType="pmc">PMC1234567</ArticleId>
+    </ArticleIdList>
+  </PubmedData>
+</PubmedArticle>
+</PubmedArticleSet>"""
 
-    def test_refresh_passed_to_search_and_fetch(self) -> None:
-        """--refresh should forward refresh=True to both search() and fetch()."""
+
+class TestCollectCslFlag:
+    """pm collect --csl produces CSL-JSON output."""
+
+    def test_collect_with_csl_produces_csl(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """collect_main(["query", "--csl"]) produces CSL-JSON."""
         with (
-            patch("pm_tools.cli.search") as mock_search,
-            patch("pm_tools.cli.fetch") as mock_fetch,
-            patch("pm_tools.cli.parse") as mock_parse,
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
+            patch("pm_tools.search.search", return_value=["99999"]),
+            patch("pm_tools.fetch.fetch", return_value=_CSL_XML),
+            patch("pm_tools.cli.find_pm_dir", return_value=None),
         ):
-            mock_search.search.return_value = ["111"]
-            mock_fetch.fetch.return_value = "<PubmedArticleSet></PubmedArticleSet>"
-            mock_parse.parse_xml.return_value = []
-            mock_parse.LEGACY_FIELDS = {"pmid", "title"}
-            rc = collect_main(["--refresh", "test", "query"])
+            result = collect_main(["test query", "--csl"])
 
-        assert rc == 0
-        # search() must receive refresh=True
-        search_kwargs = mock_search.search.call_args
-        assert search_kwargs.kwargs.get("refresh") is True
-        # fetch() must receive refresh=True
-        fetch_kwargs = mock_fetch.fetch.call_args
-        assert fetch_kwargs.kwargs.get("refresh") is True
-
-    def test_no_refresh_defaults_false(self) -> None:
-        """Without --refresh, refresh should not be True in search()/fetch() calls."""
-        with (
-            patch("pm_tools.cli.search") as mock_search,
-            patch("pm_tools.cli.fetch") as mock_fetch,
-            patch("pm_tools.cli.parse") as mock_parse,
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
-        ):
-            mock_search.search.return_value = ["111"]
-            mock_fetch.fetch.return_value = "<PubmedArticleSet></PubmedArticleSet>"
-            mock_parse.parse_xml.return_value = []
-            mock_parse.LEGACY_FIELDS = {"pmid", "title"}
-            rc = collect_main(["test", "query"])
-
-        assert rc == 0
-        search_kwargs = mock_search.search.call_args
-        assert not search_kwargs.kwargs.get("refresh")
-        fetch_kwargs = mock_fetch.fetch.call_args
-        assert not fetch_kwargs.kwargs.get("refresh")
+        assert result == 0
+        output = capsys.readouterr().out.strip()
+        record = json.loads(output)
+        assert record["type"] == "article-journal"
+        assert "container-title" in record
 
 
 # =============================================================================

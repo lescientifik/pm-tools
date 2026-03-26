@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-import pm_tools.http as _http_mod
+from pm_tools.http import reset_client
 
 
 @pytest.fixture(autouse=True)
 def _reset_http_singleton() -> None:
     """Reset the shared HTTP client singleton between tests."""
-    _http_mod._client = None
+    reset_client()
 
 
 # Project root directory
@@ -31,11 +31,6 @@ def edge_cases_dir(fixtures_dir: Path) -> Path:
     """Return the path to edge-cases fixtures."""
     return fixtures_dir / "edge-cases"
 
-
-@pytest.fixture
-def date_fixtures_dir(edge_cases_dir: Path) -> Path:
-    """Return the path to date fixture XMLs."""
-    return edge_cases_dir / "dates"
 
 
 @pytest.fixture
@@ -226,18 +221,13 @@ def make_tgz(files: dict[str, bytes]) -> bytes:
 
 
 @pytest.fixture
-def mock_efetch_response() -> str:
-    """Mock XML response from NCBI efetch API."""
-    return """<?xml version="1.0" ?>
-<!DOCTYPE PubmedArticleSet PUBLIC "-//NLM//DTD PubMedArticle, 1st January 2024//EN"
- "https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_240101.dtd">
-<PubmedArticleSet>
-<PubmedArticle>
-    <MedlineCitation>
-        <PMID Version="1">12345</PMID>
-        <Article>
-            <ArticleTitle>Mock Article</ArticleTitle>
-        </Article>
-    </MedlineCitation>
-</PubmedArticle>
-</PubmedArticleSet>"""
+def pm_dir(tmp_path: Path) -> Path:
+    """Create a .pm/ directory with cache subdirs and empty audit log."""
+    pm = tmp_path / ".pm"
+    pm.mkdir()
+    for sub in ("search", "fetch", "cite", "download"):
+        (pm / "cache" / sub).mkdir(parents=True)
+    (pm / "audit.jsonl").write_text("")
+    return pm
+
+

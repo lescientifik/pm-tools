@@ -12,6 +12,12 @@ _client: httpx.Client | None = None
 _lock = threading.Lock()
 
 
+def reset_client() -> None:
+    """Reset the shared HTTP client singleton (for testing)."""
+    global _client
+    _client = None
+
+
 def get_client(timeout: int = _DEFAULT_TIMEOUT) -> httpx.Client:
     """Get or create the shared HTTP client.
 

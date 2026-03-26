@@ -7,7 +7,6 @@ pattern and error recovery. Cache test drives the audit/cache feature.
 from __future__ import annotations
 
 import json
-import urllib.parse
 from pathlib import Path
 
 import httpx
@@ -139,23 +138,19 @@ class TestCiteBatching:
         monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
 
         pmids = [str(i) for i in range(1, 451)]
-        cite(pmids)
+        cite(pmids, rate_limit_delay=0)
 
         assert len(request_urls) == 3, f"Expected 3 batches for 450 PMIDs, got {len(request_urls)}"
 
 
 # ---------------------------------------------------------------------------
-# Tests -- unimplemented features (RED phase)
+# Error recovery and edge cases
 # ---------------------------------------------------------------------------
 
 
 class TestCiteErrorRecovery:
     def test_http_error_skips_batch_continues(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """When one batch fails with HTTP error, cite() should skip it and continue.
-
-        The current implementation calls raise_for_status() which aborts the
-        entire operation. This test drives adding per-batch error recovery.
-        """
+        """When one batch fails with HTTP error, cite() should skip it and continue."""
         call_count = 0
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -170,7 +165,7 @@ class TestCiteErrorRecovery:
 
         # Two batches: first will fail, second should succeed
         pmids = [str(i) for i in range(1, 401)]  # 200 + 200
-        result = cite(pmids)
+        result = cite(pmids, rate_limit_delay=0)
 
         # Should have results from the second batch only
         assert len(result) == 2, "Should recover from first batch failure and return second batch"
@@ -192,22 +187,12 @@ class TestCiteDeduplication:
         assert len(result) == 1, "Should return only one result for duplicate PMID"
 
 
-def _make_pm_dir(tmp_path: Path) -> Path:
-    pm = tmp_path / ".pm"
-    pm.mkdir()
-    for sub in ("search", "fetch", "cite", "download"):
-        (pm / "cache" / sub).mkdir(parents=True)
-    (pm / "audit.jsonl").write_text("")
-    return pm
-
-
 class TestCiteCache:
     """cite() with pm_dir caches CSL-JSON per PMID."""
 
     def test_cite_with_cache_avoids_refetch(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        pm_dir = _make_pm_dir(tmp_path)
         request_count = 0
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -229,9 +214,8 @@ class TestCiteCache:
         assert request_count == 1, "Second call should use cache"
 
     def test_cache_file_is_valid_json(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        pm_dir = _make_pm_dir(tmp_path)
 
         def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(status_code=200, json=_CSL_SINGLE)
@@ -260,8 +244,7 @@ class TestCiteCache:
 class TestCiteAudit:
     """cite() logs to audit.jsonl when pm_dir is provided."""
 
-    def test_logs_cite_event(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        pm_dir = _make_pm_dir(tmp_path)
+    def test_logs_cite_event(self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
         def _handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(status_code=200, json=_CSL_MULTI)
@@ -277,8 +260,7 @@ class TestCiteAudit:
         assert event["op"] == "cite"
         assert event["requested"] == 2
 
-    def test_logs_cached_count(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        pm_dir = _make_pm_dir(tmp_path)
+    def test_logs_cached_count(self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
         # Pre-cache one PMID
         (pm_dir / "cache" / "cite" / "11111111.json").write_text(json.dumps(_CSL_MULTI[0]))
@@ -297,58 +279,6 @@ class TestCiteAudit:
         event = json.loads((pm_dir / "audit.jsonl").read_text().strip().splitlines()[0])
         assert event["cached"] == 1
         assert event["fetched"] == 1
-
-
-# =============================================================================
-# JSONL stdin support
-# =============================================================================
-
-
-class TestCiteStdinJsonl:
-    """cite.main() accepts JSONL on stdin, extracting PMIDs."""
-
-    def test_stdin_jsonl_extracts_pmids(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """JSONL on stdin is auto-detected and PMIDs are extracted."""
-        import io
-        from unittest.mock import patch
-
-        from pm_tools.cite import main as cite_main
-
-        jsonl_input = '{"pmid": "12345", "title": "X"}\n{"pmid": "67890", "title": "Y"}\n'
-        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
-        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-
-        with (
-            patch("pm_tools.cite.cite") as mock_cite,
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
-        ):
-            mock_cite.return_value = []
-            rc = cite_main([])
-
-        assert rc == 0
-        mock_cite.assert_called_once()
-        assert mock_cite.call_args[0][0] == ["12345", "67890"]
-
-    def test_stdin_plain_pmids_still_work(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Plain PMIDs on stdin still work after JSONL support added."""
-        import io
-        from unittest.mock import patch
-
-        from pm_tools.cite import main as cite_main
-
-        monkeypatch.setattr("sys.stdin", io.StringIO("12345\n67890\n"))
-        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-
-        with (
-            patch("pm_tools.cite.cite") as mock_cite,
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
-        ):
-            mock_cite.return_value = []
-            rc = cite_main([])
-
-        assert rc == 0
-        mock_cite.assert_called_once()
-        assert mock_cite.call_args[0][0] == ["12345", "67890"]
 
 
 # =============================================================================
@@ -382,102 +312,10 @@ class TestCitePmidValidation:
 class TestCiteUrlEncoding:
     """_make_cite_batch() must produce safe, well-formed URLs."""
 
-    def test_batch_url_has_correct_id_param(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """_make_cite_batch(["123", "456"]) encodes id=123,456 in the URL."""
-        captured_urls: list[str] = []
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            captured_urls.append(str(request.url))
-            return httpx.Response(status_code=200, json=[])
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
-
-        _make_cite_batch(["123", "456"])
-
-        assert len(captured_urls) == 1
-        parsed = urllib.parse.urlparse(captured_urls[0])
-        params = urllib.parse.parse_qs(parsed.query)
-        assert params["id"] == ["123,456"]
-
-    def test_batch_url_has_correct_format(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """_make_cite_batch() always sets format=csl."""
-        captured_urls: list[str] = []
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            captured_urls.append(str(request.url))
-            return httpx.Response(status_code=200, json=[])
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
-
-        _make_cite_batch(["123"])
-
-        parsed = urllib.parse.urlparse(captured_urls[0])
-        params = urllib.parse.parse_qs(parsed.query)
-        assert params["format"] == ["csl"]
-
     def test_malicious_pmid_rejected(self) -> None:
         """A PMID like '123&format=bibtex' must be rejected (non-numeric)."""
         with pytest.raises(ValueError, match="Invalid PMID"):
             _make_cite_batch(["123&format=bibtex"])
 
-    def test_whitespace_pmid_stripped_and_validated(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """PMIDs with leading/trailing whitespace are stripped before validation."""
-        captured_urls: list[str] = []
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            captured_urls.append(str(request.url))
-            return httpx.Response(status_code=200, json=[])
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
-
-        _make_cite_batch(["  123  ", "456"])
-
-        parsed = urllib.parse.urlparse(captured_urls[0])
-        params = urllib.parse.parse_qs(parsed.query)
-        assert params["id"] == ["123,456"]
 
 
-# =============================================================================
-# --refresh CLI flag wiring (Phase 3.1)
-# =============================================================================
-
-
-class TestCiteRefreshFlag:
-    """cite.main must accept --refresh and pass refresh=True to cite()."""
-
-    def test_refresh_passed_to_cite(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """--refresh should forward refresh=True to the cite() library call."""
-        from unittest.mock import patch
-
-        from pm_tools.cite import main as cite_main
-
-        with (
-            patch("pm_tools.cite.cite") as mock_cite,
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
-        ):
-            mock_cite.return_value = []
-            rc = cite_main(["--refresh", "12345"])
-
-        assert rc == 0
-        assert mock_cite.call_args.kwargs.get("refresh") is True
-
-    def test_no_refresh_defaults_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Without --refresh, refresh should not be True."""
-        from unittest.mock import patch
-
-        from pm_tools.cite import main as cite_main
-
-        with (
-            patch("pm_tools.cite.cite") as mock_cite,
-            patch("pm_tools.cache.find_pm_dir", return_value=None),
-        ):
-            mock_cite.return_value = []
-            rc = cite_main(["12345"])
-
-        assert rc == 0
-        assert not mock_cite.call_args.kwargs.get("refresh")

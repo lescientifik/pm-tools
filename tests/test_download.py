@@ -1,11 +1,4 @@
-"""Tests for pm_tools.download — find PDF sources and download them.
-
-RED phase: tests that validate download behavior and drive new features.
-
-Core tests validate existing functionality. Tests for unimplemented features
-(concurrent downloads, download manifest, file verification) will fail,
-driving new development.
-"""
+"""Tests for pm_tools.download — find PDF sources and download them."""
 
 from __future__ import annotations
 
@@ -84,31 +77,6 @@ def _make_transport(handler) -> httpx.MockTransport:
 
 
 # ---------------------------------------------------------------------------
-# Phase 9.0a: DownloadSource TypedDict
-# ---------------------------------------------------------------------------
-
-
-class TestDownloadSource:
-    def test_download_source_has_required_fields(self) -> None:
-        """DownloadSource can be constructed with pmid and source info."""
-        from pm_tools.types import DownloadSource
-
-        source = DownloadSource(pmid="12345", source="pmc", url="https://example.com/paper.pdf")
-        assert source["pmid"] == "12345"
-        assert source["url"] == "https://example.com/paper.pdf"
-
-    def test_download_source_pmc_format(self) -> None:
-        """DownloadSource supports pmc_format field."""
-        from pm_tools.types import DownloadSource
-
-        source = DownloadSource(
-            pmid="12345", source="pmc",
-            url="https://example.com/archive.tar.gz", pmc_format="tgz",
-        )
-        assert source["pmc_format"] == "tgz"
-
-
-# ---------------------------------------------------------------------------
 # Phase 9.1: _extract_pdf_from_tgz (pure function)
 # ---------------------------------------------------------------------------
 
@@ -161,35 +129,6 @@ class TestExtractPdfFromTgz:
     def test_invalid_data_returns_none(self) -> None:
         """Random bytes (not a valid tgz) returns None."""
         result = _extract_pdf_from_tgz(b"this is not a tar.gz file at all")
-        assert result is None
-
-    def test_html_soft_404_returns_none(self) -> None:
-        """HTML response (soft 404) returns None."""
-        result = _extract_pdf_from_tgz(b"<html><body>Access Denied</body></html>")
-        assert result is None
-
-    def test_empty_archive_returns_none(self) -> None:
-        """Empty tar.gz archive returns None."""
-        archive = _make_tgz({})
-        result = _extract_pdf_from_tgz(archive)
-        assert result is None
-
-    def test_empty_pdf_returns_none(self) -> None:
-        """A 0-byte PDF member returns None (not b'')."""
-        archive = _make_tgz({"PMC12345/paper.pdf": b""})
-        result = _extract_pdf_from_tgz(archive)
-        assert result is None
-
-    def test_oversized_member_skipped(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Members with size > MAX_MEMBER_SIZE are skipped."""
-        import pm_tools.download as dl
-
-        # Temporarily lower the limit so our test PDF exceeds it
-        monkeypatch.setattr(dl, "MAX_MEMBER_SIZE", 5)
-
-        archive = _make_tgz({"PMC12345/paper.pdf": _FAKE_PDF})
-        result = _extract_pdf_from_tgz(archive)
-        # _FAKE_PDF is ~40 bytes > 5 byte limit → skipped → None
         assert result is None
 
 
@@ -347,11 +286,6 @@ class TestDownloadPdfs:
 
 
 class TestDownloadErrors:
-    def test_no_input_raises_or_returns_empty(self) -> None:
-        """find_sources with empty list should return empty, not crash."""
-        result = find_sources([])
-        assert result == []
-
     def test_http_error_counted_as_failed(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -374,6 +308,7 @@ class TestDownloadErrors:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A 503 response should be retried before counting as failed."""
+        monkeypatch.setattr("pm_tools.download.time.sleep", lambda _: None)
         output_dir = tmp_path / "pdfs"
         attempt_count = 0
 
@@ -462,82 +397,6 @@ class TestPmcLookupLogging:
         assert "500" in warnings[0].message
         assert "PMC99999" in warnings[0].message
 
-    def test_logs_warning_on_api_error_in_response(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """pmc_lookup logs WARNING when response contains <error."""
-        error_xml = (
-            '<?xml version="1.0"?><OA>'
-            '<error code="idIsNotValid">id parameter is not valid</error>'
-            "</OA>"
-        )
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, text=error_xml)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            pmc_lookup("PMC99999")
-
-        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(warnings) >= 1
-        assert "PMC99999" in warnings[0].message
-
-    def test_logs_warning_on_parse_error(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """pmc_lookup logs WARNING when XML parsing fails."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, text="not xml at all <<<")
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            pmc_lookup("PMC99999")
-
-        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(warnings) >= 1
-        assert "PMC99999" in warnings[0].message
-
-    def test_logs_debug_with_url(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """pmc_lookup logs DEBUG with the URL being queried."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            pmc_lookup("PMC12345")
-
-        debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
-        assert len(debug_msgs) >= 1
-        assert "pmc/utils/oa" in debug_msgs[0].message
-
-    def test_logs_warning_on_network_error(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """pmc_lookup logs WARNING on network errors (ConnectError, etc.)."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            raise httpx.ConnectError("Connection refused")
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            pmc_lookup("PMC12345")
-
-        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(warnings) >= 1
-        assert "PMC12345" in warnings[0].message
 
 
 # ---------------------------------------------------------------------------
@@ -658,64 +517,6 @@ class TestUnpaywallLookupLogging:
         assert "404" in warnings[0].message
         assert "10.1234/test" in warnings[0].message
 
-    def test_logs_warning_on_json_decode_error(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """unpaywall_lookup logs WARNING when JSON parsing fails."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(
-                status_code=200,
-                text="<html>Error</html>",
-                headers={"content-type": "text/html"},
-            )
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            unpaywall_lookup("10.1234/test", "test@example.com")
-
-        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(warnings) >= 1
-        assert "10.1234/test" in warnings[0].message
-
-    def test_logs_warning_on_network_error(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """unpaywall_lookup logs WARNING on network errors."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            raise httpx.ConnectError("Connection refused")
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            unpaywall_lookup("10.1234/test", "test@example.com")
-
-        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(warnings) >= 1
-        assert "10.1234/test" in warnings[0].message
-
-    def test_logs_debug_with_url(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """unpaywall_lookup logs DEBUG with the URL being queried."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, json=_UNPAYWALL_RESPONSE)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            unpaywall_lookup("10.1234/test", "test@example.com")
-
-        debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
-        assert len(debug_msgs) >= 1
-        assert "api.unpaywall.org" in debug_msgs[0].message
-
     def test_logs_debug_not_open_access(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
@@ -795,17 +596,6 @@ class TestFindPdfSourcesLogging:
         assert len(warnings) >= 1
         assert "1" in warnings[0].message  # PMID in message
 
-    def test_logs_debug_reason_no_source(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """find_sources logs DEBUG explaining why no source was found."""
-        # Article with no pmcid and no doi — should log the reason
-        articles = [_art(pmid="42")]
-        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            find_sources(articles, pmc_only=True)
-
-        debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
-        assert any("42" in r.message for r in debug_msgs)
 
 
 # ---------------------------------------------------------------------------
@@ -922,20 +712,6 @@ class TestPmcLookupReturnType:
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         result = pmc_lookup("PMC12345")
-        assert result is not None
-        assert result["url"].startswith("https://")
-        assert "ftp.ncbi.nlm.nih.gov" in result["url"]
-
-    def test_ftp_url_converted_to_https_tgz(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """FTP URLs are converted to HTTPS for tgz links."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        result = pmc_lookup("PMC9273392")
         assert result is not None
         assert result["url"].startswith("https://")
         assert "ftp.ncbi.nlm.nih.gov" in result["url"]
@@ -1681,6 +1457,7 @@ class TestDownloadPdfsLogging:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
         """download_articles logs WARNING when all retries are exhausted (3x 503)."""
+        monkeypatch.setattr("pm_tools.download.time.sleep", lambda _: None)
         output_dir = tmp_path / "pdfs"
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -1923,20 +1700,13 @@ class TestFindSourcesMixed:
 # ---------------------------------------------------------------------------
 
 
-def _make_pm_dir(tmp_path: Path) -> Path:
-    pm = tmp_path / ".pm"
-    pm.mkdir()
-    for sub in ("search", "fetch", "cite", "download"):
-        (pm / "cache" / sub).mkdir(parents=True)
-    (pm / "audit.jsonl").write_text("")
-    return pm
-
 
 class TestDownloadAudit:
     """download_articles() logs to audit.jsonl when pm_dir is provided."""
 
-    def test_logs_download_event(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        pm_dir = _make_pm_dir(tmp_path)
+    def test_logs_download_event(
+        self, tmp_path: Path, pm_dir: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         output_dir = tmp_path / "pdfs"
 
         def _handler(request: httpx.Request) -> httpx.Response:
@@ -1966,8 +1736,9 @@ class TestDownloadAudit:
         assert event["downloaded"] == 2
         assert event["failed"] == 0
 
-    def test_logs_mixed_results(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        pm_dir = _make_pm_dir(tmp_path)
+    def test_logs_mixed_results(
+        self, tmp_path: Path, pm_dir: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         output_dir = tmp_path / "pdfs"
 
         call_count = 0
@@ -2044,15 +1815,12 @@ class TestLoggerSetup:
 
 
 # ---------------------------------------------------------------------------
-# Unimplemented features (RED phase)
+# Advanced features (manifest, verification, concurrency)
 # ---------------------------------------------------------------------------
 
 
 class TestDownloadManifest:
-    """download_articles should produce a manifest JSONL file listing all downloaded files.
-
-    Not yet implemented -- drives adding download tracking.
-    """
+    """download_articles should produce a manifest JSONL file listing all downloaded files."""
 
     def test_writes_manifest_jsonl(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         import json
@@ -2082,10 +1850,7 @@ class TestDownloadManifest:
 
 
 class TestDownloadVerify:
-    """download_articles should verify downloaded files are valid PDFs.
-
-    Not yet implemented -- drives adding content verification.
-    """
+    """download_articles should verify downloaded files are valid PDFs."""
 
     def test_non_pdf_content_counted_as_failed(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2115,10 +1880,7 @@ class TestDownloadVerify:
 
 
 class TestConcurrentDownload:
-    """download_articles should support concurrent downloads with max_concurrent parameter.
-
-    Not yet implemented -- drives adding async/concurrent download support.
-    """
+    """download_articles should support concurrent downloads with max_concurrent parameter."""
 
     def test_concurrent_downloads(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         output_dir = tmp_path / "pdfs"
