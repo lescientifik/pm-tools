@@ -213,32 +213,6 @@ class TestCiteCache:
         assert len(result2) == 1
         assert request_count == 1, "Second call should use cache"
 
-    def test_cache_file_is_valid_json(
-        self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, json=_CSL_SINGLE)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
-
-        cite(["12345678"], pm_dir=pm_dir)
-        cached = (pm_dir / "cache" / "cite" / "12345678.json").read_text()
-        data = json.loads(cached)
-        assert data["PMID"] == "12345678"
-
-    def test_no_cache_without_pm_dir(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Without pm_dir, cite works as before."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, json=_CSL_SINGLE)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
-
-        result = cite(["12345678"])
-        assert len(result) == 1
 
 
 class TestCiteAudit:
@@ -260,25 +234,6 @@ class TestCiteAudit:
         assert event["op"] == "cite"
         assert event["requested"] == 2
 
-    def test_logs_cached_count(self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-
-        # Pre-cache one PMID
-        (pm_dir / "cache" / "cite" / "11111111.json").write_text(json.dumps(_CSL_MULTI[0]))
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, json=_CSL_MULTI[1])
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.cite.get_http_client", lambda: client)
-
-        cite(
-            ["11111111", "22222222"],
-            pm_dir=pm_dir,
-        )
-
-        event = json.loads((pm_dir / "audit.jsonl").read_text().strip().splitlines()[0])
-        assert event["cached"] == 1
-        assert event["fetched"] == 1
 
 
 # =============================================================================

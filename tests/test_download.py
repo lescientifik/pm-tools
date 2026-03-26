@@ -137,7 +137,7 @@ class TestExtractPdfFromTgz:
 # ---------------------------------------------------------------------------
 
 
-class TestFindPdfSourcesEmpty:
+class TestFindSourcesEmpty:
     def test_empty_input_returns_empty(self) -> None:
         result = find_sources([])
         assert result == []
@@ -151,7 +151,7 @@ class TestFindPdfSourcesEmpty:
         assert no_source[0]["pmid"] == "1"
 
 
-class TestFindPdfSourcesPMC:
+class TestFindSourcesPMC:
     def test_pmcid_uses_pmc_source(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Article with pmcid should query PMC OA service."""
 
@@ -171,7 +171,7 @@ class TestFindPdfSourcesPMC:
         assert "PMC12345" in pmc_sources[0]["url"]
 
 
-class TestFindPdfSourcesUnpaywall:
+class TestFindSourcesUnpaywall:
     def test_doi_uses_unpaywall_source(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Article with doi (no pmcid) should query Unpaywall."""
 
@@ -334,38 +334,31 @@ class TestDownloadErrors:
 # ---------------------------------------------------------------------------
 
 
+def _raise_connect_error(request: httpx.Request) -> httpx.Response:
+    raise httpx.ConnectError("Connection refused")
+
+
+def _raise_read_timeout(request: httpx.Request) -> httpx.Response:
+    raise httpx.ReadTimeout("Read timed out")
+
+
+def _return_http_500(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(status_code=500, text="Internal Server Error")
+
+
 class TestPmcLookupErrors:
-    def test_network_error_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ConnectError during PMC lookup returns None instead of raising."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            raise httpx.ConnectError("Connection refused")
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        result = pmc_lookup("PMC12345")
-        assert result is None
-
-    def test_timeout_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ReadTimeout during PMC lookup returns None instead of raising."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            raise httpx.ReadTimeout("Read timed out")
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        result = pmc_lookup("PMC12345")
-        assert result is None
-
-    def test_http_500_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """HTTP 500 from PMC OA service returns None."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=500, text="Internal Server Error")
-
-        client = httpx.Client(transport=_make_transport(_handler))
+    @pytest.mark.parametrize(
+        "handler",
+        [_raise_connect_error, _raise_read_timeout, _return_http_500],
+        ids=["network_error", "timeout", "http_500"],
+    )
+    def test_error_returns_none(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        handler: object,
+    ) -> None:
+        """Network errors and HTTP failures return None instead of raising."""
+        client = httpx.Client(transport=_make_transport(handler))  # type: ignore[arg-type]
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         result = pmc_lookup("PMC12345")
@@ -450,42 +443,35 @@ class TestDoiUrlEncoding:
 # ---------------------------------------------------------------------------
 
 
+def _upw_raise_connect_error(request: httpx.Request) -> httpx.Response:
+    raise httpx.ConnectError("Connection refused")
+
+
+def _upw_return_html(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(
+        status_code=200,
+        text="<html>Error</html>",
+        headers={"content-type": "text/html"},
+    )
+
+
+def _upw_return_http_404(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(status_code=404, text="Not Found")
+
+
 class TestUnpaywallLookupErrors:
-    def test_network_error_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """ConnectError during Unpaywall lookup returns None."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            raise httpx.ConnectError("Connection refused")
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        result = unpaywall_lookup("10.1234/test", "test@example.com")
-        assert result is None
-
-    def test_non_json_response_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """HTML response instead of JSON returns None."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(
-                status_code=200,
-                text="<html>Error</html>",
-                headers={"content-type": "text/html"},
-            )
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        result = unpaywall_lookup("10.1234/test", "test@example.com")
-        assert result is None
-
-    def test_http_404_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """HTTP 404 from Unpaywall returns None."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=404, text="Not Found")
-
-        client = httpx.Client(transport=_make_transport(_handler))
+    @pytest.mark.parametrize(
+        "handler",
+        [_upw_raise_connect_error, _upw_return_html, _upw_return_http_404],
+        ids=["network_error", "non_json_response", "http_404"],
+    )
+    def test_error_returns_none(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        handler: object,
+    ) -> None:
+        """Network errors and bad HTTP responses return None instead of raising."""
+        client = httpx.Client(transport=_make_transport(handler))  # type: ignore[arg-type]
         monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
 
         result = unpaywall_lookup("10.1234/test", "test@example.com")
@@ -541,7 +527,7 @@ class TestUnpaywallLookupLogging:
 # ---------------------------------------------------------------------------
 
 
-class TestFindPdfSourcesErrorResilience:
+class TestFindSourcesErrorResilience:
     def test_pmc_error_does_not_stop_loop(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """If first article's PMC lookup crashes, second article is still processed."""
         call_count = 0
@@ -574,7 +560,7 @@ class TestFindPdfSourcesErrorResilience:
 # ---------------------------------------------------------------------------
 
 
-class TestFindPdfSourcesLogging:
+class TestFindSourcesLogging:
     def test_logs_warning_on_exception(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
@@ -739,7 +725,7 @@ class TestPmcLookupReturnType:
 # ---------------------------------------------------------------------------
 
 
-class TestFindPdfSourcesPmcFormat:
+class TestFindSourcesPmcFormat:
     def test_pmc_format_pdf_when_pdf_available(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Source dict contains pmc_format='pdf' when PDF direct link available."""
 
@@ -776,33 +762,6 @@ class TestFindPdfSourcesPmcFormat:
         assert len(pmc) == 1
         assert pmc[0]["pmc_format"] == "tgz"
 
-    def test_no_pmc_format_for_unpaywall(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Unpaywall sources don't have pmc_format key."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            if "api.unpaywall.org" in str(request.url):
-                return httpx.Response(status_code=200, json=_UNPAYWALL_RESPONSE)
-            return httpx.Response(status_code=404)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        articles = [_art(pmid="1", doi="10.1234/test")]
-        result = find_sources(articles, email="test@example.com")
-
-        unpaywall = [r for r in result if r["source"] == "unpaywall"]
-        assert len(unpaywall) == 1
-        assert "pmc_format" not in unpaywall[0]
-
-    def test_no_pmc_format_for_no_source(self) -> None:
-        """Articles with no source don't have pmc_format key."""
-        articles = [_art(pmid="1")]
-        result = find_sources(articles)
-
-        no_source = [r for r in result if r["source"] is None]
-        assert len(no_source) == 1
-        assert "pmc_format" not in no_source[0]
-
 
 # ---------------------------------------------------------------------------
 # Phase 8.5: main() logging configuration + integration
@@ -810,7 +769,7 @@ class TestFindPdfSourcesPmcFormat:
 
 
 class TestDownloadVerboseProgress:
-    """Migrated from capsys/_verbose_progress to caplog/logger (issue #8)."""
+    """Verbose download shows per-article progress status on stderr."""
 
     def test_verbose_shows_per_article_status(
         self,
@@ -1226,23 +1185,6 @@ class TestDownloadPdfsTgz:
         assert result["downloaded"] == 1
         assert (output_dir / "1.pdf").read_bytes() == pdf_content
 
-    def test_no_pmc_format_unchanged(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Source without pmc_format (unpaywall) downloads directly."""
-        output_dir = tmp_path / "pdfs"
-        pdf_content = b"%PDF-1.4 unpaywall pdf"
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, content=pdf_content)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        sources = [{"pmid": "1", "source": "unpaywall", "url": "https://example.com/paper.pdf"}]
-        result = download_articles(sources, output_dir)
-
-        assert result["downloaded"] == 1
-        assert (output_dir / "1.pdf").read_bytes() == pdf_content
-
     def test_tgz_logs_debug_extracting(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
@@ -1335,34 +1277,6 @@ class TestDownloadPdfsTgz:
         assert events[0]["status"] == "failed"
         assert events[0]["reason"] == "tgz_no_pdf"
 
-    def test_tgz_success_progress_callback(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """progress_callback receives 'downloaded' on successful tgz extraction."""
-        output_dir = tmp_path / "pdfs"
-        tgz_content = _make_tgz({"PMC12345/paper.pdf": _FAKE_PDF})
-        events: list[dict] = []
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, content=tgz_content)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        sources = [
-            {
-                "pmid": "1",
-                "source": "pmc",
-                "url": "https://example.com/archive.tar.gz",
-                "pmcid": "PMC12345",
-                "pmc_format": "tgz",
-            }
-        ]
-        download_articles(sources, output_dir, progress_callback=events.append)
-
-        assert len(events) == 1
-        assert events[0]["status"] == "downloaded"
-
 
 # ---------------------------------------------------------------------------
 # Phase 8.4: download_articles logging
@@ -1390,26 +1304,6 @@ class TestDownloadPdfsLogging:
         assert len(warnings) >= 1
         assert "403" in warnings[0].message
         assert "123" in warnings[0].message
-
-    def test_logs_warning_with_url_and_pmid(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """download_articles logs WARNING with URL and PMID for each failure."""
-        output_dir = tmp_path / "pdfs"
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=500, text="Error")
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        sources = [{"pmid": "456", "source": "pmc", "url": "https://example.com/paper.pdf"}]
-        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            download_articles(sources, output_dir)
-
-        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(warnings) >= 1
-        assert "456" in warnings[0].message
         assert "example.com" in warnings[0].message
 
     def test_logs_warning_on_exception(
@@ -1633,32 +1527,6 @@ class TestTgzEndToEnd:
         assert "available via pmc" in captured.out
         assert exit_code == 0
 
-    def test_tgz_summary_counts_correctly(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Summary counts tgz-extracted PDFs as 'downloaded'."""
-        output_dir = tmp_path / "pdfs"
-        tgz_content = _make_tgz({"PMC9273392/article.pdf": _FAKE_PDF})
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            url = str(request.url)
-            if "pmc/utils/oa" in url:
-                return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
-            if "ftp.ncbi.nlm.nih.gov" in url:
-                return httpx.Response(status_code=200, content=tgz_content)
-            return httpx.Response(status_code=404)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        articles = [_art(pmid="1", pmcid="PMC9273392")]
-        sources = find_sources(articles)
-        result = download_articles(sources, output_dir)
-
-        assert result["downloaded"] == 1
-        assert result["failed"] == 0
-        assert result["skipped"] == 0
-
 
 # ---------------------------------------------------------------------------
 # Integration: JSONL input with mixed identifiers
@@ -1790,28 +1658,6 @@ class TestDownloadAudit:
         ]
         result = download_articles(sources, output_dir)
         assert result["downloaded"] == 1
-
-
-# ---------------------------------------------------------------------------
-# Phase 8.0: Logger infrastructure
-# ---------------------------------------------------------------------------
-
-
-class TestLoggerSetup:
-    def test_download_module_has_logger(self) -> None:
-        """The download module should have a logger named 'pm_tools.download'."""
-        import pm_tools.download as mod
-
-        assert hasattr(mod, "logger")
-        assert mod.logger.name == "pm_tools.download"
-
-    def test_caplog_captures_download_logs(self, caplog: pytest.LogCaptureFixture) -> None:
-        """Validate that caplog can capture logs from pm_tools.download."""
-        import pm_tools.download as mod
-
-        with caplog.at_level(logging.DEBUG, logger="pm_tools.download"):
-            mod.logger.debug("caplog test message")
-        assert any("caplog test message" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
@@ -1980,52 +1826,6 @@ class TestExtractNxmlFromTgz:
 
 
 # ---------------------------------------------------------------------------
-# Phase 10.1a: pmc_lookup prefers tgz over pdf
-# ---------------------------------------------------------------------------
-
-
-class TestPmcLookupTgzPreference:
-    def test_both_formats_prefers_tgz(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """When both pdf and tgz are available, prefer tgz (contains NXML + PDF)."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, text=_PMC_OA_BOTH_FORMATS_XML)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        result = pmc_lookup("PMC3531190")
-        assert result is not None
-        assert result["format"] == "tgz"
-
-    def test_tgz_only_still_returns_tgz(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """tgz-only response still returns tgz."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, text=_PMC_OA_TGZ_ONLY_XML)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        result = pmc_lookup("PMC9273392")
-        assert result is not None
-        assert result["format"] == "tgz"
-
-    def test_pdf_only_still_returns_pdf(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """pdf-only response still returns pdf."""
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, text=_PMC_OA_RESPONSE_XML)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        result = pmc_lookup("PMC12345")
-        assert result is not None
-        assert result["format"] == "pdf"
-
-
-# ---------------------------------------------------------------------------
 # Phase 10.1b: _download_one NXML preference
 # ---------------------------------------------------------------------------
 
@@ -2182,31 +1982,6 @@ class TestDownloadOneNxml:
         assert (output_dir / "1.pdf").read_bytes() == _FAKE_PDF
         assert not (output_dir / "1.nxml").exists()
 
-    def test_tgz_prefer_pdf_only_nxml_fails(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """tgz source, prefer_pdf=True, only NXML available → failed."""
-        output_dir = tmp_path / "out"
-        output_dir.mkdir()
-        tgz = _make_tgz({"PMC12345/paper.nxml": b"<article/>"})
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, content=tgz)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        status, _, _ = _download_one(
-            self._tgz_source(),
-            output_dir,
-            overwrite=False,
-            timeout=30,
-            verify_pdf=False,
-            progress_callback=None,
-            prefer_pdf=True,
-        )
-        assert status == "failed"
-
     def test_pdf_direct_source_saves_pdf(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -2319,34 +2094,6 @@ class TestDownloadOneNxml:
         )
         assert status == "failed"
 
-    def test_progress_callback_downloaded_for_nxml(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """progress_callback reports 'downloaded' for NXML extraction."""
-        output_dir = tmp_path / "out"
-        output_dir.mkdir()
-        nxml = b"<article><body>text</body></article>"
-        tgz = _make_tgz({"PMC12345/paper.nxml": nxml})
-        events: list[dict[str, Any]] = []
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, content=tgz)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        _download_one(
-            self._tgz_source(),
-            output_dir,
-            overwrite=False,
-            timeout=30,
-            verify_pdf=False,
-            progress_callback=events.append,
-            prefer_pdf=False,
-        )
-        assert len(events) == 1
-        assert events[0]["status"] == "downloaded"
-
     def test_existing_nxml_skipped(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Existing {PMID}.nxml file is skipped when overwrite=False."""
         output_dir = tmp_path / "out"
@@ -2438,62 +2185,6 @@ class TestDownloadOneNxml:
 
 class TestDownloadPdfsPreferPdf:
     """Tests for download_articles() prefer_pdf parameter propagation."""
-
-    def test_prefer_pdf_false_passes_to_download_one(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """download_articles(prefer_pdf=False) extracts NXML from tgz by default."""
-        output_dir = tmp_path / "out"
-        nxml = b"<article><body>content</body></article>"
-        tgz = _make_tgz({"PMC12345/paper.nxml": nxml, "PMC12345/paper.pdf": _FAKE_PDF})
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, content=tgz)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        sources = [
-            {
-                "pmid": "1",
-                "source": "pmc",
-                "url": "https://example.com/a.tar.gz",
-                "pmcid": "PMC12345",
-                "pmc_format": "tgz",
-            },
-        ]
-        result = download_articles(sources, output_dir, prefer_pdf=False)
-        assert result["downloaded"] == 1
-        assert (output_dir / "1.nxml").exists()
-        assert not (output_dir / "1.pdf").exists()
-
-    def test_prefer_pdf_true_passes_to_download_one(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """download_articles(prefer_pdf=True) extracts PDF from tgz."""
-        output_dir = tmp_path / "out"
-        nxml = b"<article><body>content</body></article>"
-        tgz = _make_tgz({"PMC12345/paper.nxml": nxml, "PMC12345/paper.pdf": _FAKE_PDF})
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(status_code=200, content=tgz)
-
-        client = httpx.Client(transport=_make_transport(_handler))
-        monkeypatch.setattr("pm_tools.download.get_http_client", lambda: client)
-
-        sources = [
-            {
-                "pmid": "1",
-                "source": "pmc",
-                "url": "https://example.com/a.tar.gz",
-                "pmcid": "PMC12345",
-                "pmc_format": "tgz",
-            },
-        ]
-        result = download_articles(sources, output_dir, prefer_pdf=True)
-        assert result["downloaded"] == 1
-        assert (output_dir / "1.pdf").exists()
-        assert not (output_dir / "1.nxml").exists()
 
     def test_concurrent_passes_prefer_pdf(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

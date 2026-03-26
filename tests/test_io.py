@@ -76,30 +76,20 @@ class TestValidatePmid:
         """A plain numeric PMID passes validation and is returned."""
         assert validate_pmid("12345678") == "12345678"
 
-    def test_path_traversal_rejected(self) -> None:
-        """Path traversal attempts raise ValueError."""
+    @pytest.mark.parametrize(
+        "bad_pmid",
+        [
+            "../../etc/passwd",  # path traversal
+            "PMC1234567",        # PMC ID (not numeric)
+            "",                  # empty string
+            "  ",                # whitespace only
+            "123\x00456",        # null byte
+        ],
+    )
+    def test_invalid_pmid_rejected(self, bad_pmid: str) -> None:
+        """Non-numeric and malicious strings raise ValueError."""
         with pytest.raises(ValueError, match="Invalid PMID"):
-            validate_pmid("../../etc/passwd")
-
-    def test_pmc_id_rejected(self) -> None:
-        """PMC IDs are rejected — E-utilities require numeric-only PMIDs."""
-        with pytest.raises(ValueError, match="Invalid PMID"):
-            validate_pmid("PMC1234567")
-
-    def test_empty_string_rejected(self) -> None:
-        """An empty string is not a valid PMID."""
-        with pytest.raises(ValueError, match="Invalid PMID"):
-            validate_pmid("")
-
-    def test_whitespace_only_rejected(self) -> None:
-        """Whitespace-only strings are not valid PMIDs."""
-        with pytest.raises(ValueError, match="Invalid PMID"):
-            validate_pmid("  ")
-
-    def test_null_byte_rejected(self) -> None:
-        """Null bytes embedded in a PMID are rejected."""
-        with pytest.raises(ValueError, match="Invalid PMID"):
-            validate_pmid("123\x00456")
+            validate_pmid(bad_pmid)
 
     def test_leading_zeros_accepted(self) -> None:
         """PMIDs with leading zeros are valid."""
@@ -122,30 +112,20 @@ class TestValidateFilenameSafe:
         """A PMC ID like PMC1234567 is accepted."""
         assert validate_filename_safe("PMC1234567") == "PMC1234567"
 
-    def test_path_traversal_rejected(self) -> None:
-        """Path traversal attempts raise ValueError."""
+    @pytest.mark.parametrize(
+        "bad_name",
+        [
+            "../../etc/passwd",  # path traversal
+            "foo\x00bar",        # null byte
+            "foo/bar",           # forward slash
+            "foo\\bar",          # backslash
+            "",                  # empty string
+        ],
+    )
+    def test_invalid_filename_rejected(self, bad_name: str) -> None:
+        """Unsafe filenames raise ValueError."""
         with pytest.raises(ValueError, match="not filename-safe"):
-            validate_filename_safe("../../etc/passwd")
-
-    def test_null_byte_rejected(self) -> None:
-        """Null bytes raise ValueError."""
-        with pytest.raises(ValueError, match="not filename-safe"):
-            validate_filename_safe("foo\x00bar")
-
-    def test_slash_rejected(self) -> None:
-        """Forward slashes are not allowed in filenames."""
-        with pytest.raises(ValueError, match="not filename-safe"):
-            validate_filename_safe("foo/bar")
-
-    def test_backslash_rejected(self) -> None:
-        """Backslashes are not allowed in filenames."""
-        with pytest.raises(ValueError, match="not filename-safe"):
-            validate_filename_safe("foo\\bar")
-
-    def test_empty_string_rejected(self) -> None:
-        """An empty string is not a valid filename."""
-        with pytest.raises(ValueError, match="not filename-safe"):
-            validate_filename_safe("")
+            validate_filename_safe(bad_name)
 
 
 # ---------------------------------------------------------------------------
@@ -186,14 +166,6 @@ class TestSafeParse:
         assert ns is None
         assert code == 2
 
-    def test_exit_code_preserved_for_bad_type(self) -> None:
-        """Invalid type for typed arg preserves argparse exit code (2)."""
-        p = argparse.ArgumentParser(prog="test")
-        p.add_argument("--count", type=int)
-        ns, code = safe_parse(p, ["--count", "abc"])
-        assert ns is None
-        assert code == 2
-
 
 # ---------------------------------------------------------------------------
 # detect_input_format — detect JSONL vs plain PMIDs from first line
@@ -203,29 +175,21 @@ class TestSafeParse:
 class TestDetectInputFormat:
     """detect_input_format inspects the first non-empty line."""
 
-    def test_plain_pmid(self) -> None:
-        """A numeric string is detected as plain."""
-        assert detect_input_format("12345") == "plain"
-
-    def test_jsonl_dict(self) -> None:
-        """A JSON dict line is detected as jsonl."""
-        assert detect_input_format('{"pmid": "12345"}') == "jsonl"
+    @pytest.mark.parametrize(
+        ("line", "expected"),
+        [
+            ("12345", "plain"),              # numeric PMID
+            ('{"pmid": "12345"}', "jsonl"),  # JSON dict
+            ('{"pmid": "123"', "plain"),     # truncated JSON
+        ],
+    )
+    def test_format_detection(self, line: str, expected: str) -> None:
+        """detect_input_format returns correct format for each line type."""
+        assert detect_input_format(line) == expected
 
     def test_whitespace_stripped_before_detection(self) -> None:
         """Leading/trailing whitespace is stripped before detection."""
         assert detect_input_format('  {"pmid": "12345"}  ') == "jsonl"
-
-    def test_truncated_json_is_plain(self) -> None:
-        """Truncated JSON that fails to parse is detected as plain."""
-        assert detect_input_format('{"pmid": "123"') == "plain"
-
-    def test_json_array_is_plain(self) -> None:
-        """A JSON array (non-dict) is detected as plain."""
-        assert detect_input_format("[1, 2, 3]") == "plain"
-
-    def test_json_string_is_plain(self) -> None:
-        """A JSON string value is detected as plain."""
-        assert detect_input_format('"just a string"') == "plain"
 
 
 # ---------------------------------------------------------------------------

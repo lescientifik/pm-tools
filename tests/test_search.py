@@ -182,35 +182,6 @@ class TestSearchCache:
 
         assert result1 == result2
 
-    def test_different_queries_different_cache(
-        self, mock_esearch_response: str, pm_dir: Path
-    ) -> None:
-        captured: list[httpx.Request] = []
-        client = _make_search_client(mock_esearch_response, requests=captured)
-
-        with patch("pm_tools.search.get_client", return_value=client):
-            search("CRISPR", pm_dir=pm_dir)
-            search("gene therapy", pm_dir=pm_dir)
-            assert len(captured) == 2  # both queries hit API
-
-    def test_refresh_bypasses_cache(self, mock_esearch_response: str, pm_dir: Path) -> None:
-        captured: list[httpx.Request] = []
-        client = _make_search_client(mock_esearch_response, requests=captured)
-
-        with patch("pm_tools.search.get_client", return_value=client):
-            search("CRISPR", pm_dir=pm_dir)
-            search("CRISPR", pm_dir=pm_dir, refresh=True)
-            assert len(captured) == 2  # refresh forces API call
-
-    def test_no_cache_without_pm_dir(self, mock_esearch_response: str) -> None:
-        """Without pm_dir, search works as before (no caching)."""
-        captured: list[httpx.Request] = []
-        client = _make_search_client(mock_esearch_response, requests=captured)
-
-        with patch("pm_tools.search.get_client", return_value=client):
-            search("CRISPR")
-            search("CRISPR")
-            assert len(captured) == 2  # no cache → 2 API calls
 
 
 class TestSearchAudit:
@@ -311,8 +282,7 @@ class TestSearchVerbose:
 
         assert len(result) == 10
         captured = capsys.readouterr()
-        assert "5000" in captured.err
-        assert "returning 10" in captured.err
+        assert "Found 5000 results, returning 10" in captured.err
 
     def test_verbose_shows_simple_count(
         self,

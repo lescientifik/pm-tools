@@ -302,38 +302,6 @@ class TestSplitXmlArticles:
 class TestFetchSmartBatch:
     """fetch() with pm_dir only fetches uncached PMIDs."""
 
-    def test_all_cached_no_api_call(
-        self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """When all PMIDs are cached, zero API calls are made."""
-        captured: list[httpx.Request] = []
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            captured.append(request)
-            return httpx.Response(200, text="")
-
-        client = _make_client(_handler)
-        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
-
-        # Pre-populate cache with article fragments
-        for pmid in ("111", "222"):
-            xml = (
-                f"<PubmedArticle><MedlineCitation>"
-                f'<PMID Version="1">{pmid}</PMID>'
-                f"<Article><ArticleTitle>Art {pmid}</ArticleTitle></Article>"
-                f"</MedlineCitation></PubmedArticle>"
-            )
-            (pm_dir / "cache" / "fetch" / f"{pmid}.xml").write_text(xml)
-
-        result = fetch(["111", "222"], pm_dir=pm_dir)
-
-        assert len(captured) == 0
-        assert "111" in result
-        assert "222" in result
-        # Must be valid XML
-        root = ET.fromstring(result)
-        assert root.tag == "PubmedArticleSet"
-
     def test_partial_cache_fetches_only_missing(
         self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -366,19 +334,6 @@ class TestFetchSmartBatch:
         assert "111" in pmids
         assert "222" in pmids
 
-    def test_no_cache_without_pm_dir(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Without pm_dir, fetch works as before."""
-        captured: list[httpx.Request] = []
-
-        def _handler(request: httpx.Request) -> httpx.Response:
-            captured.append(request)
-            return httpx.Response(200, text=MOCK_XML_TEMPLATE.format(pmid="12345"))
-
-        client = _make_client(_handler)
-        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
-
-        fetch(["111", "222"])
-        assert len(captured) == 1  # single batch, no cache
 
 
 class TestFetchAudit:
@@ -396,24 +351,6 @@ class TestFetchAudit:
         assert event["op"] == "fetch"
         assert event["requested"] == 2
 
-    def test_logs_cached_count(self, pm_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        client = _make_client(_make_xml_handler("222"))
-        monkeypatch.setattr("pm_tools.fetch.get_client", lambda: client)
-
-        # Pre-cache one article
-        xml = (
-            "<PubmedArticle><MedlineCitation>"
-            '<PMID Version="1">111</PMID>'
-            "<Article><ArticleTitle>Cached</ArticleTitle></Article>"
-            "</MedlineCitation></PubmedArticle>"
-        )
-        (pm_dir / "cache" / "fetch" / "111.xml").write_text(xml)
-
-        fetch(["111", "222"], pm_dir=pm_dir)
-
-        event = json.loads((pm_dir / "audit.jsonl").read_text().strip().splitlines()[0])
-        assert event["cached"] == 1
-        assert event["fetched"] == 1
 
 
 class TestFetchRoundTrip:

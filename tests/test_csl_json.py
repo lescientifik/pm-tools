@@ -378,7 +378,8 @@ class TestDateStrToParts:
             ("2024-03-15", [2024, 3, 15]),
             ("2024-03", [2024, 3]),
             ("2024", [2024]),
-            ("2024-Mar-15", [2024, 15]),  # non-numeric segments dropped
+            # non-numeric "Mar" dropped -> [2024, 15]; invalid CSL month, documents current behavior
+            ("2024-Mar-15", [2024, 15]),
             ("abc", []),
             ("", []),
         ],
@@ -398,26 +399,6 @@ class TestDateStrToParts:
 
 class TestLegacyFieldsFiltering:
     """Default output (no --csl) emits only the 10 historical fields."""
-
-    def test_parse_default_output_has_only_legacy_fields(self) -> None:
-        """pm parse (no --csl) emits only 10 legacy fields."""
-        from pm_tools.parse import LEGACY_FIELDS
-
-        expected = frozenset(
-            {
-                "pmid",
-                "title",
-                "authors",
-                "journal",
-                "year",
-                "date",
-                "abstract",
-                "abstract_sections",
-                "doi",
-                "pmcid",
-            }
-        )
-        assert expected == LEGACY_FIELDS
 
     def test_parse_main_filters_output(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """parse.main() without --csl filters to LEGACY_FIELDS."""

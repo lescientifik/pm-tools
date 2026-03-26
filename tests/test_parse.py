@@ -965,22 +965,14 @@ class TestParseNonNumericYear:
 </PubmedArticle>
 </PubmedArticleSet>"""
 
-    def test_non_numeric_year_no_crash(self) -> None:
-        """XML with <Year>not-a-year</Year> must not crash; year field absent."""
-        result = parse_xml(self._make_xml("not-a-year"))
-        article = result[0]
-        assert "year" not in article
-
-    def test_alphanumeric_year_no_crash(self) -> None:
-        """XML with <Year>2024a</Year> must not crash; year field absent."""
-        result = parse_xml(self._make_xml("2024a"))
-        article = result[0]
-        assert "year" not in article
-
-    def test_empty_year_no_crash(self) -> None:
-        """XML with <Year></Year> must not crash; year field absent."""
-        result = parse_xml(self._make_xml(""))
-        article = result[0]
+    @pytest.mark.parametrize(
+        "year_content",
+        ["not-a-year", "2024a", ""],
+        ids=["alphabetic", "alphanumeric", "empty"],
+    )
+    def test_non_numeric_year_no_crash(self, year_content: str) -> None:
+        """Non-numeric <Year> must not crash and must leave year field absent."""
+        article = parse_xml(self._make_xml(year_content))[0]
         assert "year" not in article
 
 

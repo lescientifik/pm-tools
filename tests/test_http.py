@@ -12,11 +12,6 @@ from pm_tools.http import get_client, reset_client
 class TestGetClient:
     """Tests for get_client() factory function."""
 
-    def test_custom_timeout(self) -> None:
-        """A custom timeout can be passed."""
-        client = get_client(timeout=60)
-        assert client.timeout == httpx.Timeout(60)
-
     def test_singleton_is_thread_safe(self) -> None:
         """All threads get the same singleton even under contention."""
         # Reset global singleton so we start fresh

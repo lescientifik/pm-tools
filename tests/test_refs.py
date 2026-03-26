@@ -319,6 +319,7 @@ class TestRefsCli:
         assert exit_code == 1
         captured = capsys.readouterr()
         assert "Error" in captured.err
+        assert "No such file" in captured.err or "not found" in captured.err
 
     def test_no_input_no_tty_error(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -328,7 +329,7 @@ class TestRefsCli:
         exit_code = refs_main([])
         assert exit_code == 1
         captured = capsys.readouterr()
-        assert "Error" in captured.err
+        assert "Error: No input." in captured.err
 
     def test_multifile_continues_on_error(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

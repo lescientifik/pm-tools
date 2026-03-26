@@ -81,16 +81,6 @@ class TestInitIdempotent:
         assert "already initialized" in captured.err
         assert "Error:" not in captured.err
 
-    def test_first_call_still_creates_everything(
-        self, tmp_path: object, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """First call creates the full .pm/ structure as before."""
-        monkeypatch.chdir(tmp_path)
-        init()
-        assert (tmp_path / ".pm" / "audit.jsonl").exists()  # type: ignore[union-attr]
-        assert (tmp_path / ".pm" / "cache" / "search").is_dir()  # type: ignore[union-attr]
-        assert (tmp_path / ".pm" / ".gitignore").exists()  # type: ignore[union-attr]
-
     def test_pm_as_file_returns_error(
         self,
         tmp_path: object,

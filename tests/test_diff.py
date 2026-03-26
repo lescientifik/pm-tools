@@ -132,6 +132,7 @@ class TestChanged:
         changed = [d for d in result if d["status"] == "changed"]
         assert len(changed) == 1
         assert changed[0]["pmid"] == "1"
+        assert changed[0]["old"]["authors"] != changed[0]["new"]["authors"]
 
     def test_detects_field_added(self) -> None:
         """A field present in new but absent in old counts as a change."""
@@ -142,6 +143,8 @@ class TestChanged:
 
         changed = [d for d in result if d["status"] == "changed"]
         assert len(changed) == 1
+        assert "abstract" in changed[0]["new"]
+        assert "abstract" not in changed[0]["old"]
 
     def test_detects_field_removed(self) -> None:
         """A field present in old but absent in new counts as a change."""
@@ -152,6 +155,8 @@ class TestChanged:
 
         changed = [d for d in result if d["status"] == "changed"]
         assert len(changed) == 1
+        assert "abstract" in changed[0]["old"]
+        assert "abstract" not in changed[0]["new"]
 
 
 # ---------------------------------------------------------------------------

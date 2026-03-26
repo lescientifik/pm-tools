@@ -148,6 +148,7 @@ class TestJournalFilter:
         assert "1" in pmids
         assert "3" in pmids
         assert "5" in pmids
+        assert len(pmids) == 3
 
     def test_journal_no_match_returns_empty(self, sample_articles: list[dict]) -> None:
         result = _filter(sample_articles, journal="Cell")
@@ -161,6 +162,7 @@ class TestJournalExactFilter:
         assert "1" in pmids
         assert "5" in pmids
         assert "3" not in pmids
+        assert len(pmids) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -174,11 +176,13 @@ class TestAuthorFilter:
         pmids = [a["pmid"] for a in result]
         assert "1" in pmids
         assert "2" in pmids
+        assert len(pmids) == 2
 
     def test_author_partial_match_within_name(self, sample_articles: list[dict]) -> None:
         result = _filter(sample_articles, author="gar")
         pmids = [a["pmid"] for a in result]
         assert "4" in pmids
+        assert len(pmids) == 1
 
     def test_author_no_match_returns_empty(self, sample_articles: list[dict]) -> None:
         result = _filter(sample_articles, author="Zzzzzzz")
