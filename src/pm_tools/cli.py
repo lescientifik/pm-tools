@@ -21,8 +21,12 @@ def _build_collect_parser() -> argparse.ArgumentParser:
         prog="pm collect",
         description="Collect PubMed articles (search + fetch + parse -> JSONL).",
     )
-    parser.add_argument(
+    output_group = parser.add_mutually_exclusive_group()
+    output_group.add_argument(
         "--csl", action="store_true", help="Output CSL-JSON instead of ArticleRecord"
+    )
+    output_group.add_argument(
+        "--count", action="store_true", help="Print result count instead of articles"
     )
     parser.add_argument(
         "-n",
@@ -68,6 +72,8 @@ def collect_main(argv: list[str] | None = None) -> int:
             verbose=args.verbose,
         )
         if not pmids:
+            if args.count:
+                print(0)
             return 0
 
         xml = fetch.fetch(
@@ -77,11 +83,18 @@ def collect_main(argv: list[str] | None = None) -> int:
             refresh=args.refresh,
         )
         if not xml:
+            if args.count:
+                print(0)
             return 0
 
+        count = 0
         for article in parse.parse_xml_stream(io.BytesIO(xml.encode("utf-8"))):
-            output = parse.format_article(article, csl=args.csl)
-            print(json.dumps(output, ensure_ascii=False))
+            count += 1
+            if not args.count:
+                output = parse.format_article(article, csl=args.csl)
+                print(json.dumps(output, ensure_ascii=False))
+        if args.count:
+            print(count)
         return 0
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

@@ -511,26 +511,116 @@ class TestSearchMaxValidation:
 
 
 class TestSearchVerbose:
-    """search -v prints progress to stderr."""
+    """search -v prints server-side result count to stderr."""
 
-    def test_verbose_prints_searching_on_stderr(
-        self, mock_esearch_response: str, capsys: pytest.CaptureFixture[str]
+    def test_verbose_shows_truncated_count(
+        self,
+        mock_esearch_truncated_response: str,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """search.main(["-v", "CRISPR"]) prints progress message to stderr."""
-        from pm_tools.search import main
+        """When total > returned, verbose shows 'Found N results, returning M'."""
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_esearch_truncated_response
+        mock_response.raise_for_status = MagicMock()
+        mock_client = _mock_client_for(mock_response)
 
+        with patch("pm_tools.search.get_client", return_value=mock_client):
+            result = search("CRISPR", max_results=10, verbose=True)
+
+        assert len(result) == 10
+        captured = capsys.readouterr()
+        assert "5000" in captured.err
+        assert "returning 10" in captured.err
+
+    def test_verbose_shows_simple_count(
+        self,
+        mock_esearch_response: str,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """When total == returned, verbose shows 'Found N results'."""
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 200
         mock_response.text = mock_esearch_response
         mock_response.raise_for_status = MagicMock()
         mock_client = _mock_client_for(mock_response)
 
-        with (
-            patch("pm_tools.search.get_client", return_value=mock_client),
-            patch("pm_tools.search.find_pm_dir", return_value=None),
-        ):
-            result = main(["-v", "CRISPR"])
+        with patch("pm_tools.search.get_client", return_value=mock_client):
+            result = search("CRISPR", verbose=True)
 
-        assert result == 0
+        assert len(result) == 3
         captured = capsys.readouterr()
-        assert "Searching" in captured.err
+        assert "Found 3 results" in captured.err
+        # Should NOT contain "returning" when all results fit
+        assert "returning" not in captured.err
+
+    def test_verbose_no_searching_message(
+        self,
+        mock_esearch_response: str,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """search() no longer prints 'Searching PubMed for ...' (dedup with collect)."""
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_esearch_response
+        mock_response.raise_for_status = MagicMock()
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
+            search("CRISPR", verbose=True)
+
+        captured = capsys.readouterr()
+        assert "Searching PubMed for" not in captured.err
+
+    def test_verbose_silent_on_cache_hit(
+        self,
+        mock_esearch_response: str,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """On cache hit, verbose shows cache message, not result count."""
+        pm_dir = _make_pm_dir(tmp_path)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = mock_esearch_response
+        mock_response.raise_for_status = MagicMock()
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
+            # First call: fills cache
+            search("CRISPR", pm_dir=pm_dir, verbose=True)
+            capsys.readouterr()  # discard first call output
+
+            # Second call: cache hit
+            search("CRISPR", pm_dir=pm_dir, verbose=True)
+
+        captured = capsys.readouterr()
+        assert "cached" in captured.err
+        assert "Found" not in captured.err
+
+    def test_verbose_fallback_when_count_missing(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """When <Count> is missing from response, falls back to len(pmids)."""
+        # Response with no <Count> element
+        xml_no_count = """<?xml version="1.0" encoding="UTF-8" ?>
+<eSearchResult>
+    <RetMax>2</RetMax>
+    <IdList>
+        <Id>111</Id>
+        <Id>222</Id>
+    </IdList>
+</eSearchResult>"""
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.text = xml_no_count
+        mock_response.raise_for_status = MagicMock()
+        mock_client = _mock_client_for(mock_response)
+
+        with patch("pm_tools.search.get_client", return_value=mock_client):
+            result = search("test", verbose=True)
+
+        assert len(result) == 2
+        captured = capsys.readouterr()
+        assert "Found 2 results" in captured.err

@@ -555,6 +555,15 @@ def main(args: list[str] | None = None) -> int:
     if ns is None:
         return code  # type: ignore[return-value]
 
+    if sys.stdin.isatty():
+        print(
+            "Usage: pm fetch 41875885 | pm parse\n"
+            "       cat pubmed.xml | pm parse\n\n"
+            "hint: use 'pm collect' for a simpler workflow",
+            file=sys.stderr,
+        )
+        return 1
+
     # Stream-parse XML from stdin (O(1) memory per article)
     try:
         for i, article in enumerate(parse_xml_stream(sys.stdin.buffer), 1):

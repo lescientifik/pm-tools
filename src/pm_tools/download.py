@@ -576,7 +576,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "Examples:\n"
             "  pm download 41873355 --dry-run\n"
             "  pm download 111 222 --output-dir ./articles/\n"
-            '  pm search "CRISPR" | pm fetch | pm parse | pm download --output-dir ./articles/\n'
+            '  pm collect "CRISPR" --max 100 | pm download --output-dir ./articles/\n'
+            '  pm search "CRISPR" -n 100 | pm download --output-dir ./articles/\n'
             "  pm download --input pmids.txt --email user@example.com"
         ),
     )

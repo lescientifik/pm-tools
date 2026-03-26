@@ -405,6 +405,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--has-doi", action="store_true", dest="has_doi", help="Article has DOI")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show filter stats on stderr")
+    parser.add_argument(
+        "--count", action="store_true", help="Print result count instead of articles"
+    )
     return parser
 
 
@@ -448,8 +451,12 @@ def main(args: list[str] | None = None) -> int:
         # Consume into list for counting and breakdown
         input_list = list(articles)
         result, steps = filter_with_breakdown(input_list, **filter_kwargs)
-        for article in result:
-            print(json.dumps(article, ensure_ascii=False))
+
+        if parsed.count:
+            print(len(result))
+        else:
+            for article in result:
+                print(json.dumps(article, ensure_ascii=False))
 
         # Audit log (preserve existing schema)
         if detected_pm_dir is not None:
@@ -472,7 +479,10 @@ def main(args: list[str] | None = None) -> int:
             )
     else:
         filtered = filter_articles(articles, **filter_kwargs)
-        for article in filtered:
-            print(json.dumps(article, ensure_ascii=False))
+        if parsed.count:
+            print(sum(1 for _ in filtered))
+        else:
+            for article in filtered:
+                print(json.dumps(article, ensure_ascii=False))
 
     return 0

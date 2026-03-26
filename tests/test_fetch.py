@@ -590,6 +590,28 @@ class TestFetchPositionalPmids:
         mock_fetch_fn.assert_called_once()
         assert mock_fetch_fn.call_args[0][0] == ["12345", "67890"]
 
+    @patch("pm_tools.fetch.find_pm_dir", return_value=None)
+    @patch("pm_tools.fetch.fetch")
+    def test_stdin_jsonl_extracts_pmids(
+        self,
+        mock_fetch_fn: MagicMock,
+        mock_find: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """JSONL on stdin is auto-detected and PMIDs are extracted."""
+        import io
+
+        from pm_tools.fetch import main
+
+        mock_fetch_fn.return_value = "<xml/>"
+        jsonl_input = '{"pmid": "12345", "title": "X"}\n{"pmid": "67890", "title": "Y"}\n'
+        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        result = main([])
+        assert result == 0
+        mock_fetch_fn.assert_called_once()
+        assert mock_fetch_fn.call_args[0][0] == ["12345", "67890"]
+
 
 # =============================================================================
 # PMID validation at entry point

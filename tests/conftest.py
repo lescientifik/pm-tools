@@ -176,6 +176,29 @@ def mock_esearch_response() -> str:
 
 
 @pytest.fixture
+def mock_esearch_truncated_response() -> str:
+    """Mock esearch response where server found 5000 but only 10 returned."""
+    return """<?xml version="1.0" encoding="UTF-8" ?>
+<eSearchResult>
+    <Count>5000</Count>
+    <RetMax>10</RetMax>
+    <RetStart>0</RetStart>
+    <IdList>
+        <Id>1001</Id>
+        <Id>1002</Id>
+        <Id>1003</Id>
+        <Id>1004</Id>
+        <Id>1005</Id>
+        <Id>1006</Id>
+        <Id>1007</Id>
+        <Id>1008</Id>
+        <Id>1009</Id>
+        <Id>1010</Id>
+    </IdList>
+</eSearchResult>"""
+
+
+@pytest.fixture
 def mock_esearch_empty_response() -> str:
     """Mock XML response from NCBI esearch API with zero results."""
     return """<?xml version="1.0" encoding="UTF-8" ?>

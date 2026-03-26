@@ -230,3 +230,60 @@ class TestCollectRefreshFlag:
         assert not search_kwargs.kwargs.get("refresh")
         fetch_kwargs = mock_fetch.fetch.call_args
         assert not fetch_kwargs.kwargs.get("refresh")
+
+
+# =============================================================================
+# --count flag (Phase 3b)
+# =============================================================================
+
+
+class TestCollectCountFlag:
+    """collect_main --count prints a single integer instead of JSONL articles."""
+
+    def test_count_outputs_integer(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--count outputs a single line with an integer on stdout, nothing else."""
+        with (
+            patch("pm_tools.cli.search") as mock_search,
+            patch("pm_tools.cli.fetch") as mock_fetch,
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            mock_search.search.return_value = ["111", "222"]
+            mock_fetch.fetch.return_value = _COLLECT_XML
+            rc = collect_main(["CRISPR", "--max", "5", "--count"])
+
+        assert rc == 0
+        out = capsys.readouterr().out.strip()
+        assert out == "2"
+
+    def test_count_and_csl_mutually_exclusive(self) -> None:
+        """--count and --csl together should cause argparse error (exit 2)."""
+        rc = collect_main(["CRISPR", "--max", "5", "--count", "--csl"])
+        assert rc == 2
+
+    def test_count_with_verbose(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--count with -v: integer on stdout, progress on stderr."""
+        with (
+            patch("pm_tools.cli.search") as mock_search,
+            patch("pm_tools.cli.fetch") as mock_fetch,
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            mock_search.search.return_value = ["111", "222"]
+            mock_fetch.fetch.return_value = _COLLECT_XML
+            rc = collect_main(["CRISPR", "--max", "5", "--count", "-v"])
+
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert captured.out.strip() == "2"
+        assert "Searching PubMed" in captured.err
+
+    def test_count_zero_results(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--count with zero search results outputs 0."""
+        with (
+            patch("pm_tools.cli.search") as mock_search,
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            mock_search.search.return_value = []
+            rc = collect_main(["nonexistent-query", "--max", "5", "--count"])
+
+        assert rc == 0
+        assert capsys.readouterr().out.strip() == "0"

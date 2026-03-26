@@ -37,7 +37,7 @@ def init() -> int:
     """Create .pm/ directory structure in the current working directory.
 
     Returns:
-        0 on success, 1 if .pm/ already exists.
+        0 on success (including if already initialized).
     """
     pm_path = Path.cwd() / PM_DIR
 
@@ -45,8 +45,11 @@ def init() -> int:
     try:
         os.mkdir(pm_path)
     except FileExistsError:
-        print(f"Error: {PM_DIR}/ already exists in {Path.cwd()}", file=sys.stderr)
-        return 1
+        if not pm_path.is_dir():
+            print(f"Error: {PM_DIR} exists but is not a directory", file=sys.stderr)
+            return 1
+        print(f"{PM_DIR}/ already initialized in {Path.cwd()}", file=sys.stderr)
+        return 0
 
     # Create cache subdirectories
     cache_dir = pm_path / "cache"

@@ -11,7 +11,7 @@ import httpx
 
 from pm_tools.cache import cached_batch_fetch, find_pm_dir
 from pm_tools.http import get_client as get_http_client
-from pm_tools.io import safe_parse, validate_pmid
+from pm_tools.io import read_pmids_from_lines, safe_parse, validate_pmid
 from pm_tools.types import CslJsonRecord
 
 API_URL = "https://pmc.ncbi.nlm.nih.gov/api/ctxp/v1/pubmed/"
@@ -145,10 +145,7 @@ def main(args: list[str] | None = None) -> int:
 
     # Read from stdin if no PMIDs as arguments
     if not pmids and not sys.stdin.isatty():
-        for line in sys.stdin:
-            line = line.strip()
-            if line:
-                pmids.append(line)
+        pmids = read_pmids_from_lines(sys.stdin)
 
     if not pmids:
         return 0

@@ -88,8 +88,6 @@ def search(
             return pmids
 
     # API call
-    if verbose:
-        print(f'Searching PubMed for "{query}"...', file=sys.stderr)
     encoded_query = urllib.parse.quote(query, safe="")
     url = f"{ESEARCH_URL}?db=pubmed&term={encoded_query}&retmax={max_results}&retmode=xml"
 
@@ -98,6 +96,18 @@ def search(
 
     root = ET.fromstring(response.text)
     pmids = [id_elem.text for id_elem in root.findall(".//Id") if id_elem.text]
+
+    # Extract server-side total from top-level <Count> element
+    count_elem = root.find("Count")
+    try:
+        total = int(count_elem.text) if count_elem is not None and count_elem.text else len(pmids)
+    except (ValueError, TypeError):
+        total = len(pmids)
+    if verbose:
+        if total > len(pmids):
+            print(f"Found {total} results, returning {len(pmids)}", file=sys.stderr)
+        else:
+            print(f"Found {total} results", file=sys.stderr)
 
     # Write audit BEFORE cache (crash-safety: audit is source of truth)
     if pm_dir is not None:

@@ -11,7 +11,7 @@ import httpx
 
 from pm_tools.cache import cached_batch_fetch, find_pm_dir
 from pm_tools.http import get_client
-from pm_tools.io import safe_parse, validate_pmid
+from pm_tools.io import read_pmids_from_lines, safe_parse, validate_pmid
 
 EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 BATCH_SIZE = 200
@@ -189,10 +189,7 @@ def main(args: list[str] | None = None) -> int:
     # Read PMIDs: positional args first, then stdin fallback
     pmids: list[str] = parsed.pmids
     if not pmids and not sys.stdin.isatty():
-        for line in sys.stdin:
-            stripped = line.strip()
-            if stripped:
-                pmids.append(stripped)
+        pmids = read_pmids_from_lines(sys.stdin)
 
     if not pmids:
         return 0

@@ -1444,3 +1444,61 @@ class TestFormatArticle:
         assert result["PMID"] == "12345"
         assert result["DOI"] == "10.1234/test"
         assert "container-title" in result
+
+
+# =============================================================================
+# TTY detection — stdin is a terminal
+# =============================================================================
+
+
+class TestParseTTYDetection:
+    """When stdin is a TTY (no pipe), pm parse should print usage and exit 1."""
+
+    def test_tty_stdin_prints_usage_and_exits_1(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """main([]) with TTY stdin prints usage hint to stderr, returns 1."""
+        from pm_tools.parse import main
+
+        with patch("pm_tools.parse.sys.stdin") as mock_stdin:
+            mock_stdin.isatty.return_value = True
+            result = main([])
+
+        assert result == 1
+        err = capsys.readouterr().err
+        assert "Usage:" in err
+        assert "pm parse" in err
+
+    def test_tty_stdin_with_flags_still_exits_1(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """main(["--csl"]) with TTY stdin still shows usage hint and exits 1."""
+        from pm_tools.parse import main
+
+        with patch("pm_tools.parse.sys.stdin") as mock_stdin:
+            mock_stdin.isatty.return_value = True
+            result = main(["--csl"])
+
+        assert result == 1
+        err = capsys.readouterr().err
+        assert "Usage:" in err
+
+    def test_piped_stdin_works_normally(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """main([]) with piped stdin (isatty False) and valid XML works."""
+        from pm_tools.parse import main
+
+        xml = (
+            '<PubmedArticleSet>'
+            '<PubmedArticle><MedlineCitation><PMID>999</PMID>'
+            '<Article><ArticleTitle>T</ArticleTitle><Journal>'
+            '<Title>J</Title><ISOAbbreviation>J</ISOAbbreviation>'
+            '</Journal></Article></MedlineCitation></PubmedArticle>'
+            '</PubmedArticleSet>'
+        )
+        buf = io.BytesIO(xml.encode())
+
+        with patch("pm_tools.parse.sys.stdin") as mock_stdin:
+            mock_stdin.isatty.return_value = False
+            mock_stdin.buffer = buf
+            result = main([])
+
+        assert result == 0
+        out = capsys.readouterr().out
+        record = json.loads(out.strip())
+        assert record["pmid"] == "999"

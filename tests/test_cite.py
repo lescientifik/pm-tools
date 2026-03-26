@@ -300,6 +300,58 @@ class TestCiteAudit:
 
 
 # =============================================================================
+# JSONL stdin support
+# =============================================================================
+
+
+class TestCiteStdinJsonl:
+    """cite.main() accepts JSONL on stdin, extracting PMIDs."""
+
+    def test_stdin_jsonl_extracts_pmids(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """JSONL on stdin is auto-detected and PMIDs are extracted."""
+        import io
+        from unittest.mock import patch
+
+        from pm_tools.cite import main as cite_main
+
+        jsonl_input = '{"pmid": "12345", "title": "X"}\n{"pmid": "67890", "title": "Y"}\n'
+        monkeypatch.setattr("sys.stdin", io.StringIO(jsonl_input))
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+
+        with (
+            patch("pm_tools.cite.cite") as mock_cite,
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            mock_cite.return_value = []
+            rc = cite_main([])
+
+        assert rc == 0
+        mock_cite.assert_called_once()
+        assert mock_cite.call_args[0][0] == ["12345", "67890"]
+
+    def test_stdin_plain_pmids_still_work(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Plain PMIDs on stdin still work after JSONL support added."""
+        import io
+        from unittest.mock import patch
+
+        from pm_tools.cite import main as cite_main
+
+        monkeypatch.setattr("sys.stdin", io.StringIO("12345\n67890\n"))
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+
+        with (
+            patch("pm_tools.cite.cite") as mock_cite,
+            patch("pm_tools.cache.find_pm_dir", return_value=None),
+        ):
+            mock_cite.return_value = []
+            rc = cite_main([])
+
+        assert rc == 0
+        mock_cite.assert_called_once()
+        assert mock_cite.call_args[0][0] == ["12345", "67890"]
+
+
+# =============================================================================
 # PMID validation at entry point
 # =============================================================================
 

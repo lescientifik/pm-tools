@@ -3175,3 +3175,30 @@ class TestDownloadStdinValidation:
 
         result = download_main(["--input", str(input_file), "--dry-run"])
         assert result == 1
+
+
+class TestHelpPipelineExample:
+    """Phase 3c: help text shows correct pipeline examples."""
+
+    def test_no_misleading_pipeline(self) -> None:
+        """Help output must NOT contain the old fetch|parse|download pipeline."""
+        from pm_tools.download import _build_parser
+
+        help_text = _build_parser().format_help()
+        assert "pm fetch | pm parse | pm download" not in help_text
+
+    def test_help_shows_collect_pipeline(self) -> None:
+        """Help output shows the pm collect pipeline example."""
+        from pm_tools.download import _build_parser
+
+        help_text = _build_parser().format_help()
+        assert "pm collect" in help_text
+        assert "pm download --output-dir" in help_text
+
+    def test_help_shows_search_pipeline(self) -> None:
+        """Help output shows the pm search pipeline example."""
+        from pm_tools.download import _build_parser
+
+        help_text = _build_parser().format_help()
+        assert "pm search" in help_text
+        assert "| pm download" in help_text

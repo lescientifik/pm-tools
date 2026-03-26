@@ -55,18 +55,54 @@ class TestInitAuditEvent:
         assert "ts" in event
 
 
-class TestInitAlreadyExists:
-    """pm init fails if .pm/ already exists."""
+class TestInitIdempotent:
+    """pm init is idempotent — succeeds even if .pm/ already exists."""
 
-    def test_fails_if_pm_exists(
-        self, tmp_path: object, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    def test_returns_zero_when_already_initialized(
+        self, tmp_path: object, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """Calling init() twice returns 0 both times."""
         monkeypatch.chdir(tmp_path)
-        (tmp_path / ".pm").mkdir()  # type: ignore[union-attr]
-        result = init()
-        assert result == 1
+        assert init() == 0
+        assert init() == 0
+
+    def test_stderr_says_already_initialized(
+        self,
+        tmp_path: object,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Second call prints 'already initialized' (not 'Error:') on stderr."""
+        monkeypatch.chdir(tmp_path)
+        init()
+        capsys.readouterr()  # discard first-call output
+        init()
         captured = capsys.readouterr()
-        assert "already exists" in captured.err
+        assert "already initialized" in captured.err
+        assert "Error:" not in captured.err
+
+    def test_first_call_still_creates_everything(
+        self, tmp_path: object, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """First call creates the full .pm/ structure as before."""
+        monkeypatch.chdir(tmp_path)
+        init()
+        assert (tmp_path / ".pm" / "audit.jsonl").exists()  # type: ignore[union-attr]
+        assert (tmp_path / ".pm" / "cache" / "search").is_dir()  # type: ignore[union-attr]
+        assert (tmp_path / ".pm" / ".gitignore").exists()  # type: ignore[union-attr]
+
+    def test_pm_as_file_returns_error(
+        self,
+        tmp_path: object,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """If .pm exists as a regular file (not a directory), return 1."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".pm").write_text("oops")  # type: ignore[union-attr]
+        assert init() == 1
+        captured = capsys.readouterr()
+        assert "not a directory" in captured.err
 
 
 class TestInitCLI:

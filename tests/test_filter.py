@@ -775,3 +775,135 @@ class TestFilterMainAuditWithBreakdown:
         assert event["excluded"] == 2
         assert "year" in event["criteria"]
         assert "has_abstract" in event["criteria"]
+
+
+# ---------------------------------------------------------------------------
+# --count flag on filter CLI (Phase 3b)
+# ---------------------------------------------------------------------------
+
+
+class TestFilterCountFlag:
+    """filter --count prints a single integer instead of JSONL articles."""
+
+    def test_count_outputs_integer(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--count with --year outputs just the count."""
+        import io
+
+        from pm_tools.filter import main as filter_main
+
+        articles = [
+            _article(pmid="1", year=2026),
+            _article(pmid="2", year=2020),
+            _article(pmid="3", year=2026),
+        ]
+        jsonl_input = "\n".join(json.dumps(a) for a in articles)
+
+        with (
+            patch("sys.stdin", io.StringIO(jsonl_input)),
+            patch("sys.stdin.isatty", return_value=False),
+            patch("pm_tools.filter.find_pm_dir", return_value=None),
+        ):
+            result = filter_main(["--count", "--year", "2026"])
+
+        assert result == 0
+        out = capsys.readouterr().out.strip()
+        assert out == "2"
+
+    def test_count_with_verbose(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--count combined with -v: count on stdout, breakdown on stderr."""
+        import io
+
+        from pm_tools.filter import main as filter_main
+
+        articles = [
+            _article(pmid="1", year=2026),
+            _article(pmid="2", year=2020),
+        ]
+        jsonl_input = "\n".join(json.dumps(a) for a in articles)
+
+        with (
+            patch("sys.stdin", io.StringIO(jsonl_input)),
+            patch("sys.stdin.isatty", return_value=False),
+            patch("pm_tools.filter.find_pm_dir", return_value=None),
+        ):
+            result = filter_main(["--count", "--year", "2026", "-v"])
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert captured.out.strip() == "1"
+        assert "read" in captured.err  # breakdown on stderr
+
+    def test_count_with_audit(self, tmp_path: Path) -> None:
+        """--count with .pm/ present: audit log still fires with correct counts."""
+        import io
+
+        from pm_tools.filter import main as filter_main
+
+        pm_dir = _make_pm_dir(tmp_path)
+        articles = [
+            _article(pmid="1", year=2026),
+            _article(pmid="2", year=2020),
+            _article(pmid="3", year=2026),
+        ]
+        jsonl_input = "\n".join(json.dumps(a) for a in articles)
+
+        with (
+            patch("sys.stdin", io.StringIO(jsonl_input)),
+            patch("sys.stdin.isatty", return_value=False),
+            patch("pm_tools.filter.find_pm_dir", return_value=pm_dir),
+        ):
+            result = filter_main(["--count", "--year", "2026"])
+
+        assert result == 0
+        audit_file = pm_dir / "audit.jsonl"
+        event = json.loads(audit_file.read_text().strip().splitlines()[0])
+        assert event["op"] == "filter"
+        assert event["input"] == 3
+        assert event["output"] == 2
+
+    def test_count_without_verbose_or_pm(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--count without -v and without .pm/ streams and counts."""
+        import io
+
+        from pm_tools.filter import main as filter_main
+
+        articles = [
+            _article(pmid="1", year=2026),
+            _article(pmid="2", year=2020),
+            _article(pmid="3", year=2026),
+            _article(pmid="4", year=2026),
+        ]
+        jsonl_input = "\n".join(json.dumps(a) for a in articles)
+
+        with (
+            patch("sys.stdin", io.StringIO(jsonl_input)),
+            patch("sys.stdin.isatty", return_value=False),
+            patch("pm_tools.filter.find_pm_dir", return_value=None),
+        ):
+            result = filter_main(["--count", "--year", "2026"])
+
+        assert result == 0
+        out = capsys.readouterr().out.strip()
+        assert out == "3"
+
+    def test_count_zero_matches(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """--count outputs 0 when no articles match the filter."""
+        import io
+
+        from pm_tools.filter import main as filter_main
+
+        articles = [
+            _article(pmid="1", year=2020),
+            _article(pmid="2", year=2021),
+        ]
+        jsonl_input = "\n".join(json.dumps(a) for a in articles)
+
+        with (
+            patch("sys.stdin", io.StringIO(jsonl_input)),
+            patch("sys.stdin.isatty", return_value=False),
+            patch("pm_tools.filter.find_pm_dir", return_value=None),
+        ):
+            result = filter_main(["--count", "--year", "2026"])
+
+        assert result == 0
+        assert capsys.readouterr().out.strip() == "0"
